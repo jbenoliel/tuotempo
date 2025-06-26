@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de Clínica - Segurcaixa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('leads') }}">Clínicas</a></li>
+            <li class="breadcrumb-item active">{{ clinica.nombre_clinica }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fas fa-hospital me-2"></i>
+            {{ clinica.nombre_clinica }}
+        </h1>
+        <div>
+            <a href="{{ url_for('editar_clinica', id=clinica.id) }}" class="btn btn-warning">
+                <i class="fas fa-edit me-1"></i> Editar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Información básica -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Información Básica
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <th style="width: 30%">ID:</th>
+                                <td>{{ clinica.id }}</td>
+                            </tr>
+                            <tr>
+                                <th>Nombre:</th>
+                                <td>{{ clinica.nombre_clinica }}</td>
+                            </tr>
+                            <tr>
+                                <th>Dirección:</th>
+                                <td>{{ clinica.direccion_clinica }}</td>
+                            </tr>
+                            <tr>
+                                <th>Código Postal:</th>
+                                <td>{{ clinica.cp or 'No disponible' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Ciudad:</th>
+                                <td>{{ clinica.ciudad or 'No disponible' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Teléfono:</th>
+                                <td>{{ clinica.telefono }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de cita -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Información de Cita
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <th style="width: 30%">Fecha y hora:</th>
+                                <td>
+                                    {% if clinica.cita %}
+                                        <span class="badge bg-success">{{ clinica.cita_formatted }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No programada</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Estado:</th>
+                                <td>
+                                    {% if clinica.ultimo_estado == 'completed' %}
+                                        <span class="badge bg-success">Completado</span>
+                                    {% elif clinica.ultimo_estado == 'busy' %}
+                                        <span class="badge bg-warning">Ocupado</span>
+                                    {% elif clinica.ultimo_estado == 'no answer' %}
+                                        <span class="badge bg-danger">Sin respuesta</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Sin estado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Pack:</th>
+                                <td>
+                                    {% if clinica.conPack %}
+                                        <span class="badge bg-info">Sí</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de TuoTempo -->
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-link me-2"></i>
+                        Información de TuoTempo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <th style="width: 30%">Area ID:</th>
+                                <td>{{ clinica.area_id or 'No disponible' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Método de coincidencia:</th>
+                                <td>{{ clinica.match_method or 'No disponible' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Puntuación de coincidencia:</th>
+                                <td>
+                                    {% if clinica.match_score %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ clinica.match_score }}%;" aria-valuenow="{{ clinica.match_score }}" aria-valuemin="0" aria-valuemax="100">{{ clinica.match_score }}%</div>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">No disponible</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}

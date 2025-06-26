@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Leads - Segurcaixa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fas fa-user-friends me-2"></i>
+            Leads
+        </h1>
+        <button id="exportarExcel" class="btn btn-success">
+            <i class="fas fa-file-excel me-1"></i> Exportar a Excel
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-filter me-2"></i>
+                Filtros
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('leads') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="search" name="search" value="{{ search }}" placeholder="Nombre, dirección o teléfono">
+                </div>
+                <div class="col-md-3">
+                    <label for="estado" class="form-label">Estado</label>
+                    <select class="form-select" id="estado" name="estado">
+                        <option value="" {% if estado == '' %}selected{% endif %}>Todos</option>
+                        <option value="completed" {% if estado == 'completed' %}selected{% endif %}>Completado</option>
+                        <option value="busy" {% if estado == 'busy' %}selected{% endif %}>Ocupado</option>
+                        <option value="no answer" {% if estado == 'no answer' %}selected{% endif %}>Sin respuesta</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="conPack" class="form-label">Pack</label>
+                    <select class="form-select" id="conPack" name="conPack">
+                        <option value="" {% if con_pack == '' %}selected{% endif %}>Todos</option>
+                        <option value="true" {% if con_pack == 'true' %}selected{% endif %}>Con pack</option>
+                        <option value="false" {% if con_pack == 'false' %}selected{% endif %}>Sin pack</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de leads -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Listado de Leads
+                </h5>
+                <span class="badge bg-primary">{{ clinicas|length }} resultados</span>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if clinicas %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Dirección</th>
+                                <th>Teléfono</th>
+                                <th>Cita</th>
+                                <th>Estado</th>
+                                <th>Pack</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <script>
+  // Recarga la página cada 60 segundos
+  setTimeout(function() {
+    window.location.reload();
+  }, 60000);
+</script>
+                        <tbody>
+                            {% for clinica in clinicas %}
+                                <tr>
+                                    <td>{{ clinica.nombre }} {{ clinica.apellidos }}</td>
+                                    <td>{{ clinica.direccion_clinica }}</td>
+                                    <td>{{ clinica.telefono }}</td>
+                                    <td>
+                                        {% if clinica.cita %}
+                                            <span class="badge bg-success">{{ clinica.cita_formatted }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">No programada</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if clinica.ultimo_estado == 'completed' %}
+                                            <span class="badge bg-success">Completado</span>
+                                        {% elif clinica.ultimo_estado == 'busy' %}
+                                            <span class="badge bg-warning">Ocupado</span>
+                                        {% elif clinica.ultimo_estado == 'no answer' %}
+                                            <span class="badge bg-danger">Sin respuesta</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Sin estado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if clinica.conPack %}
+                                            <span class="badge bg-info">Sí</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('ver_clinica', id=clinica.id) }}" class="btn btn-sm btn-outline-primary" title="Ver detalles">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('editar_clinica', id=clinica.id) }}" class="btn btn-sm btn-outline-warning" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No se encontraron leads con los filtros seleccionados.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Exportar a Excel
+    document.getElementById('exportarExcel').addEventListener('click', function() {
+        fetch('{{ url_for("exportar_excel") }}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.download_url;
+                } else {
+                    alert('Error al exportar: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al exportar a Excel');
+            });
+    });
+</script>
+{% endblock %}

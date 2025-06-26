@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Clínica - Segurcaixa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('leads') }}">Clínicas</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('ver_clinica', id=clinica.id) }}">{{ clinica.nombre_clinica }}</a></li>
+            <li class="breadcrumb-item active">Editar</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4">
+        <i class="fas fa-edit me-2"></i>
+        Editar Clínica
+    </h1>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-pencil-alt me-2"></i>
+                Formulario de Edición
+            </h5>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('editar_clinica', id=clinica.id) }}" method="post">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="nombre_clinica" class="form-label">Nombre de la Clínica</label>
+                        <input type="text" class="form-control" id="nombre_clinica" name="nombre_clinica" value="{{ clinica.nombre_clinica }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" id="telefono" name="telefono" value="{{ clinica.telefono }}" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="direccion_clinica" class="form-label">Dirección</label>
+                    <input type="text" class="form-control" id="direccion_clinica" name="direccion_clinica" value="{{ clinica.direccion_clinica }}" required>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="cp" class="form-label">Código Postal</label>
+                        <input type="text" class="form-control" id="cp" name="cp" value="{{ clinica.cp or '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="ciudad" class="form-label">Ciudad</label>
+                        <input type="text" class="form-control" id="ciudad" name="ciudad" value="{{ clinica.ciudad or '' }}">
+                    </div>
+                </div>
+
+                <hr class="my-4">
+                <h5>Información de Cita</h5>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="cita" class="form-label">Fecha y Hora de Cita</label>
+                        <input type="datetime-local" class="form-control" id="cita" name="cita" value="{{ clinica.cita_input }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="estado" class="form-label">Estado</label>
+                        <select class="form-select" id="estado" name="estado">
+                            <option value="" {% if not clinica.ultimo_estado %}selected{% endif %}>Sin estado</option>
+                            <option value="completed" {% if clinica.ultimo_estado == 'completed' %}selected{% endif %}>Completado</option>
+                            <option value="busy" {% if clinica.ultimo_estado == 'busy' %}selected{% endif %}>Ocupado</option>
+                            <option value="no answer" {% if clinica.ultimo_estado == 'no answer' %}selected{% endif %}>Sin respuesta</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="conPack" name="conPack" {% if clinica.conPack %}checked{% endif %}>
+                    <label class="form-check-label" for="conPack">Incluye Pack</label>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('ver_clinica', id=clinica.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i> Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
