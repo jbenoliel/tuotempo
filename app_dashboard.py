@@ -13,10 +13,10 @@ app.secret_key = "segurcaixa_dashboard_secret_key"
 
 # Configuración de la base de datos
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'Escogido00&Madrid',  # Ajusta según tu configuración
-    'database': 'Segurcaixa',
+    'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST', 'localhost'),
+    'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER', 'root'),
+    'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD', 'Escogido00&Madrid'),
+    'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa'),
     'auth_plugin': 'mysql_native_password'
 }
 

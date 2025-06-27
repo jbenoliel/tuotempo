@@ -6,23 +6,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 def create_connection(include_db=True):
-    """Crear conexión a MySQL"""
+    """Crear conexión a MySQL compatible con Railway y local"""
     try:
+        db_config = {
+            'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST', 'localhost'),
+            'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER', 'root'),
+            'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD', ''),
+            'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT', 3306)),
+            'auth_plugin': 'mysql_native_password'
+        }
         if include_db:
-            connection = mysql.connector.connect(
-                host=os.getenv('MYSQL_HOST', 'localhost'),
-                user=os.getenv('MYSQL_USER', 'root'),
-                password=os.getenv('MYSQL_PASSWORD', ''),
-                database=os.getenv('MYSQL_DATABASE', 'Segurcaixa'),
-                auth_plugin=os.getenv('MYSQL_AUTH_PLUGIN', 'mysql_native_password')
-            )
-        else:
-            connection = mysql.connector.connect(
-                host=os.getenv('MYSQL_HOST', 'localhost'),
-                user=os.getenv('MYSQL_USER', 'root'),
-                password=os.getenv('MYSQL_PASSWORD', ''),
-                auth_plugin=os.getenv('MYSQL_AUTH_PLUGIN', 'mysql_native_password')
-            )
+            db_config['database'] = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', '')
+        connection = mysql.connector.connect(**db_config)
         print("Conexión a MySQL establecida correctamente")
         return connection
     except Error as e:
@@ -191,7 +186,7 @@ def insert_data_from_excel(connection, db_name, excel_path):
 
 def main():
     # Configuración
-    db_name = os.getenv('MYSQL_DATABASE', 'Segurcaixa')
+    db_name = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
     excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\01NP Dental_Piloto_VoiceBot_20250603_TeYame_con_areaId.xlsx"
 
     # Verificar que el Excel existe
