@@ -220,6 +220,13 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // Definir los datos de estados usando tojson ANTES de crear el gráfico
+    const estadosData = {{ [
+        stats.estados.completed|default(0)|int,
+        stats.estados.busy|default(0)|int,
+        stats.estados.no_answer|default(0)|int,
+        stats.estados.sin_estado|default(0)|int
+    ] | tojson }};
     // Gráfico de estados
     const estadosCtx = document.getElementById('estadosChart').getContext('2d');
     const estadosChart = new Chart(estadosCtx, {
@@ -227,12 +234,7 @@
         data: {
             labels: ['Completado', 'Ocupado', 'Sin respuesta', 'Sin estado'],
             datasets: [{
-                data: [
-                    {{ stats.estados.completed }},
-                    {{ stats.estados.busy }},
-                    {{ stats.estados.no_answer }},
-                    {{ stats.estados.sin_estado }}
-                ],
+                data: estadosData,
                 backgroundColor: [
                     '#28a745',
                     '#ffc107',
