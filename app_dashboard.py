@@ -369,6 +369,10 @@ def proponer_citas():
         respuesta = f"Puedo proponer {', '.join(partes[:-1])} o {partes[-1]}. ¿Cuál le viene mejor?"
     return jsonify({"respuesta": respuesta})
 
+@app.route('/test')
+def test():
+    return "¡Funciona en Railway!"
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
