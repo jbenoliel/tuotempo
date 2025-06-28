@@ -12,21 +12,68 @@ app = Flask(__name__)
 app.secret_key = "segurcaixa_dashboard_secret_key"
 
 # Configuración de la base de datos
-DB_CONFIG = {
-    'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST', 'localhost'),
-    'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER', 'root'),
-    'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD', 'Escogido00&Madrid'),
-    'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa'),
-    'auth_plugin': 'mysql_native_password'
-}
+def get_db_config():
+    """Obtener configuración de la BD con mejor manejo de variables de entorno de Railway"""
+    # Imprimir todas las variables de entorno relacionadas con MySQL para depuración
+    print("Variables de entorno MySQL disponibles:")
+    for key in os.environ.keys():
+        if 'MYSQL' in key.upper() or 'DB' in key.upper() or 'DATABASE' in key.upper():
+            # No imprimir la contraseña completa por seguridad
+            value = os.environ[key]
+            if 'PASSWORD' in key.upper() and value:
+                value = value[:3] + '****'
+            print(f"{key}: {value}")
+    
+    # Detectar automáticamente variables de Railway o locales
+    config = {
+        'host': os.environ.get('MYSQLHOST') or os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST') or 'localhost',
+        'user': os.environ.get('MYSQLUSER') or os.environ.get('DATABASE_USER') or os.environ.get('DB_USER') or 'root',
+        'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', ''),
+        'database': os.environ.get('MYSQLDATABASE') or os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME') or 'Segurcaixa',
+    }
+    
+    # Railway también puede proporcionar el puerto
+    if os.environ.get('MYSQLPORT') or os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT'):
+        config['port'] = int(os.environ.get('MYSQLPORT') or os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT'))
+    
+    # Solo agregar auth_plugin si es necesario
+    if os.environ.get('MYSQL_AUTH_PLUGIN'):
+        config['auth_plugin'] = os.environ.get('MYSQL_AUTH_PLUGIN')
+    
+    print(f"Configuración MySQL final: {config}")
+    return config
+
+DB_CONFIG = get_db_config()
 
 def get_db_connection():
     """Establece conexión con la base de datos MySQL"""
     try:
+        print("Intentando conectar a MySQL con configuración:")
+        # No mostrar la contraseña completa en los logs
+        safe_config = DB_CONFIG.copy()
+        if 'password' in safe_config and safe_config['password']:
+            safe_config['password'] = safe_config['password'][:3] + '****'
+        print(f"Config: {safe_config}")
+        
         connection = mysql.connector.connect(**DB_CONFIG)
+        print("¡Conexión exitosa a MySQL!")
         return connection
     except Error as e:
         print(f"Error al conectar a MySQL: {e}")
+        print(f"Código de error: {e.errno} - {e.__class__.__name__}")
+        
+        # Sugerencias basadas en errores comunes
+        if e.errno == 2003:  # Can't connect to server
+            print("SUGERENCIA: No se puede conectar al servidor MySQL. Verifica:")
+            print("1. La dirección del host es correcta")
+            print("2. El puerto es correcto")
+            print("3. El servidor MySQL está en ejecución")
+            print("4. No hay un firewall bloqueando la conexión")
+        elif e.errno == 1045:  # Access denied
+            print("SUGERENCIA: Acceso denegado. Verifica usuario y contraseña.")
+        elif e.errno == 1049:  # Unknown database
+            print("SUGERENCIA: La base de datos no existe. Créala primero.")
+            
         return None
 
 @app.route('/')
