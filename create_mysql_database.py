@@ -8,15 +8,35 @@ load_dotenv()
 def create_connection(include_db=True):
     """Crear conexión a MySQL compatible con Railway y local"""
     try:
+        # Configuración básica
         db_config = {
             'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST', 'localhost'),
             'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER', 'root'),
             'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD', ''),
             'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT', 3306)),
-            'auth_plugin': 'mysql_native_password'
         }
+        
+        # Determinar qué base de datos usar
         if include_db:
-            db_config['database'] = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', '')
+            # En Railway, usar 'railway' como base de datos predeterminada
+            if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal':
+                db_config['database'] = os.environ.get('MYSQL_DATABASE') or 'railway'
+                print(f"Usando base de datos de Railway: {db_config['database']}")
+            else:
+                # En local, usar Segurcaixa
+                db_config['database'] = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
+                print(f"Usando base de datos local: {db_config['database']}")
+        
+        # Solo agregar auth_plugin si es necesario
+        if os.environ.get('MYSQL_AUTH_PLUGIN'):
+            db_config['auth_plugin'] = os.environ.get('MYSQL_AUTH_PLUGIN')
+            
+        # Imprimir configuración (ocultando contraseña)
+        safe_config = db_config.copy()
+        if 'password' in safe_config and safe_config['password']:
+            safe_config['password'] = safe_config['password'][:3] + '****'
+        print(f"Configuración de conexión: {safe_config}")
+        
         connection = mysql.connector.connect(**db_config)
         print("Conexión a MySQL establecida correctamente")
         return connection
@@ -201,8 +221,13 @@ def download_excel_from_url(url, save_path):
         return False
 
 def main():
-    # Configuración
-    db_name = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
+    # Determinar qué base de datos usar
+    if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal':
+        db_name = os.environ.get('MYSQL_DATABASE') or 'railway'
+        print(f"Configurando base de datos en Railway: {db_name}")
+    else:
+        db_name = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
+        print(f"Configurando base de datos local: {db_name}")
     
     # Opciones para obtener el Excel
     excel_url = os.environ.get('EXCEL_URL', '')

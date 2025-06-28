@@ -29,8 +29,14 @@ def get_db_config():
         'host': os.environ.get('MYSQLHOST') or os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST') or 'localhost',
         'user': os.environ.get('MYSQLUSER') or os.environ.get('DATABASE_USER') or os.environ.get('DB_USER') or 'root',
         'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', ''),
-        'database': os.environ.get('MYSQLDATABASE') or os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME') or 'Segurcaixa',
     }
+    
+    # En Railway, usar la base de datos predeterminada 'railway' si estamos en ese entorno
+    if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal':
+        config['database'] = os.environ.get('MYSQL_DATABASE') or 'railway'
+    else:
+        # En entorno local, usar Segurcaixa
+        config['database'] = os.environ.get('MYSQLDATABASE') or os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME') or 'Segurcaixa'
     
     # Railway también puede proporcionar el puerto
     if os.environ.get('MYSQLPORT') or os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT'):
