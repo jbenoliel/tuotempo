@@ -8,23 +8,39 @@ load_dotenv()
 def create_connection(include_db=True):
     """Crear conexión a MySQL compatible con Railway y local"""
     try:
+        # Imprimir todas las variables de entorno relacionadas con MySQL para depurar
+        print("Variables de entorno MySQL disponibles:")
+        for key, value in os.environ.items():
+            if 'MYSQL' in key.upper() or 'DB_' in key.upper() or 'DATABASE' in key.upper():
+                # Ocultar parte de la contraseña por seguridad
+                if 'PASSWORD' in key.upper() and value:
+                    masked_value = value[:3] + '****'
+                    print(f"{key}: {masked_value}")
+                else:
+                    print(f"{key}: {value}")
+        
         # Configuración básica
         db_config = {
-            'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST', 'localhost'),
-            'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER', 'root'),
-            'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD', ''),
-            'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT', 3306)),
+            'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST') or 
+                   os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST') or 'localhost',
+            'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER') or 
+                   os.environ.get('DATABASE_USER') or os.environ.get('DB_USER') or 'root',
+            'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD') or 
+                       os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', ''),
+            'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT') or 
+                       os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT') or 3306),
         }
         
         # Determinar qué base de datos usar
         if include_db:
             # En Railway, usar 'railway' como base de datos predeterminada
-            if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal':
-                db_config['database'] = os.environ.get('MYSQL_DATABASE') or 'railway'
+            if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal' or os.environ.get('MYSQL_HOST') == 'mysql.railway.internal':
+                db_config['database'] = os.environ.get('MYSQL_DATABASE') or os.environ.get('MYSQLDATABASE') or 'railway'
                 print(f"Usando base de datos de Railway: {db_config['database']}")
             else:
                 # En local, usar Segurcaixa
-                db_config['database'] = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
+                db_config['database'] = (os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE') or 
+                                       os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME') or 'Segurcaixa')
                 print(f"Usando base de datos local: {db_config['database']}")
         
         # Solo agregar auth_plugin si es necesario
