@@ -5,6 +5,9 @@ import pandas as pd
 from datetime import datetime
 import os
 import logging
+import requests
+from io import BytesIO
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = "segurcaixa_dashboard_secret_key"
+
+# URL del archivo Excel en GitHub
+EXCEL_URL = "https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx"
 
 # Configuración de la base de datos
 def get_db_config():
@@ -512,6 +518,173 @@ def init_database():
     except Exception as e:
         logger.error(f"Error en init_database: {e}")
         return False
+
+def load_excel_data(connection, excel_url):
+    """Carga datos desde un archivo Excel a la tabla leads"""
+    try:
+        logger.info(f"Descargando Excel desde URL: {excel_url}")
+        response = requests.get(excel_url)
+        if response.status_code != 200:
+            logger.error(f"Error al descargar el Excel: {response.status_code}")
+            return False
+        
+        excel_data = response.content
+        
+        # Leer el Excel desde los bytes descargados
+        df = pd.read_excel(BytesIO(excel_data))
+        logger.info(f"Excel leído exitosamente. {len(df)} filas encontradas.")
+        
+        # Truncar la tabla para evitar duplicados
+        cursor = connection.cursor()
+        logger.info("Truncando tabla leads...")
+        cursor.execute("TRUNCATE TABLE leads")
+        
+        # Preparar los datos para inserción
+        records = []
+        for _, row in df.iterrows():
+            nombre = str(row.get('NOMBRE', ''))
+            apellidos = str(row.get('APELLIDOS', ''))
+            # Extraer código postal y ciudad de la dirección si es posible
+            direccion = str(row.get('DIRECCION_CLINICA', ''))
+            codigo_postal = ''
+            ciudad = ''
+            
+            # Intentar extraer código postal (formato español: 5 dígitos)
+            cp_match = re.search(r'\b\d{5}\b', direccion)
+            if cp_match:
+                codigo_postal = cp_match.group(0)
+            
+            # Columnas telefónicas comunes en Excel
+            telefono_columns = ['TELEFONO', 'TELÉFONO', 'TLF', 'TEL', 'PHONE']
+            telefono = ''
+            for col in telefono_columns:
+                if col in df.columns and pd.notna(row.get(col)):
+                    telefono = str(row.get(col))
+                    break
+            
+            # Buscar columna de fecha de cita si existe
+            cita_columns = ['FECHA_CITA', 'CITA', 'FECHA', 'DATE']
+            cita_value = None
+            for col in cita_columns:
+                if col in df.columns and pd.notna(row.get(col)):
+                    cita_value = row.get(col)
+                    break
+            
+            # Buscar columna de pack si existe
+            pack_columns = ['PACK', 'CONPACK', 'CON_PACK']
+            pack_value = False
+            for col in pack_columns:
+                if col in df.columns and pd.notna(row.get(col)):
+                    # Convertir a booleano (True si es 1, 'SI', 'S', 'TRUE', etc.)
+                    pack_str = str(row.get(col)).strip().upper()
+                    pack_value = pack_str in ['1', 'TRUE', 'SI', 'S', 'YES', 'Y', 'VERDADERO', 'V']
+                    break
+            
+            # Buscar columna de estado si existe
+            estado_columns = ['ESTADO', 'STATUS', 'ULTIMO_ESTADO']
+            estado_value = None
+            for col in estado_columns:
+                if col in df.columns and pd.notna(row.get(col)):
+                    estado_str = str(row.get(col)).strip().lower()
+                    # Normalizar valores de estado
+                    if 'no answer' in estado_str or 'noanswer' in estado_str or 'no' in estado_str:
+                        estado_value = 'no answer'
+                    elif 'busy' in estado_str or 'ocupado' in estado_str:
+                        estado_value = 'busy'
+                    elif 'complete' in estado_str or 'completado' in estado_str or 'finalizado' in estado_str:
+                        estado_value = 'completed'
+                    break
+            
+            record = (
+                nombre,
+                apellidos,
+                row.get('NOMBRE_CLINICA', ''),
+                direccion,
+                codigo_postal,
+                ciudad,
+                telefono,
+                row.get('areaId', ''),
+                row.get('match_source', ''),
+                row.get('match_confidence', 0),
+                cita_value,
+                pack_value,
+                estado_value
+            )
+            records.append(record)
+        
+        # Insertar los datos
+        insert_query = """
+        INSERT INTO leads (
+            nombre, apellidos, nombre_clinica, direccion_clinica, codigo_postal, ciudad, telefono, 
+            area_id, match_source, match_confidence, cita, conPack, ultimo_estado
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        logger.info(f"Insertando {len(records)} registros en la tabla leads...")
+        cursor.executemany(insert_query, records)
+        connection.commit()
+        
+        logger.info(f"Se insertaron {cursor.rowcount} registros en la tabla 'leads'")
+        
+        # Verificar que se insertaron los datos
+        cursor.execute("SELECT COUNT(*) FROM leads")
+        count = cursor.fetchone()[0]
+        logger.info(f"Total registros en leads después de la inserción: {count}")
+        
+        cursor.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error al cargar datos: {e}")
+        return False
+
+@app.route('/admin/load-excel')
+def admin_load_excel():
+    """Endpoint para cargar datos del Excel a la base de datos"""
+    try:
+        # Usar la configuración de la base de datos
+        config = get_db_config()
+        
+        # Conectar a la base de datos
+        connection = mysql.connector.connect(**config)
+        
+        # Verificar si la tabla leads ya existe
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM leads")
+            count = cursor.fetchone()[0]
+            logger.info(f"La tabla 'leads' existe. Total registros: {count}")
+        except mysql.connector.Error as err:
+            if err.errno == 1146:  # Table doesn't exist
+                logger.info("La tabla 'leads' no existe. Inicializando la base de datos...")
+                cursor.close()
+                connection.close()
+                # Inicializar la base de datos primero
+                if not init_database():
+                    return jsonify({'success': False, 'message': 'Error al inicializar la base de datos'}), 500
+                
+                # Reconectar
+                connection = mysql.connector.connect(**config)
+            else:
+                logger.error(f"Error al verificar tabla leads: {err}")
+                return jsonify({'success': False, 'message': f'Error de base de datos: {err}'}), 500
+        
+        # Cargar datos del Excel
+        success = load_excel_data(connection, EXCEL_URL)
+        connection.close()
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': 'Datos cargados exitosamente del Excel a la tabla leads'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'message': 'Error al cargar datos del Excel'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error en admin_load_excel: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Inicializar la base de datos al arrancar la aplicación
 init_database()
