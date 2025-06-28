@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Base de Datos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            background-color: #f8f9fa;
+        }
+        .setup-card {
+            max-width: 800px;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-setup {
+            width: 100%;
+        }
+        .alert {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card setup-card">
+            <div class="card-header text-center py-3">
+                <h2>Configuración de Base de Datos Railway</h2>
+            </div>
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="mb-4">
+                    <h4>Instrucciones:</h4>
+                    <p>Este proceso configurará la base de datos MySQL en Railway con los datos de las clínicas.</p>
+                    <p>Asegúrate de que las siguientes variables de entorno estén configuradas en Railway:</p>
+                    <ul>
+                        <li><strong>MYSQLHOST</strong>: Host de la base de datos MySQL</li>
+                        <li><strong>MYSQLUSER</strong>: Usuario de MySQL</li>
+                        <li><strong>MYSQLPASSWORD</strong>: Contraseña de MySQL</li>
+                        <li><strong>MYSQLDATABASE</strong>: Nombre de la base de datos (por defecto: Segurcaixa)</li>
+                        <li><strong>EXCEL_URL</strong>: URL del archivo Excel con los datos (opcional)</li>
+                    </ul>
+                </div>
+
+                <form action="{{ url_for('setup_database') }}" method="post">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg btn-setup">
+                            Configurar Base de Datos
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-4">
+                    <div class="alert alert-info">
+                        <h5>Nota:</h5>
+                        <p>Este proceso:</p>
+                        <ol>
+                            <li>Creará la base de datos si no existe</li>
+                            <li>Creará las tablas necesarias</li>
+                            <li>Importará los datos desde el archivo Excel</li>
+                        </ol>
+                        <p><strong>Importante:</strong> Si la base de datos ya existe, los datos serán reemplazados.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <a href="/" class="btn btn-secondary">Volver al Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

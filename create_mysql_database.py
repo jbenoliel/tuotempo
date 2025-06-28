@@ -184,14 +184,42 @@ def insert_data_from_excel(connection, db_name, excel_path):
         print(f"Error general: {e}")
         return False
 
+def download_excel_from_url(url, save_path):
+    """Descargar Excel desde una URL"""
+    try:
+        import requests
+        print(f"Descargando Excel desde: {url}")
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        with open(save_path, 'wb') as f:
+            f.write(response.content)
+        print(f"Excel descargado correctamente a: {save_path}")
+        return True
+    except Exception as e:
+        print(f"Error al descargar el Excel: {e}")
+        return False
+
 def main():
     # Configuración
     db_name = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'Segurcaixa')
-    excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\01NP Dental_Piloto_VoiceBot_20250603_TeYame_con_areaId.xlsx"
-
+    
+    # Opciones para obtener el Excel
+    excel_url = os.environ.get('EXCEL_URL', '')
+    excel_path = os.environ.get('EXCEL_PATH', r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\01NP Dental_Piloto_VoiceBot_20250603_TeYame_con_areaId.xlsx")
+    
+    # Si estamos en Railway y tenemos URL, descargar el Excel
+    if excel_url and ('RAILWAY_ENVIRONMENT' in os.environ or not os.path.exists(excel_path)):
+        temp_excel_path = '/tmp/datos_clinicas.xlsx'
+        if not download_excel_from_url(excel_url, temp_excel_path):
+            print("No se pudo descargar el Excel. Abortando.")
+            return
+        excel_path = temp_excel_path
+    
     # Verificar que el Excel existe
     if not os.path.exists(excel_path):
         print(f"Error: No se encuentra el archivo Excel en {excel_path}")
+        print("Por favor, configura EXCEL_URL o EXCEL_PATH en las variables de entorno.")
         return
 
     # 1. Conexión SIN base de datos para crearla
