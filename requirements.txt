@@ -3,3 +3,5 @@ python-dotenv==1.0.0
 flask==2.3.3
 gunicorn==21.2.0
 waitress==2.1.2
+mysql-connector-python==8.2.0
+pandas==2.1.2
