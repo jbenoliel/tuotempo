@@ -7,15 +7,19 @@ from app_dashboard import app
 try:
     from api_resultado_llamada import app as api_resultado_app
     
-    # Registrar todas las rutas de api_resultado_llamada en la app principal
+    # Registrar solo las rutas de la API (evitando 'static')
     for rule in api_resultado_app.url_map.iter_rules():
+        # Saltamos la ruta 'static' para evitar conflictos
+        if rule.endpoint == 'static':
+            continue
+            
         # Obtener la vista (función) asociada a la ruta
         view_func = api_resultado_app.view_functions[rule.endpoint]
         
-        # Registrar la ruta en la app principal
+        # Registrar la ruta en la app principal con un prefijo para evitar conflictos
         app.add_url_rule(
-            rule.rule,
-            endpoint=rule.endpoint,
+            rule.rule,  # La regla ya incluye el prefijo /api
+            endpoint=f"api_{rule.endpoint}",  # Prefijo para evitar conflictos de nombres
             view_func=view_func,
             methods=rule.methods
         )
