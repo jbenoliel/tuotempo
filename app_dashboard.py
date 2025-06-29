@@ -480,6 +480,25 @@ def init_database():
         except Exception as err:
             logger.error(f"Error creando o cargando clínicas: {err}")
 
+        # Asegurar columna para almacenar resultado de la llamada en leads
+        try:
+            cursor.execute("SHOW COLUMNS FROM leads LIKE 'resultado_llamada'")
+            if cursor.fetchone() is None:
+                cursor.execute(
+                    "ALTER TABLE leads ADD COLUMN resultado_llamada "
+                    "ENUM('volver a marcar','no interesado','cita sin pack','cita con pack') NULL"
+                )
+                logger.info("Columna 'resultado_llamada' añadida a la tabla 'leads'")
+            # Asegurar columna telefono2
+            cursor.execute("SHOW COLUMNS FROM leads LIKE 'telefono2'")
+            if cursor.fetchone() is None:
+                cursor.execute(
+                    "ALTER TABLE leads ADD COLUMN telefono2 VARCHAR(20) NULL"
+                )
+                logger.info("Columna 'telefono2' añadida a la tabla 'leads'")
+        except Exception as err:
+            logger.error(f"Error asegurando columnas en leads: {err}")
+
         # Cerrar conexión
         cursor.close()
         connection.close()
@@ -531,13 +550,9 @@ def load_excel_data(connection, excel_url):
             if cp_match:
                 codigo_postal = cp_match.group(0)
             
-            # Columnas telefónicas comunes en Excel
-            telefono_columns = ['TELEFONO', 'TELÉFONO', 'TLF', 'TEL', 'PHONE']
-            telefono = ''
-            for col in telefono_columns:
-                if col in df.columns and pd.notna(row.get(col)):
-                    telefono = str(row.get(col))
-                    break
+            # Asignar teléfonos exactamente según columnas
+            telefono = str(row.get('TELEFONO1', '')).strip() if 'TELEFONO1' in df.columns and pd.notna(row.get('TELEFONO1', '')) else ''
+            telefono2 = str(row.get('TELEFONO2', '')).strip() if 'TELEFONO2' in df.columns and pd.notna(row.get('TELEFONO2', '')) else ''
             
             # Buscar columna de fecha de cita si existe
             cita_columns = ['FECHA_CITA', 'CITA', 'FECHA', 'DATE']
@@ -580,6 +595,7 @@ def load_excel_data(connection, excel_url):
                 codigo_postal,
                 ciudad,
                 telefono,
+                telefono2,
                 row.get('areaId', ''),
                 row.get('match_source', ''),
                 row.get('match_confidence', 0),
@@ -592,9 +608,9 @@ def load_excel_data(connection, excel_url):
         # Insertar los datos
         insert_query = """
         INSERT INTO leads (
-            nombre, apellidos, nombre_clinica, direccion_clinica, codigo_postal, ciudad, telefono, 
+            nombre, apellidos, nombre_clinica, direccion_clinica, codigo_postal, ciudad, telefono, telefono2,
             area_id, match_source, match_confidence, cita, conPack, ultimo_estado
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         logger.info(f"Insertando {len(records)} registros en la tabla leads...")
@@ -660,6 +676,34 @@ def admin_load_excel():
     except Exception as e:
         logger.error(f"Error en admin_load_excel: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/recargar-excel')
+def recargar_excel_endpoint():
+    """Endpoint para recargar datos del Excel usando el script centralizado"""
+    try:
+        # Importamos aquí para evitar referencias circulares
+        from recargar_excel import recargar_excel
+        
+        # Llamamos a la función centralizada
+        success, message = recargar_excel()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+    except Exception as e:
+        logger.error(f"Error al recargar Excel: {e}")
+        return jsonify({
+            'success': False,
+            'message': f"Error al recargar Excel: {str(e)}"
+        }), 500
 
 # Inicializar la base de datos al arrancar la aplicación
 init_database()
