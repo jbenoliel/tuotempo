@@ -10,24 +10,104 @@ from io import BytesIO
 import re
 from dotenv import load_dotenv
 
-from config import settings
-from db import get_connection
-
 load_dotenv()
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = settings.SECRET_KEY
+app.secret_key = "segurcaixa_dashboard_secret_key"
 
 # URL del archivo Excel en GitHub
-EXCEL_URL = (
-    "https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx"
-    "?v=" + str(datetime.now().timestamp())
-)
+EXCEL_URL = "https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx?v=" + str(datetime.now().timestamp())
+
+# Configuración de la base de datos
+def get_db_config():
+    """Obtener configuración de la BD con mejor manejo de variables de entorno de Railway"""
+    # Imprimir todas las variables de entorno relacionadas con MySQL para depuración
+    print("Variables de entorno MySQL disponibles:")
+    for key in os.environ.keys():
+        if 'MYSQL' in key.upper() or 'DB' in key.upper() or 'DATABASE' in key.upper():
+            # No imprimir la contraseña completa por seguridad
+            value = os.environ[key]
+            if 'PASSWORD' in key.upper() and value:
+                value = value[:3] + '****'
+            print(f"{key}: {value}")
+    
+    # Imprimir todas las variables de entorno relacionadas con MySQL para depurar
+    print("Variables de entorno MySQL disponibles:")
+    for key, value in os.environ.items():
+        if 'MYSQL' in key.upper() or 'DB_' in key.upper() or 'DATABASE' in key.upper():
+            # Ocultar parte de la contraseña por seguridad
+            if 'PASSWORD' in key.upper() and value:
+                masked_value = value[:3] + '****'
+                print(f"{key}: {masked_value}")
+            else:
+                print(f"{key}: {value}")
+    
+    # Detectar automáticamente variables de Railway o locales (incluyendo MYSQL_ prefix)
+    config = {
+        'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST') or 
+               os.environ.get('DATABASE_HOST') or os.environ.get('DB_HOST') or 'localhost',
+        'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER') or 
+               os.environ.get('DATABASE_USER') or os.environ.get('DB_USER') or 'root',
+        'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD') or 
+                   os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', ''),
+    }
+    
+    # En Railway, usar la base de datos predeterminada 'railway' si estamos en ese entorno
+    if 'RAILWAY_ENVIRONMENT' in os.environ or os.environ.get('MYSQLHOST') == 'mysql.railway.internal' or os.environ.get('MYSQL_HOST') == 'mysql.railway.internal':
+        config['database'] = os.environ.get('MYSQL_DATABASE') or os.environ.get('MYSQLDATABASE') or 'railway'
+    else:
+        # En entorno local, usar Segurcaixa
+        config['database'] = (os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE') or 
+                            os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME') or 'Segurcaixa')
+    
+    # Railway también puede proporcionar el puerto
+    if os.environ.get('MYSQLPORT') or os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT'):
+        config['port'] = int(os.environ.get('MYSQLPORT') or os.environ.get('DATABASE_PORT') or os.environ.get('DB_PORT'))
+    
+    # Solo agregar auth_plugin si es necesario
+    if os.environ.get('MYSQL_AUTH_PLUGIN'):
+        config['auth_plugin'] = os.environ.get('MYSQL_AUTH_PLUGIN')
+    
+    print(f"Configuración MySQL final: {config}")
+    return config
+
+DB_CONFIG = get_db_config()
+
+def get_db_connection():
+    """Establece conexión con la base de datos MySQL"""
+    try:
+        print("Intentando conectar a MySQL con configuración:")
+        # No mostrar la contraseña completa en los logs
+        safe_config = DB_CONFIG.copy()
+        if 'password' in safe_config and safe_config['password']:
+            safe_config['password'] = safe_config['password'][:3] + '****'
+        print(f"Config: {safe_config}")
+        
+        connection = mysql.connector.connect(**DB_CONFIG)
+        print("¡Conexión exitosa a MySQL!")
+        return connection
+    except Error as e:
+        print(f"Error al conectar a MySQL: {e}")
+        print(f"Código de error: {e.errno} - {e.__class__.__name__}")
+        
+        # Sugerencias basadas en errores comunes
+        if e.errno == 2003:  # Can't connect to server
+            print("SUGERENCIA: No se puede conectar al servidor MySQL. Verifica:")
+            print("1. La dirección del host es correcta")
+            print("2. El puerto es correcto")
+            print("3. El servidor MySQL está en ejecución")
+            print("4. No hay un firewall bloqueando la conexión")
+        elif e.errno == 1045:  # Access denied
+            print("SUGERENCIA: Acceso denegado. Verifica usuario y contraseña.")
+        elif e.errno == 1049:  # Unknown database
+            print("SUGERENCIA: La base de datos no existe. Créala primero.")
+            
+        return None
 
 @app.route('/')
 def index():
@@ -44,7 +124,7 @@ def leads():
     estado = request.args.get('estado', '')
     con_pack = request.args.get('conPack', '')
     
-    conn = get_connection()
+    conn = get_db_connection()
     if not conn:
         flash("Error de conexión a la base de datos", "danger")
         return render_template('leads.html', leads=[], search=search, estado=estado, con_pack=con_pack)
@@ -97,7 +177,7 @@ def leads():
 @app.route('/clinica/<int:id>')
 def ver_clinica(id):
     """Ver detalles de una clínica específica"""
-    conn = get_connection()
+    conn = get_db_connection()
     if not conn:
         flash("Error de conexión a la base de datos", "danger")
         return redirect(url_for('leads'))
@@ -140,7 +220,7 @@ def editar_clinica(id):
         con_pack = 'conPack' in request.form
         estado = request.form.get('estado')
         
-        conn = get_connection()
+        conn = get_db_connection()
         if not conn:
             flash("Error de conexión a la base de datos", "danger")
             return redirect(url_for('leads'))
@@ -214,7 +294,7 @@ def editar_clinica(id):
 @app.route('/exportar_excel')
 def exportar_excel():
     """Exportar datos a Excel"""
-    conn = get_connection()
+    conn = get_db_connection()
     if not conn:
         flash("Error de conexión a la base de datos", "danger")
         return redirect(url_for('leads'))
@@ -264,7 +344,7 @@ def get_statistics():
         }
     }
     
-    conn = get_connection()
+    conn = get_db_connection()
     if not conn:
         return stats
     
@@ -373,34 +453,20 @@ def proponer_citas():
 def test():
     return "¡Funciona en Railway!"
 
-@app.route('/api/clinica/code', methods=['GET'])
-def buscar_codigo_clinica():
-    """Buscar el código de una clínica por nombre o dirección."""
-    q = request.args.get('q', '').strip()
-    if not q:
-        return jsonify({'error': 'Debe proporcionar parámetro q'}), 400
-    conn = get_connection()
-    if not conn:
-        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
-    try:
-        cursor = conn.cursor(dictionary=True)
-        sql = (
-            "SELECT areaid AS code, areaTitle AS nombre, address "
-            "FROM clinicas WHERE areaTitle LIKE %s OR address LIKE %s"
-        )
-        like_param = f"%{q}%"
-        cursor.execute(sql, (like_param, like_param))
-        resultados = cursor.fetchall()
-        return jsonify({'results': resultados})
-    finally:
-        cursor.close()
-        conn.close()
-
 def init_database():
     """Inicializa la base de datos y crea las tablas necesarias si no existen"""
     try:
+        # Usar la configuración de la base de datos
+        config = get_db_config()
+        
+        # Mostrar configuración (ocultando contraseña)
+        safe_config = config.copy()
+        if 'password' in safe_config and safe_config['password']:
+            safe_config['password'] = safe_config['password'][:3] + '****' if len(safe_config['password']) > 3 else '****'
+        logger.info(f"Intentando conectar a MySQL con configuración: {safe_config}")
+        
         # Conectar a la base de datos
-        connection = get_connection()
+        connection = mysql.connector.connect(**config)
         logger.info("¡Conexión exitosa a MySQL!")
         cursor = connection.cursor()
         
@@ -438,45 +504,16 @@ def init_database():
                 logger.error(f"Error al verificar tabla leads: {err}")
                 raise
         
-        # Verificar tablas disponibles y crear/clasificar tabla 'clinicas'
+        # Verificar tablas disponibles
         cursor.execute("SHOW TABLES")
         tables = [table[0] for table in cursor]
         logger.info(f"Tablas disponibles en la base de datos: {tables}")
-
-        # Crear tabla 'clinicas' si no existe y cargar desde Excel si está vacía
-        try:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS clinicas (
-                    areaid VARCHAR(255) PRIMARY KEY,
-                    areaTitle VARCHAR(255),
-                    address TEXT,
-                    cp VARCHAR(10),
-                    city VARCHAR(100),
-                    province VARCHAR(100)
-                )
-                """
-            )
-            logger.info("Tabla 'clinicas' creada correctamente o ya existía")
-            cursor.execute("SELECT COUNT(*) FROM clinicas")
-            count_clinicas = cursor.fetchone()[0]
-            if count_clinicas == 0:
-                df = pd.read_excel('centros_exportados.xlsx')
-                records = df[['areaid', 'areaTitle', 'address', 'cp', 'city', 'province']].astype(str).values.tolist()
-                insert_q = (
-                    "INSERT INTO clinicas (areaid, areaTitle, address, cp, city, province)"
-                    " VALUES (%s, %s, %s, %s, %s, %s)"
-                )
-                cursor.executemany(insert_q, records)
-                connection.commit()
-                logger.info(f"Cargadas {len(records)} clínicas en la tabla 'clinicas'.")
-        except Exception as err:
-            logger.error(f"Error creando o cargando clínicas: {err}")
-
+        
         # Cerrar conexión
         cursor.close()
         connection.close()
         logger.info("Conexión cerrada")
+        
         return True
     except Exception as e:
         logger.error(f"Error en init_database: {e}")
@@ -612,8 +649,11 @@ def load_excel_data(connection, excel_url):
 def admin_load_excel():
     """Endpoint para cargar datos del Excel a la base de datos"""
     try:
+        # Usar la configuración de la base de datos
+        config = get_db_config()
+        
         # Conectar a la base de datos
-        connection = get_connection()
+        connection = mysql.connector.connect(**config)
         
         # Verificar si la tabla leads ya existe
         cursor = connection.cursor()
@@ -631,7 +671,7 @@ def admin_load_excel():
                     return jsonify({'success': False, 'message': 'Error al inicializar la base de datos'}), 500
                 
                 # Reconectar
-                connection = get_connection()
+                connection = mysql.connector.connect(**config)
             else:
                 logger.error(f"Error al verificar tabla leads: {err}")
                 return jsonify({'success': False, 'message': f'Error de base de datos: {err}'}), 500

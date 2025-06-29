@@ -20,15 +20,9 @@ La documentación completa de todos los métodos está disponible en [https://ap
 pip install -r requirements.txt
 ```
 
-3. Crear un archivo `.env` basado en `.env.example` e indicar al menos:
+3. (Opcional) Crear un archivo `.env` con la siguiente configuración:
 
-```text
-SECRET_KEY=<valor seguro para Flask>
-MYSQL_HOST=<host MySQL>
-MYSQL_USER=<usuario MySQL>
-MYSQL_PASSWORD=<contraseña MySQL>
-MYSQL_DATABASE=<nombre BD>
-MYSQL_PORT=<puerto MySQL>
+```
 TUOTEMPO_INSTANCE_ID=tt_portal_adeslas
 ```
 
@@ -155,42 +149,10 @@ waitress-serve --port=5000 app:app
 - `GET /slots?area_id=XXX&start_date=DD/MM/YYYY` - Obtiene huecos disponibles
 - `POST /register` - Registra un usuario no asegurado
 - `POST /confirm` - Confirma una cita
-- `GET /api/clinica/code?q=<texto>` - Devuelve el código de clínicas cuyo nombre o dirección contenga `<texto>`
 
 ### 3. Despliegue en la nube
 
 Para desplegar en servicios cloud:
-
-#### Railway
-
-```bash
-# Instalar CLI de Railway e iniciar sesión
-railway login
-
-# Crear proyecto y servicio MySQL en Railway
-railway init
-railway addon create mysql
-
-# Configurar variables de entorno (Environment Variables) en el panel de Railway:
-# SECRET_KEY, MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, MYSQL_PORT
-
-# Desplegar al repositorio remoto
-git push railway main
-
-### Carga de datos desde Excel
-
-Railway expone un endpoint para importar el Excel en la BD:
-
-```bash
-curl https://<TU_APP_RAILWAY>.up.railway.app/admin/load-excel
-```
-
-Este endpoint descargará el archivo definido en `EXCEL_URL` (GitHub raw) y lo volcará en la tabla `leads`.
-Alternativamente, para correrlo desde la CLI de Railway:
-
-```bash
-railway run python railway_import_data.py https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx
-```
 
 #### Heroku
 
