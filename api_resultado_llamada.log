@@ -77,3 +77,8 @@
 2025-06-29 18:45:36,084 - __main__ - INFO - Iniciando API de Resultado de Llamada...
 2025-06-29 18:45:36,119 - werkzeug - WARNING -  * Debugger is active!
 2025-06-29 18:45:36,127 - werkzeug - INFO -  * Debugger PIN: 488-743-432
+2025-06-29 19:11:04,188 - werkzeug - INFO -  * Detected change in 'C:\\Users\\jbeno\\CascadeProjects\\tuotempo\\app.py', reloading
+2025-06-29 19:11:04,288 - werkzeug - INFO -  * Restarting with stat
+2025-06-29 19:11:04,677 - __main__ - INFO - Iniciando API de Resultado de Llamada...
+2025-06-29 19:11:04,691 - werkzeug - WARNING -  * Debugger is active!
+2025-06-29 19:11:04,694 - werkzeug - INFO -  * Debugger PIN: 488-743-432
