@@ -375,21 +375,28 @@ def test():
 
 @app.route('/api/clinica/code', methods=['GET'])
 def buscar_codigo_clinica():
-    """Buscar el código de una clínica por nombre o dirección."""
+    """Buscar el código de una clínica en función del nombre o de la dirección."""
     q = request.args.get('q', '').strip()
-    if not q:
-        return jsonify({'error': 'Debe proporcionar parámetro q'}), 400
+    campo = request.args.get('campo', '').strip().lower()
+    if not q or campo not in ('nombre', 'direccion'):
+        return (
+            jsonify({
+                'error': 'Debe proporcionar parámetros q y campo (campo=nombre o campo=direccion)'
+            }),
+            400,
+        )
     conn = get_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     try:
         cursor = conn.cursor(dictionary=True)
+        columna = 'areaTitle' if campo == 'nombre' else 'address'
         sql = (
-            "SELECT areaid AS code, areaTitle AS nombre, address "
-            "FROM clinicas WHERE areaTitle LIKE %s OR address LIKE %s"
+            f"SELECT areaid AS code, areaTitle AS nombre, address "
+            f"FROM clinicas WHERE {columna} LIKE %s LIMIT 3"
         )
         like_param = f"%{q}%"
-        cursor.execute(sql, (like_param, like_param))
+        cursor.execute(sql, (like_param,))
         resultados = cursor.fetchall()
         return jsonify({'results': resultados})
     finally:

@@ -156,6 +156,11 @@ waitress-serve --port=5000 app:app
 - `POST /register` - Registra un usuario no asegurado
 - `POST /confirm` - Confirma una cita
 - `GET /api/clinica/code?q=<texto>` - Devuelve el código de clínicas cuyo nombre o dirección contenga `<texto>`
+- `GET /api/clinica/code?q=<texto>&campo=<nombre|direccion>` - Busca el código de hasta **3** clínicas por nombre o por dirección.
+
+  - Parámetros:
+    - `q` : fragmento de texto a buscar
+    - `campo`: `nombre` o `direccion`
 
 ### 3. Despliegue en la nube
 
