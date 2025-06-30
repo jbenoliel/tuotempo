@@ -6,3 +6,5 @@ waitress==2.1.2
 mysql-connector-python==8.2.0
 pandas==2.1.2
 openpyxl==3.1.2
+humanize==4.9.0
+bcrypt==4.1.2

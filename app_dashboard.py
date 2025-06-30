@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 import mysql.connector
 from mysql.connector import Error
 import pandas as pd
@@ -9,6 +9,10 @@ import requests
 from io import BytesIO
 import re
 from dotenv import load_dotenv
+import shutil
+from werkzeug.utils import secure_filename
+import datetime
+import humanize
 
 from config import settings
 from db import get_connection
@@ -23,10 +27,284 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = settings.SECRET_KEY
 
+# --- SISTEMA DE LOGIN Y AUTENTICACIÓN ---
+from functools import wraps
+
+# Decorador para proteger rutas que requieren login
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            flash('Debes iniciar sesión para acceder a esta página', 'danger')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Ruta de login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        # Verificar credenciales
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, username, password_hash FROM usuarios WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if user and bcrypt.checkpw(password.encode(), user['password_hash'].encode()):
+            # Login exitoso
+            session['logged_in'] = True
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            
+            flash('Has iniciado sesión correctamente', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
+        else:
+            error = 'Usuario o contraseña incorrectos'
+    
+    return render_template('login.html', error=error)
+
+# Ruta de logout
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Has cerrado sesión correctamente', 'success')
+    return redirect(url_for('login'))
+
+# Función para exportar la tabla leads a Excel
+def exportar_tabla_leads(connection):
+    """Exporta la tabla leads completa a un archivo Excel
+    
+    Args:
+        connection: Conexión a la base de datos
+        
+    Returns:
+        tuple: (éxito, ruta_archivo o mensaje_error)
+    """
+    try:
+        # Crear directorio data si no existe
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Obtener datos de la tabla leads
+        df = pd.read_sql("SELECT * FROM leads", connection)
+        
+        # Generar nombre de archivo con timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"leads_backup_{timestamp}.xlsx"
+        filepath = os.path.join(data_dir, filename)
+        
+        # Guardar a Excel
+        df.to_excel(filepath, index=False)
+        
+        logger.info(f"Tabla leads exportada a {filepath} con {len(df)} registros")
+        return True, filepath
+    except Exception as e:
+        error_msg = f"Error al exportar tabla leads: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+
+# Endpoint para exportar la tabla leads a Excel (protegido)
+@app.route('/exportar-tabla-leads')
+@login_required
+def exportar_tabla_leads_endpoint():
+    try:
+        connection = get_connection()
+        success, result = exportar_tabla_leads(connection)
+        
+        if success:
+            # Registrar la exportación en el historial
+            filepath = result
+            filename = os.path.basename(filepath)
+            
+            cursor = connection.cursor()
+            cursor.execute(
+                "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
+                (session['user_id'], filename, 0, 'export', f'Se exportaron los datos a {filename}')
+            )
+            connection.commit()
+            cursor.close()
+            
+            flash(f'Datos exportados correctamente a {filename}', 'success')
+        else:
+            flash(f'Error al exportar datos: {result}', 'danger')
+            
+        connection.close()
+        return redirect(url_for('recargar_datos'))
+    except Exception as e:
+        flash(f'Error al exportar datos: {str(e)}', 'danger')
+        return redirect(url_for('recargar_datos'))
+
+# Ruta para recarga de datos (protegida)
+@app.route('/recargar-datos', methods=['GET', 'POST'])
+@login_required
+def recargar_datos():
+    # Crear la carpeta data/ si no existe
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Obtener lista de archivos disponibles
+    archivos = []
+    for filename in os.listdir(data_dir):
+        if filename.endswith(('.xlsx', '.csv')):
+            file_path = os.path.join(data_dir, filename)
+            file_stats = os.stat(file_path)
+            
+            # Formatear tamaño y fecha de modificación
+            try:
+                size_str = humanize.naturalsize(file_stats.st_size)
+                mod_time = datetime.datetime.fromtimestamp(file_stats.st_mtime).strftime('%d/%m/%Y %H:%M')
+            except:
+                size_str = f"{file_stats.st_size} bytes"
+                mod_time = "Desconocido"
+                
+            archivos.append({
+                'nombre': filename,
+                'ruta': file_path,
+                'extension': os.path.splitext(filename)[1],
+                'tamano': size_str,
+                'modificado': mod_time
+            })
+    
+    # Obtener historial de recargas
+    historial = []
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Consulta con JOIN para obtener el nombre de usuario
+        cursor.execute("""
+            SELECT r.*, u.username 
+            FROM recargas r 
+            JOIN usuarios u ON r.usuario_id = u.id 
+            ORDER BY r.fecha DESC 
+            LIMIT 50
+        """)
+        
+        historial = cursor.fetchall()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error al obtener historial de recargas: {e}")
+    
+    # Procesar formulario si es POST
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'recargar_existente':
+            # Recargar desde archivo existente
+            archivo_nombre = request.form.get('archivo')
+            if not archivo_nombre:
+                flash('Debes seleccionar un archivo', 'danger')
+                return redirect(url_for('recargar_datos'))
+            
+            archivo_path = os.path.join(data_dir, archivo_nombre)
+            return ejecutar_recarga(archivo_path)
+            
+        elif action == 'subir_archivo':
+            # Subir nuevo archivo
+            if 'archivo' not in request.files:
+                flash('No se seleccionó ningún archivo', 'danger')
+                return redirect(url_for('recargar_datos'))
+                
+            archivo = request.files['archivo']
+            if archivo.filename == '':
+                flash('No se seleccionó ningún archivo', 'danger')
+                return redirect(url_for('recargar_datos'))
+                
+            if archivo and archivo.filename.endswith(('.xlsx', '.csv')):
+                filename = secure_filename(archivo.filename)
+                filepath = os.path.join(data_dir, filename)
+                archivo.save(filepath)
+                flash(f'Archivo {filename} subido correctamente', 'success')
+                
+                # Recargar inmediatamente si se solicitó
+                if request.form.get('recargar_inmediato'):
+                    return ejecutar_recarga(filepath)
+            else:
+                flash('Formato de archivo no válido. Solo se permiten archivos .xlsx y .csv', 'danger')
+                
+            return redirect(url_for('recargar_datos'))
+    
+    return render_template('recargar_datos.html', archivos=archivos, historial=historial)
+
+# Función auxiliar para ejecutar la recarga de datos
+def ejecutar_recarga(archivo_path):
+    try:
+        # Cargar el archivo en un DataFrame
+        if archivo_path.endswith('.csv'):
+            df = pd.read_csv(archivo_path)
+        else:
+            df = pd.read_excel(archivo_path)
+        
+        # Usar la función centralizada para cargar los datos
+        connection = get_connection()
+        
+        # Truncar la tabla antes de cargar nuevos datos
+        cursor = connection.cursor()
+        logger.info("Truncando tabla leads antes de la recarga...")
+        cursor.execute("TRUNCATE TABLE leads")
+        cursor.close()
+        
+        registros_antes = 0  # Después de truncar, siempre hay 0 registros
+        
+        # Cargar datos usando la función centralizada
+        load_excel_data(connection, df)
+        
+        # Contar registros después para saber cuántos se importaron
+        registros_despues = contar_registros(connection)
+        registros_importados = registros_despues - registros_antes
+        
+        # Registrar la recarga en el historial
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
+            (session['user_id'], os.path.basename(archivo_path), registros_importados, 'ok', f'Se importaron {registros_importados} registros correctamente')
+        )
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        flash(f'Recarga completada. Se importaron {registros_importados} registros.', 'success')
+    except Exception as e:
+        logger.error(f"Error en la recarga de datos: {e}")
+        
+        # Registrar el error en el historial
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
+                (session['user_id'], os.path.basename(archivo_path), 0, 'error', str(e))
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e2:
+            logger.error(f"Error al registrar recarga fallida: {e2}")
+        
+        flash(f'Error en la recarga: {str(e)}', 'danger')
+    
+    return redirect(url_for('recargar_datos'))
+
+# Función auxiliar para contar registros en la tabla leads
+def contar_registros(connection):
+    cursor = connection.cursor()
+    cursor.execute("SELECT COUNT(*) FROM leads")
+    count = cursor.fetchone()[0]
+    cursor.close()
+    return count
+
 # URL del archivo Excel en GitHub
 EXCEL_URL = (
     "https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx"
-    "?v=" + str(datetime.now().timestamp())
+    "?v=" + str(datetime.datetime.now().timestamp())
 )
 
 @app.route('/')
@@ -403,14 +681,58 @@ def buscar_codigo_clinica():
         cursor.close()
         conn.close()
 
-def init_database():
-    """Inicializa la base de datos y crea las tablas necesarias si no existen"""
+import bcrypt
+
+def init_database(recrear=False):
+    """Inicializa la base de datos y crea las tablas necesarias si no existen. Si recrear=True, borra y crea de nuevo las tablas de usuarios y recargas."""
     try:
         # Conectar a la base de datos
         connection = get_connection()
         logger.info("¡Conexión exitosa a MySQL!")
         cursor = connection.cursor()
-        
+
+        # --- RECREAR TABLAS DE USUARIOS Y RECARGAS SI SE SOLICITA ---
+        if recrear:
+            cursor.execute("DROP TABLE IF EXISTS recargas")
+            cursor.execute("DROP TABLE IF EXISTS usuarios")
+            logger.info("Tablas 'usuarios' y 'recargas' eliminadas")
+
+        # --- CREAR TABLA USUARIOS ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        logger.info("Tabla 'usuarios' creada o ya existente")
+
+        # --- CREAR USUARIO ADMIN SI NO EXISTE ---
+        cursor.execute("SELECT id FROM usuarios WHERE username = %s", ("admin",))
+        if cursor.fetchone() is None:
+            password = "Escogido00&Madrid"
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            cursor.execute("INSERT INTO usuarios (username, password_hash) VALUES (%s, %s)", ("admin", password_hash))
+            logger.info("Usuario admin creado")
+
+        # --- CREAR TABLA RECARGAS ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS recargas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                usuario_id INT,
+                archivo VARCHAR(255),
+                registros_importados INT,
+                resultado VARCHAR(20),
+                mensaje TEXT,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        ''')
+        logger.info("Tabla 'recargas' creada o ya existente")
+
+        # (El resto de la función sigue igual...)
+
         # Verificar si la tabla leads ya existe
         try:
             cursor.execute("SELECT COUNT(*) FROM leads")
@@ -506,29 +828,58 @@ def init_database():
         return True
     except Exception as e:
         logger.error(f"Error en init_database: {e}")
+
+# Endpoint para inicializar la base de datos bajo petición
+from flask import request, jsonify
+@app.route('/admin/init-database', methods=['POST'])
+@login_required
+def admin_init_database():
+    recrear = request.args.get('recrear', 'false').lower() == 'true'
+    try:
+        init_database(recrear=recrear)
+        return jsonify({"success": True, "message": "Base de datos inicializada correctamente", "recreado": recrear})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
         return False
 
-def load_excel_data(connection, excel_url):
-    """Carga datos desde un archivo Excel a la tabla leads"""
+def load_excel_data(connection, source):
+    """Carga datos desde un archivo Excel a la tabla leads
+    
+    Args:
+        connection: Conexión a la base de datos
+        source: Puede ser una URL (string) o un DataFrame de pandas ya cargado
+    """
     try:
-        logger.info(f"Descargando Excel desde URL: {excel_url}")
-        try:
-            response = requests.get(excel_url, timeout=30)
-            if response.status_code != 200:
-                error_msg = f"Error al descargar el Excel: {response.status_code}"
+        # Determinar si source es una URL o un DataFrame
+        if isinstance(source, str):
+            # Es una URL, descargar el Excel
+            logger.info(f"Descargando Excel desde URL: {source}")
+            try:
+                response = requests.get(source, timeout=30)
+                if response.status_code != 200:
+                    error_msg = f"Error al descargar el Excel: {response.status_code}"
+                    logger.error(error_msg)
+                    return False, error_msg
+                
+                excel_data = response.content
+                logger.info(f"Excel descargado correctamente: {len(excel_data)} bytes")
+                
+                # Leer el Excel desde los bytes descargados
+                df = pd.read_excel(BytesIO(excel_data))
+            except Exception as download_err:
+                error_msg = f"Error al descargar el archivo: {str(download_err)}"
                 logger.error(error_msg)
                 return False, error_msg
-            
-            excel_data = response.content
-            logger.info(f"Excel descargado correctamente: {len(excel_data)} bytes")
-        except Exception as download_err:
-            error_msg = f"Error al descargar el archivo: {str(download_err)}"
+        elif isinstance(source, pd.DataFrame):
+            # Es un DataFrame ya cargado
+            df = source
+            logger.info(f"DataFrame proporcionado directamente con {len(df)} filas")
+        else:
+            error_msg = f"Tipo de fuente no válido: {type(source)}"
             logger.error(error_msg)
             return False, error_msg
-        
-        # Leer el Excel desde los bytes descargados
-        df = pd.read_excel(BytesIO(excel_data))
-        logger.info(f"Excel leído exitosamente. {len(df)} filas encontradas.")
+            
+        logger.info(f"Excel/DataFrame procesado. {len(df)} filas encontradas.")
         
         # Truncar la tabla para evitar duplicados
         cursor = connection.cursor()
@@ -707,6 +1058,27 @@ def recargar_excel_endpoint():
 
 # Inicializar la base de datos al arrancar la aplicación
 init_database()
+
+# Registrar la API de resultado_llamada directamente en app_dashboard.py
+try:
+    from api_resultado_llamada import status, actualizar_resultado, obtener_resultados
+    
+    # Registrar directamente las funciones de la API
+    app.add_url_rule('/api/status', 'api_status', status, methods=['GET'])
+    app.add_url_rule('/api/actualizar_resultado', 'api_actualizar_resultado', actualizar_resultado, methods=['POST'])
+    app.add_url_rule('/api/obtener_resultados', 'api_obtener_resultados', obtener_resultados, methods=['GET'])
+    
+    logger.info("API de resultado_llamada registrada correctamente en app_dashboard.py")
+    
+    # Listar todas las rutas disponibles para depuración
+    logger.info("=== RUTAS DISPONIBLES EN LA APLICACIÓN ===")
+    for rule in app.url_map.iter_rules():
+        logger.info(f"Ruta: {rule.rule} - Endpoint: {rule.endpoint} - Métodos: {', '.join(rule.methods)}")
+    
+except Exception as e:
+    logger.error(f"Error al registrar API de resultado_llamada en app_dashboard.py: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
