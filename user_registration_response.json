@@ -1,0 +1,28 @@
+{
+  "result": "OK",
+  "return": {
+    "fname": "Jacques",
+    "lname": "Benoliel",
+    "privacy": "1",
+    "phone": "+34629203315",
+    "Onetime_user": "1",
+    "birthday": "17/10/1961",
+    "memberid": "sc1686291dc3d547"
+  },
+  "msg": "",
+  "exception": "",
+  "execution_time": 410,
+  "debug": "",
+  "idnumberMopRegistration": false,
+  "send_vcode_success_msg": null,
+  "translate1": "Hemos enviado un enlace al número <span>*****3315</span>. Utilícelo para establecer una nueva contraseña.",
+  "translate2": "Hemos enviado un nuevo enlace al número <span>*****3315</span>. Utilícelo para establecer una nueva contraseña.",
+  "regPwdMsg": true,
+  "sms": true,
+  "email": false,
+  "waiting": false,
+  "attemptNum": 1,
+  "phone": "+34629203315",
+  "register": true,
+  "net_execution_time": 410
+}

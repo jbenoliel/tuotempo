@@ -1,0 +1,16 @@
+{
+  "access_token": "d36830b3ef2e743b79d5a1157bcff5ad",
+  "token_type": "bearer",
+  "user_info": {
+    "fname": "Jacques",
+    "lname": "Benoliel",
+    "privacy": "1",
+    "birthday": "17/10/1961",
+    "phone": "+34629203315",
+    "onetime_user": "1",
+    "memberid": "6862b33d137c3",
+    "sessionid": "d36830b3ef2e743b79d5a1157bcff5ad"
+  },
+  "execution_time": 134,
+  "net_execution_time": 134
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "start_date": "08/07/2025",
+    "startTime": "16:00",
+    "endTime": "16:20",
+    "resourceid": "sc162460ec697ec8@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "areaid": "default@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "slotid": "0b69dbe4ab300ac03efea5c43adac194"
+  },
+  {
+    "start_date": "08/07/2025",
+    "startTime": "17:00",
+    "endTime": "17:20",
+    "resourceid": "sc162460ec697ec8@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "areaid": "default@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "slotid": "0b69dbe4ab300ac03efea5c43adac195"
+  },
+  {
+    "start_date": "09/07/2025",
+    "startTime": "10:00",
+    "endTime": "10:20",
+    "resourceid": "sc162460ec697ec8@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "areaid": "default@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh",
+    "slotid": "0b69dbe4ab300ac03efea5c43adac196"
+  }
+]

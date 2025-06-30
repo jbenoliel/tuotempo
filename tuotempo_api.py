@@ -30,6 +30,7 @@ class TuoTempoAPI:
         self.base_url = "https://app.tuotempo.com/api/v3"
         self.instance_id = instance_id or os.getenv("TUOTEMPO_INSTANCE_ID", "tt_portal_adeslas")
         self.lang = lang
+        self.environment = environment
         self.headers = {
             "content-type": "application/json; charset=UTF-8"
         }
@@ -213,8 +214,28 @@ class TuoTempoAPI:
         headers = self.headers.copy()
         headers["Authorization"] = f"Bearer {self.api_key}"
         
+        # Debug: mostrar llamada completa
+        print("\n=== DEBUG /reservations ===")
+        print("URL:", url)
+        print("Params:", params)
+        print("Headers:", headers)
+        print("Payload:")
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print("===========================\n")
         response = requests.post(url, headers=headers, params=params, json=payload)
-        return response.json()
+        
+        # Debug: mostrar respuesta completa
+        print("\n=== DEBUG RESPUESTA /reservations ===")
+        print("Status code:", response.status_code)
+        print("Headers:", dict(response.headers))
+        print("Contenido:", response.text[:500] + "..." if len(response.text) > 500 else response.text)
+        print("===========================\n")
+        
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            print(f"Error al decodificar JSON: {e}")
+            return response.text
     
     def handle_error(self, response):
         """

@@ -1,0 +1,95 @@
+{
+  "result": "OK",
+  "return": {
+    "results": {
+      "availabilities": [],
+      "unavailabilities": []
+    }
+  },
+  "msg": "<b>No se ha encontrado ninguna disponibilidad que coincida con todos los criterios de búsqueda. Por favor, pruebe una búsqueda diferente.</b>",
+  "exception": "",
+  "execution_time": 21001,
+  "debug": "",
+  "additional_data": {
+    "customs_reservation_configurations": [],
+    "show_only_first_doctor_availability": {
+      "tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh": false
+    },
+    "next_search_date": [],
+    "prescription_policy_configurations": {
+      "tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh": {
+        "mopCode": "0",
+        "mopPriority": "0",
+        "mopSummary": "0",
+        "mopDoctor": "0"
+      }
+    },
+    "add_reservation_additional_fields_configurations": {
+      "tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh": {
+        "communicationPhone": 2,
+        "communicationEmail": 1
+      }
+    }
+  },
+  "providers_requests": {
+    "tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44kowswy_sejh": [
+      {
+        "response": "OK",
+        "execution_time": 672
+      },
+      {
+        "response": "OK",
+        "execution_time": 910
+      },
+      {
+        "response": "OK",
+        "execution_time": 916
+      },
+      {
+        "response": "OK",
+        "execution_time": 1061
+      },
+      {
+        "response": "OK",
+        "execution_time": 766
+      },
+      {
+        "response": "OK",
+        "execution_time": 2880
+      },
+      {
+        "response": "OK",
+        "execution_time": 4567
+      },
+      {
+        "response": "OK",
+        "execution_time": 382
+      },
+      {
+        "response": "OK",
+        "execution_time": 814
+      },
+      {
+        "response": "OK",
+        "execution_time": 440
+      },
+      {
+        "response": "OK",
+        "execution_time": 437
+      },
+      {
+        "response": "OK",
+        "execution_time": 509
+      },
+      {
+        "response": "OK",
+        "execution_time": 496
+      },
+      {
+        "response": "OK",
+        "execution_time": 443
+      }
+    ]
+  },
+  "net_execution_time": 5019
+}
