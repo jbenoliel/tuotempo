@@ -1,10 +1,20 @@
-# TuoTempo API Integration
+# TuoTempo - Sistema de Gestión de Contactos
 
-Este proyecto es una integración con las APIs de TuoTempo para realizar el proceso de citación médica.
+Este proyecto es una aplicación web basada en Flask para la gestión de contactos y resultados de llamadas. Incluye un panel de administración y una API REST para la integración con otros sistemas.
 
-## Documentación
+## Características principales
 
-La documentación completa de todos los métodos está disponible en [https://apidoc.tuotempo.com/](https://apidoc.tuotempo.com/), donde también hay una interfaz web para lanzar peticiones de prueba y revisar entradas y salidas de datos.
+- **Panel de administración** con autenticación segura
+- **Carga de datos** desde archivos Excel
+- **Exportación de datos** a Excel
+- **API REST** para consulta y actualización de resultados de llamadas
+- **Historial de recargas** de datos
+
+## Documentación de la API
+
+La documentación completa de la API de resultados de llamadas está disponible en el archivo [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
+
+Adicionalmente, la documentación de la API de TuoTempo está disponible en [https://apidoc.tuotempo.com/](https://apidoc.tuotempo.com/), donde también hay una interfaz web para lanzar peticiones de prueba y revisar entradas y salidas de datos.
 
 ## Requisitos
 
