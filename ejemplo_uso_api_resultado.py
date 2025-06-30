@@ -1,9 +1,21 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Ejemplo de uso de la API de resultados de llamadas de TuoTempo
+
+Este script muestra cómo utilizar los diferentes endpoints de la API
+para verificar su estado, obtener contactos y actualizar resultados de llamadas.
+"""
+
 import requests
 import json
 from datetime import datetime
+import time
+import sys
 
 # URL base de la API - Ajusta según tu configuración
-API_BASE_URL = "http://localhost:5001/api"
+API_BASE_URL = "http://localhost:5000/api"  # Puerto por defecto 5000
 
 def verificar_estado():
     """Verifica si la API está en línea"""
@@ -102,58 +114,94 @@ def obtener_contactos(filtro_resultado=None):
 
 def main():
     """Función principal para demostrar el uso de la API"""
-    print("DEMO API RESULTADO LLAMADA")
-    print("==========================")
+    print("=== EJEMPLO DE USO DE LA API DE RESULTADOS DE LLAMADAS ===")
+    print(f"URL base: {API_BASE_URL}")
+    print(f"Fecha y hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("\nEste script muestra cómo utilizar los diferentes endpoints de la API.")
+    print("Sigue las instrucciones para probar cada funcionalidad.")
     
     # Verificar estado de la API
+    print("\n=== 1. VERIFICANDO ESTADO DE LA API ===")
     if not verificar_estado():
-        print("La API no está disponible. Verifique que esté en ejecución.")
+        print("\n❌ La API no está disponible. Asegúrate de que el servidor esté en ejecución.")
+        print("Comando para iniciar el servidor: python app_dashboard.py")
         return
     
-    print("\nEjemplos de actualización de resultados:")
+    # Obtener todos los contactos
+    print("\n=== 2. OBTENIENDO TODOS LOS CONTACTOS ===")
+    contactos = obtener_contactos()
+    if not contactos:
+        print("\n❌ No se pudieron obtener contactos. Verifica la conexión a la base de datos.")
+        return
     
-    # Ejemplo 1: Contacto con cita y pack
-    print("\n1. Contacto que toma cita con pack:")
-    fecha_cita = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    actualizar_resultado_llamada(
-        telefono="600123456",
-        cita=fecha_cita,
-        con_pack=True
-    )
+    total_contactos = len(contactos)
+    print(f"\n✅ Se encontraron {total_contactos} contactos en la base de datos")
     
-    # Ejemplo 2: Contacto con cita sin pack
-    print("\n2. Contacto que toma cita sin pack:")
-    actualizar_resultado_llamada(
-        telefono="600789012",
-        cita=fecha_cita,
-        con_pack=False
-    )
+    # Mostrar algunos contactos de ejemplo
+    if total_contactos > 0:
+        print("\nEjemplos de contactos:")
+        for i, contacto in enumerate(contactos[:3]):  # Mostrar solo los primeros 3
+            print(f"  {i+1}. {contacto.get('nombre', '')} {contacto.get('apellidos', '')} - Tel: {contacto.get('telefono', '')}")
     
-    # Ejemplo 3: Contacto no interesado
-    print("\n3. Contacto no interesado:")
-    actualizar_resultado_llamada(
-        telefono="600456789",
-        no_interesado=True
-    )
+    # Filtrar contactos por resultado
+    print("\n=== 3. FILTRANDO CONTACTOS POR RESULTADO ===")
+    print("Buscando contactos marcados como 'no interesado'...")
+    contactos_filtrados = obtener_contactos(filtro_resultado="no interesado")
+    print(f"\n✅ Se encontraron {len(contactos_filtrados)} contactos marcados como 'no interesado'")
     
-    # Ejemplo 4: Llamada cortada (volver a marcar)
-    print("\n4. Llamada cortada (volver a marcar):")
-    actualizar_resultado_llamada(
-        telefono="600345678"
-    )
+    # Seleccionar un contacto para actualizar
+    if total_contactos > 0:
+        # Tomamos el primer contacto como ejemplo
+        contacto = contactos[0]  
+        telefono = contacto.get('telefono')
+        nombre_completo = f"{contacto.get('nombre', '')} {contacto.get('apellidos', '')}"
+        
+        print(f"\n=== 4. ACTUALIZANDO RESULTADO PARA {nombre_completo} ({telefono}) ===")
+        
+        # Ejemplo 1: Marcar como no interesado
+        print("\n4.1. Marcando como NO INTERESADO...")
+        resultado = actualizar_resultado_llamada(telefono, no_interesado=True)
+        if resultado.get('success', False):
+            print(f"\n✅ Resultado actualizado correctamente: {resultado.get('message', '')}")
+        else:
+            print(f"\n❌ Error al actualizar: {resultado.get('error', 'Error desconocido')}")
+        
+        # Esperar un momento para que la base de datos se actualice
+        print("\nEsperando 2 segundos para que la base de datos se actualice...")
+        time.sleep(2)
+        
+        # Verificar los cambios
+        print("\n=== 5. VERIFICANDO CAMBIOS ===")
+        contactos_actualizados = obtener_contactos()
+        encontrado = False
+        for c in contactos_actualizados:
+            if c.get('telefono') == telefono:
+                encontrado = True
+                print(f"\nEstado actual del contacto {nombre_completo} ({telefono}):")
+                print(f"  - Resultado llamada: {c.get('resultado_llamada')}")
+                print(f"  - Cita: {c.get('cita')}")
+                print(f"  - Con pack: {c.get('conPack')}")
+                break
+        
+        if not encontrado:
+            print(f"\n❌ No se encontró el contacto con teléfono {telefono}")
+        
+        # Ejemplo 2: Programar una cita
+        print("\n=== 6. PROGRAMANDO UNA CITA ===")
+        fecha_cita = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"Programando cita para {nombre_completo} el {fecha_cita}...")
+        resultado = actualizar_resultado_llamada(telefono, cita=fecha_cita, con_pack=True)
+        if resultado.get('success', False):
+            print(f"\n✅ Cita programada correctamente: {resultado.get('message', '')}")
+        else:
+            print(f"\n❌ Error al programar cita: {resultado.get('error', 'Error desconocido')}")
+    else:
+        print("\n❌ No hay contactos disponibles para actualizar")
     
-    # Consultar resultados
-    print("\nContactos con cita con pack:")
-    obtener_contactos(filtro_resultado="cita con pack")
-    
-    print("\nContactos con cita sin pack:")
-    obtener_contactos(filtro_resultado="cita sin pack")
-    
-    print("\nContactos no interesados:")
-    obtener_contactos(filtro_resultado="no interesado")
-    
-    print("\nContactos para volver a marcar:")
-    obtener_contactos(filtro_resultado="volver a marcar")
+    print("\n=== RESUMEN DE LA PRUEBA ===")
+    print("\n✅ Se ha completado la prueba de la API de resultados de llamadas")
+    print("Para más información, consulta la documentación en API_DOCUMENTATION.md")
+    print("\n=== FIN DEL EJEMPLO ===")
 
 if __name__ == "__main__":
     main()
