@@ -1,0 +1,49 @@
+# Archivos de log
+*.log
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Archivos de base de datos
+*.sqlite3
+*.db
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+*~
+
+# Archivos de Excel temporales
+~$*.xlsx
+~$*.xls
+
+# Directorios de datos
+data/
+
+# Archivos específicos
+api_resultado_llamada.log
