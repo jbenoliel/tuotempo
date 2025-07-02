@@ -1030,6 +1030,7 @@ def admin_load_excel():
 
 
 @app.route('/recargar-excel')
+@login_required
 def recargar_excel_endpoint():
     """Endpoint para recargar datos del Excel usando el script centralizado"""
     try:

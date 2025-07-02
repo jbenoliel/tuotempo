@@ -35,7 +35,26 @@
                             <i class="fas fa-user-friends me-1"></i> Leads
                         </a>
                     </li>
+                    {% if session.logged_in %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('recargar_datos') %}active{% endif %}" href="{{ url_for('recargar_datos') }}">
+                            <i class="fas fa-sync-alt me-1"></i> Recargar Excel
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
+                {% if session.logged_in %}
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <span class="nav-link"><i class="fas fa-user me-1"></i> {{ session.username }}</span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i> Cerrar sesión
+                        </a>
+                    </li>
+                </ul>
+                {% endif %}
             </div>
         </div>
     </nav>
