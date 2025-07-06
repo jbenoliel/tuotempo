@@ -21,7 +21,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <form method="get" action="{{ url_for('leads') }}" class="row g-3">
+            <form method="get" action="{{ url_for('main.leads') }}" class="row g-3">
                 <div class="col-md-4">
                     <label for="search" class="form-label">Buscar</label>
                     <input type="text" class="form-control" id="search" name="search" value="{{ search }}" placeholder="Nombre, dirección o teléfono">
@@ -95,7 +95,7 @@
                                 <td>{% if lead.conPack %}Sí{% else %}No{% endif %}</td>
                                 <td>{{ lead.ultimo_estado }}</td>
                                 <td>
-                                    <a href="{{ url_for('editar_clinica', id=lead.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ url_for('main.editar_clinica', id=lead.id) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                 </td>
@@ -122,7 +122,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <form method="get" action="{{ url_for('leads') }}" class="row g-3">
+            <form method="get" action="{{ url_for('main.leads') }}" class="row g-3">
                 <div class="col-md-4">
                     <label for="search" class="form-label">Buscar</label>
                     <input type="text" class="form-control" id="search" name="search" value="{{ search }}" placeholder="Nombre, dirección o teléfono">

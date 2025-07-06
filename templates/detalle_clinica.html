@@ -6,8 +6,8 @@
 <div class="container py-4">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('leads') }}">Clínicas</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.leads') }}">Clínicas</a></li>
             <li class="breadcrumb-item active">{{ clinica.nombre_clinica }}</li>
         </ol>
     </nav>
@@ -18,7 +18,7 @@
             {{ clinica.nombre_clinica }}
         </h1>
         <div>
-            <a href="{{ url_for('editar_clinica', id=clinica.id) }}" class="btn btn-warning">
+            <a href="{{ url_for('main.editar_clinica', id=clinica.id) }}" class="btn btn-warning">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
         </div>

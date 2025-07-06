@@ -52,94 +52,109 @@ def status():
 @app.route('/api/actualizar_resultado', methods=['POST'])
 def actualizar_resultado():
     """
-    Actualiza el resultado de una llamada según los parámetros recibidos.
-    
-    Lógica:
-    - Si la llamada se corta (no hay cita ni marcado como no interesado): "volver a marcar"
-    - Si no toma cita (no interesado): "no interesado"
-    - Si toma cita sin pack: "cita sin pack"
-    - Si toma cita con pack: "cita con pack"
+    Actualiza el resultado y los datos de una llamada para un lead específico.
+    Este endpoint recibe datos de la llamada desde un sistema externo (como NLPearl) y los guarda en la BD.
     """
     data = request.json
-    
+    logger.info(f"Recibida petición para actualizar resultado: {data}")
+
     # Validar datos requeridos
     if not data or not data.get('telefono'):
+        logger.error("Petición rechazada: No se proporcionó número de teléfono.")
         return jsonify({"error": "Se requiere el número de teléfono"}), 400
-    
+
     telefono = data.get('telefono')
-    cita = data.get('cita')  # Formato esperado: YYYY-MM-DD HH:MM:SS
-    con_pack = data.get('conPack', False)  # Boolean
-    no_interesado = data.get('no_interesado', False)  # Boolean
+
+    # Recoger todos los campos posibles de la petición
+    update_fields = {
+
+        'status_level_1': data.get('status_level_1'),
+        'status_level_2': data.get('status_level_2'),
+        
+
+        # Nuevos campos detallados
+        'conPack': data.get('conPack'),
+        'hora_rellamada': data.get('horaRellamada'),
+        'error_tecnico': data.get('errorTecnico'),
+        'razon_vuelta_a_llamar': data.get('razonvueltaallamar'),
+        'razon_no_interes': data.get('razonNoInteres')
+    }
+
+    # --- Mapeos de códigos compactos a descripciones ---
+    # 1) Razones de "No Interesado"
+    codigo_no_interes = data.get('codigoNoInteres')
+    mapa_no_interes = {
+        'no disponibilidad': 'no disponibilidad cliente',
+        'descontento': 'Descontento con Adeslas',
+        'bajaProxima': 'Próxima baja',
+        'otros': 'No da motivos'
+    }
+    if codigo_no_interes in mapa_no_interes:
+        update_fields['status_level_1'] = 'No Interesado'
+        update_fields['status_level_2'] = mapa_no_interes[codigo_no_interes]
+
+    # 2) Razones de "Volver a llamar"
+    codigo_volver_llamar = data.get('codigoVolverLlamar')
+    mapa_volver_llamar = {
+        'buzon': 'buzón',
+        'interrupcion': 'no disponible cliente',
+        'proble tecnico': 'Interesado. Problema técnico',
+        'proble_tecnico': 'Interesado. Problema técnico'
+    }
+    if codigo_volver_llamar in mapa_volver_llamar:
+        update_fields['status_level_1'] = 'Volver a llamar'
+        update_fields['status_level_2'] = mapa_volver_llamar[codigo_volver_llamar]
+
+    # Lógica de negocio para campos especiales
+    if data.get('noInteresado'):
+        update_fields['status_level_1'] = 'No Interesado'
+
+    # Si llega una nueva cita, actualizamos el campo 'fecha_cita'
+    if data.get('nuevaCita'):
+        update_fields['fecha_cita'] = data.get('nuevaCita') # Guardamos la fecha/hora de la cita
+
+    # Para mantener la compatibilidad, si llega status_level_2, lo usamos también para el campo antiguo 'resultado_ultima_gestion'
+
+    # Filtrar campos que son None para no sobreescribir datos existentes con nulos en la BD
+    update_data = {k: v for k, v in update_fields.items() if v is not None}
+
+    if not update_data:
+        return jsonify({"error": "No se proporcionaron datos para actualizar"}), 400
+
+    # Construir la consulta SQL dinámicamente
+    set_clause = ", ".join([f"{key} = %s" for key in update_data.keys()])
+    sql_query = f"UPDATE leads SET {set_clause} WHERE telefono = %s"
     
-    # Validar formato de fecha si se proporciona
-    if cita:
-        try:
-            datetime.strptime(cita, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            return jsonify({"error": "Formato de fecha incorrecto. Use YYYY-MM-DD HH:MM:SS"}), 400
-    
-    # Determinar el resultado de la llamada según la lógica especificada
-    if cita:
-        if con_pack:
-            resultado = "cita con pack"
-        else:
-            resultado = "cita sin pack"
-    elif no_interesado:
-        resultado = "no interesado"
-    else:
-        resultado = "volver a marcar"  # Llamada cortada
-    
+    values = list(update_data.values())
+    values.append(telefono)
+
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
+
     try:
         cursor = conn.cursor()
-        
-        # Verificar si existe el teléfono
-        check_query = "SELECT COUNT(*) FROM leads WHERE telefono = %s"
-        cursor.execute(check_query, (telefono,))
-        if cursor.fetchone()[0] == 0:
-            return jsonify({"error": f"No se encontró ningún contacto con el teléfono {telefono}"}), 404
-        
-        # Construir la consulta de actualización
-        update_query = """
-        UPDATE leads 
-        SET resultado_llamada = %s 
-        """
-        params = [resultado]
-        
-        # Agregar actualización de fecha de cita si se proporciona
-        if cita:
-            update_query += ", cita = %s, conPack = %s "
-            params.append(cita)
-            params.append(con_pack)
-        
-        # Finalizar la consulta
-        update_query += "WHERE telefono = %s"
-        params.append(telefono)
-        
-        cursor.execute(update_query, params)
+        cursor.execute(sql_query, tuple(values))
+
+        if cursor.rowcount == 0:
+            logger.warning(f"No se encontró ningún lead con el teléfono: {telefono}")
+            return jsonify({"error": f"No se encontró ningún lead con el teléfono {telefono}"}), 404
+
         conn.commit()
-        
-        if cursor.rowcount > 0:
-            return jsonify({
-                "success": True,
-                "message": f"Resultado de llamada actualizado para el teléfono {telefono}",
-                "resultado": resultado,
-                "rows_affected": cursor.rowcount
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": "No se actualizó ningún registro"
-            }), 404
-    
+        logger.info(f"Lead con teléfono {telefono} actualizado correctamente. {cursor.rowcount} fila(s) afectada(s).")
+
+        return jsonify({
+            "success": True,
+            "message": f"Lead {telefono} actualizado correctamente."
+        })
+
     except mysql.connector.Error as err:
-        logger.error(f"Error de base de datos: {err}")
+        logger.error(f"Error de base de datos al actualizar el lead {telefono}: {err}")
+        if conn:
+            conn.rollback()
         return jsonify({"error": f"Error de base de datos: {str(err)}"}), 500
     finally:
-        if conn.is_connected():
+        if conn and conn.is_connected():
             cursor.close()
             conn.close()
 

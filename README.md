@@ -31,6 +31,49 @@ Este proyecto es una aplicación web basada en Flask para la gestión de contact
 
 ## Documentación de la API
 
+### Endpoint: POST /api/actualizar_resultado
+Servicio para actualizar el estado de un lead después de una llamada.
+
+**Parámetros JSON**
+| Campo | Tipo | Obligatorio | Descripción |
+|-------|------|-------------|-------------|
+| `telefono` | string | Sí | Número de teléfono del lead.
+| `status_level_1` | string | No* | Nivel 1 del estado. Requerido si no se envía otro campo actualizable.
+| `status_level_2` | string | No | Nivel 2 del estado.
+| `conPack` | boolean | No | `true` si se vendió pack.
+| `nuevaCita` | string `YYYY-MM-DD HH:MM` | No | Fecha/hora de nueva cita.
+| `horaRellamada` | string `YYYY-MM-DD HH:MM` | No | Programar rellamada.
+| `errorTecnico` | boolean | No | Marca error técnico.
+| `razonvueltaallamar` | string | No | Motivo detallado de rellamada.
+| `razonNoInteres` | string | No | Motivo detallado de no interés.
+| `codigoNoInteres` | string | No | Código abreviado (`no disponibilidad`, `descontento`, `bajaProxima`, `otros`).
+| `codigoVolverLlamar` | string | No | Código abreviado (`buzon`, `interrupcion`, `proble_tecnico`).
+
+*Se requiere al menos uno de los campos opcionales para que la petición sea aceptada.
+
+**Respuestas**
+| Código | Caso |
+|--------|------|
+| `200` | Actualización correcta. Devuelve `{ "success": true, "message": "..." }` |
+| `400` | Faltan datos obligatorios (`telefono`) o no se proporciona ningún campo para actualizar. |
+| `404` | No existe lead con el teléfono indicado. |
+| `500` | Error de base de datos.
+
+Ejemplo:
+```bash
+curl -X POST https://actualizarllamadas-production.up.railway.app/api/actualizar_resultado \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telefono": "600123456",
+    "status_level_1": "Volver a llamar",
+    "codigoVolverLlamar": "buzon",
+    "horaRellamada": "2025-07-06 12:00"
+  }'
+```
+
+Para más detalles ver `API_DOCUMENTATION.md`.
+
+
 La documentación completa de la API de resultados de llamadas está disponible en el archivo [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
 
 Adicionalmente, la documentación de la API de TuoTempo está disponible en [https://apidoc.tuotempo.com/](https://apidoc.tuotempo.com/), donde también hay una interfaz web para lanzar peticiones de prueba y revisar entradas y salidas de datos.

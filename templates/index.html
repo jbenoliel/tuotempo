@@ -10,84 +10,84 @@
     </h1>
 
     <div class="row">
-        <!-- Total de contactos -->
+        <!-- Total leads -->
         <div class="col-md-3">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Total Contactos</h6>
-                            <h2 class="mb-0">{{ stats.total_clinicas }}</h2>
+                            <h6 class="card-title">Total Leads</h6>
+                            <h2 class="mb-0">{{ stats.total_leads }}</h2>
                         </div>
                         <i class="fas fa-user fa-3x"></i>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between">
                     <span>Ver detalles</span>
-                    <a href="{{ url_for('leads') }}" class="text-white">
+                    <a href="{{ url_for('main.leads') }}" class="text-white">
                         <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Citas programadas -->
+        <!-- Contactados -->
         <div class="col-md-3">
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Citas Programadas</h6>
-                            <h2 class="mb-0">{{ stats.citas_programadas }}</h2>
+                            <h6 class="card-title">Contactados</h6>
+                            <h2 class="mb-0">{{ stats.contactados }}</h2>
                         </div>
                         <i class="fas fa-calendar-check fa-3x"></i>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between">
                     <span>Ver detalles</span>
-                    <a href="{{ url_for('leads', search='') }}" class="text-white">
+                    <a href="{{ url_for('main.leads', search='') }}" class="text-white">
                         <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Con pack -->
+        <!-- Volver a llamar -->
         <div class="col-md-3">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Con Pack</h6>
-                            <h2 class="mb-0">{{ stats.con_pack }}</h2>
+                            <h6 class="card-title">Volver a Llamar</h6>
+                            <h2 class="mb-0">{{ stats.estados.volver_llamar }}</h2>
                         </div>
                         <i class="fas fa-box-open fa-3x"></i>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between">
                     <span>Ver detalles</span>
-                    <a href="{{ url_for('leads', conPack='true') }}" class="text-white">
+                    <a href="{{ url_for('main.leads', conPack='true') }}" class="text-white">
                         <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Sin estado -->
+        <!-- No Interesados -->
         <div class="col-md-3">
             <div class="card text-white bg-warning">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Sin Estado</h6>
-                            <h2 class="mb-0">{{ stats.estados.sin_estado }}</h2>
+                            <h6 class="card-title">No Interesados</h6>
+                            <h2 class="mb-0">{{ stats.estados.no_interesado }}</h2>
                         </div>
                         <i class="fas fa-question-circle fa-3x"></i>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between">
                     <span>Ver detalles</span>
-                    <a href="{{ url_for('leads', search='') }}" class="text-white">
+                    <a href="{{ url_for('main.leads', search='') }}" class="text-white">
                         <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
@@ -137,12 +137,32 @@
 </script>
                         <tbody>
                             <tr>
+                                <td><span class="badge bg-info">Volver a llamar</span></td>
+                                <td>{{ stats.estados.volver_llamar }}</td>
+                                <td><a href="{{ url_for('main.leads', estado='Volver a llamar') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> Ver</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-warning text-dark">No interesado</span></td>
+                                <td>{{ stats.estados.no_interesado }}</td>
+                                <td><a href="{{ url_for('main.leads', estado='No Interesado') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> Ver</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-secondary">Cita sin Pack</span></td>
+                                <td>{{ stats.estados.cita_sin_pack }}</td>
+                                <td><a href="{{ url_for('main.leads', estado='Cita sin Pack') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> Ver</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-primary">Cita con Pack</span></td>
+                                <td>{{ stats.estados.cita_con_pack }}</td>
+                                <td><a href="{{ url_for('main.leads', estado='Cita con Pack') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> Ver</a></td>
+                            </tr>
+                            <tr>
                                 <td>
                                     <span class="badge bg-success">Completado</span>
                                 </td>
                                 <td>{{ stats.estados.completed }}</td>
                                 <td>
-                                    <a href="{{ url_for('leads', estado='completed') }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ url_for('main.leads', estado='completed') }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
                                 </td>
@@ -153,7 +173,7 @@
                                 </td>
                                 <td>{{ stats.estados.busy }}</td>
                                 <td>
-                                    <a href="{{ url_for('leads', estado='busy') }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ url_for('main.leads', estado='busy') }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
                                 </td>
@@ -164,7 +184,7 @@
                                 </td>
                                 <td>{{ stats.estados.no_answer }}</td>
                                 <td>
-                                    <a href="{{ url_for('leads', estado='no answer') }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ url_for('main.leads', estado='no answer') }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
                                 </td>
@@ -175,7 +195,7 @@
                                 </td>
                                 <td>{{ stats.estados.sin_estado }}</td>
                                 <td>
-                                    <a href="{{ url_for('leads', search='') }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ url_for('main.leads', search='') }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
                                 </td>
@@ -199,13 +219,13 @@
                 </div>
                 <div class="card-body">
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ url_for('leads') }}" class="btn btn-primary">
+                        <a href="{{ url_for('main.leads') }}" class="btn btn-primary">
                             <i class="fas fa-list me-1"></i> Ver todas las clínicas
                         </a>
                         <button id="exportarExcel" class="btn btn-success">
                             <i class="fas fa-file-excel me-1"></i> Exportar a Excel
                         </button>
-                        <a href="{{ url_for('leads', estado='no answer') }}" class="btn btn-warning">
+                        <a href="{{ url_for('main.leads', estado='no answer') }}" class="btn btn-warning">
                             <i class="fas fa-phone-slash me-1"></i> Ver sin respuesta
                         </a>
                     </div>
@@ -221,18 +241,24 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     // Definir los datos de estados usando tojson ANTES de crear el gráfico
-    const estadosData = {{ [
-        stats.estados.completed|default(0)|int,
-        stats.estados.busy|default(0)|int,
-        stats.estados.no_answer|default(0)|int,
-        stats.estados.sin_estado|default(0)|int
-    ] | tojson }};
+    // Datos de subestados generados desde el servidor
+    const subestadoMap = {
+        'Volver a llamar': {
+            labels: {{ stats.subestados_volver.keys() | list | tojson }},
+            data: {{ stats.subestados_volver.values() | list | tojson }}
+        },
+        'No interesado': {
+            labels: {{ stats.subestados_no_interes.keys() | list | tojson }},
+            data: {{ stats.subestados_no_interes.values() | list | tojson }}
+        }
+    };
+    const estadosData = {{ [stats.estados.volver_llamar|int, stats.estados.no_interesado|int, stats.estados.cita_sin_pack|int, stats.estados.cita_con_pack|int] | tojson }};
     // Gráfico de estados
     const estadosCtx = document.getElementById('estadosChart').getContext('2d');
     const estadosChart = new Chart(estadosCtx, {
         type: 'pie',
         data: {
-            labels: ['Completado', 'Ocupado', 'Sin respuesta', 'Sin estado'],
+            labels: ['Volver a llamar', 'No interesado', 'Cita sin pack', 'Cita con pack'],
             datasets: [{
                 data: estadosData,
                 backgroundColor: [
@@ -255,7 +281,7 @@
 
     // Exportar a Excel
     document.getElementById('exportarExcel').addEventListener('click', function() {
-        fetch('{{ url_for("exportar_excel") }}')
+        fetch('{{ url_for('main.exportar_tabla_leads_endpoint') }}')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {

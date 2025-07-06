@@ -1,1 +1,1 @@
-web: gunicorn reservation_api:app
+web: gunicorn app_dashboard:app

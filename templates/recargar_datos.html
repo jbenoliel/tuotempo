@@ -39,12 +39,12 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Recarga de Datos</h1>
             <div>
-                <a href="{{ url_for('exportar_tabla_leads_endpoint') }}" class="btn btn-sm btn-success me-2">
+                <a href="{{ url_for('main.exportar_tabla_leads_endpoint') }}" class="btn btn-sm btn-success me-2">
                     <i class="fas fa-file-export"></i> Exportar tabla actual
                 </a>
                 <span class="badge bg-primary">Usuario: {{ session.username }}</span>
-                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-secondary ms-2">Cerrar sesión</a>
-                <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-primary ms-2">Dashboard</a>
+                <a href="{{ url_for('main.logout') }}" class="btn btn-sm btn-outline-secondary ms-2">Cerrar sesión</a>
+                <a href="{{ url_for('main.index') }}" class="btn btn-sm btn-outline-primary ms-2">Dashboard</a>
             </div>
         </div>
 
@@ -79,7 +79,7 @@
                         <h5 class="card-title mb-0">Selecciona un archivo para recargar datos</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ url_for('recargar_datos') }}" method="post">
+                        <form action="{{ url_for('main.recargar_datos') }}" method="post">
                             <input type="hidden" name="action" value="recargar_existente">
                             
                             {% if archivos %}
@@ -129,7 +129,7 @@
                         <h5 class="card-title mb-0">Subir nuevo archivo</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ url_for('recargar_datos') }}" method="post" enctype="multipart/form-data">
+                        <form action="{{ url_for('main.recargar_datos') }}" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="action" value="subir_archivo">
                             <div class="mb-3">
                                 <label for="archivo" class="form-label">Selecciona un archivo Excel (.xlsx) o CSV (.csv)</label>
