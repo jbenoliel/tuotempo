@@ -4,6 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
+    "releaseCommand": "python db_migration_add_call_info.py",
     "startCommand": "gunicorn app_dashboard:app",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
