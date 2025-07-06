@@ -1,14 +1,33 @@
 # TuoTempo - Sistema de Gestión de Contactos
 
-Este proyecto es una aplicación web basada en Flask para la gestión de contactos y resultados de llamadas. Incluye un panel de administración y una API REST para la integración con otros sistemas.
+Este proyecto es una aplicación web basada en Flask para la gestión de contactos y resultados de llamadas. Incluye un panel de administración y varias APIs REST para la integración con otros sistemas.
 
 ## Características principales
 
 - **Panel de administración** con autenticación segura
 - **Carga de datos** desde archivos Excel
 - **Exportación de datos** a Excel
-- **API REST** para consulta y actualización de resultados de llamadas
+- **APIs REST** para consulta de centros, actividades, slots y actualización de resultados de llamadas
 - **Historial de recargas** de datos
+
+## URLs de las APIs desplegadas
+
+### API de Resultado de Llamadas
+- **URL Base**: https://actualizarllamadas-production.up.railway.app
+- **Endpoints**:
+  - `GET /api/status` - Verifica el estado de la API
+  - `POST /api/actualizar_resultado` - Actualiza el resultado de una llamada
+
+### API de TuoTempo (pendiente de desplegar)
+- **URL Base**: [Pendiente de despliegue]
+- **Endpoints**:
+  - `GET /api/status` - Verifica el estado de la API
+  - `GET /api/centros` - Obtiene centros con filtros opcionales
+  - `GET /api/centros?cp=XXXXX` - Filtra centros por código postal
+  - `GET /api/centros?provincia=XXXXX` - Filtra centros por provincia
+  - `GET /api/centros/XXXXX` - Obtiene centros por código postal (versión REST)
+  - `GET /api/actividades?centro_id=XXXXX` - Obtiene actividades disponibles en un centro
+  - `GET /api/slots?centro_id=XXX&actividad_id=YYY&fecha_inicio=DD/MM/YYYY` - Obtiene slots disponibles
 
 ## Documentación de la API
 
