@@ -1,5 +1,7 @@
 import os
 import logging
+
+
 from flask import Flask
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -62,6 +64,9 @@ def create_app(config_class='config.settings'):
                 conn.close()
 
     return app
+
+# Crear la aplicación para que Gunicorn la detecte
+app = create_app()
 
 if __name__ == '__main__':
     # Crear la aplicación usando la factory
