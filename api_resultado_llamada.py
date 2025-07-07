@@ -111,7 +111,7 @@ def actualizar_resultado():
 
     # Si llega una nueva cita, actualizamos el campo 'fecha_cita'
     if data.get('nuevaCita'):
-        update_fields['fecha_cita'] = data.get('nuevaCita') # Guardamos la fecha/hora de la cita
+        update_fields['cita'] = data.get('nuevaCita') # Guardamos la fecha/hora de la cita en la columna 'cita'
 
     # Para mantener la compatibilidad, si llega status_level_2, lo usamos también para el campo antiguo 'resultado_ultima_gestion'
 
