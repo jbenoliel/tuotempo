@@ -28,7 +28,14 @@ import requests
 
 from config import settings
 
-API_BASE = "http://127.0.0.1:5001/api"
+# --- Configuración del Entorno de Pruebas ---
+# Descomenta la URL que quieres probar
+
+# Para pruebas locales (requiere que la API corra en tu máquina)
+# API_BASE = "http://127.0.0.1:5001/api"
+
+# Para pruebas en producción (Railway)
+API_BASE = "https://actualizarllamadas-production.up.railway.app/api"
 
 # ---- Utilidades teléfonos de prueba ----
 TEST_PHONE_COUNT = 4  # cuántos teléfonos distintos usaremos en las pruebas
@@ -95,48 +102,22 @@ def run_test(name: str, payload: dict, expected_status: int):
 
 
 def main():
-    phones = get_test_phones(TEST_PHONE_COUNT)
+    print("\n" + "*"*80)
+    print("*** SCRIPT CONFIGURADO PARA PROBAR LA API DE PRODUCCIÓN EN RAILWAY ***")
+    print("IMPORTANTE: Para que la prueba sea válida, el teléfono que uses a continuación")
+    print("           DEBE EXISTIR en tu tabla 'leads' de la base de datos de producción.")
+    print("*"*80)
 
+    # --- PRUEBA DE PRODUCCIÓN ---
+    # CAMBIA '600000000' por un número de teléfono real de tu base de datos de Railway.
+    telefono_de_prueba_produccion = "600000000"
 
-    # 4. Éxito mínimo – actualiza call_id
     run_test(
-        "Actualización mínima (200)",
-        payload={"telefono": phones[0], "status_level_1": "Volver a llamar", "status_level_2": "buzón"},
-        expected_status=200,
-    )
-
-    # 5. Éxito volver a llamar con código mapeado
-    run_test(
-        "Volver a llamar (200)",
+        "Prueba de Producción: Actualizar estado de un lead",
         payload={
-            "telefono": phones[1],
-            "codigoVolverLlamar": "buzon",
-            "horaRellamada": (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
-        },
-        expected_status=200,
-    )
-
-    # 6. Éxito con noInteresado -> status_level_1="No Interesado"
-    run_test(
-        "No interesado (200)",
-        payload={
-            "telefono": phones[2],
-            "noInteresado": True,
-            "status_level_2": "Descontento Adeslas",
-        },
-        expected_status=200,
-    )
-
-    # 7. Éxito con nueva cita y datos completos
-    run_test(
-        "Nueva cita con pack (200)",
-        payload={
-            "telefono":     phones[3],
-            "nuevaCita": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M"),
-            "conPack": True,
-            "status_level_1": "Cita Agendada",
-            "status_level_2": "con pack",
-            "call_duration": 120,
+            "telefono": telefono_de_prueba_produccion,
+            "status_level_1": "No Interesado",
+            "status_level_2": "Prueba desde API"
         },
         expected_status=200,
     )
