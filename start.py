@@ -18,6 +18,7 @@ print(f"Servicio detectado: {service_name}")
 # ¡IMPORTANTE! Los nombres aquí deben coincidir con los de tu panel de Railway.
 commands = {
     'web': 'gunicorn app_dashboard:app',
+    'dashboard': 'gunicorn app_dashboard:app',
     'actualizarllamadas': 'gunicorn api_resultado_llamada:app',
     'tuotempo apis': 'gunicorn api_tuotempo:app',
 }
