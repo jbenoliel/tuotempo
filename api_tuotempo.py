@@ -53,14 +53,8 @@ def obtener_centros():
         # Crear instancia de la API
         api = TuoTempoAPI(lang='es', environment='PRE')
         
-        # Construir parámetros para la API de TuoTempo
-        api_params = {'province': provincia}
-        if codigo_postal:
-            # Pasamos el código postal directamente a la API para un filtrado eficiente
-            api_params['cp'] = codigo_postal
-
-        # Obtener centros ya filtrados desde la API
-        centers_response = api.get_centers(**api_params)
+        # Obtener centros (primero por provincia si se especifica)
+        centers_response = api.get_centers(province=provincia)
 
         if centers_response.get("result") != "OK":
             error_msg = f"Error al obtener centros: {centers_response.get('message', 'Error desconocido')}"
@@ -69,9 +63,20 @@ def obtener_centros():
 
         # Extraer la lista de centros
         centers_list = centers_response.get('return', {}).get('results', [])
+        logger.info(f"Se encontraron {len(centers_list)} centros en total antes de filtrar.")
 
         if not centers_list:
-            return jsonify({"success": True, "message": "No se encontraron centros para los criterios dados", "centros": []}), 200
+            return jsonify({"success": True, "message": "No se encontraron centros", "centros": []}), 200
+
+        # Filtrar por código postal si se especifica
+        if codigo_postal:
+            logger.info(f"Filtrando por código postal: '{codigo_postal}'")
+            original_count = len(centers_list)
+            centers_list = [
+                centro for centro in centers_list
+                if isinstance(centro, dict) and str(centro.get('cp', '')).strip() == str(codigo_postal).strip()
+            ]
+            logger.info(f"Filtrado completo. Centros antes: {original_count}, Centros después: {len(centers_list)}")
         
         # Campos a incluir en la respuesta
         campos = [
@@ -107,7 +112,19 @@ def obtener_centros():
             "message": f"Error al procesar la solicitud: {str(e)}"
         }), 500
 
-
+@app.route('/api/centros/<codigo_postal>', methods=['GET'])
+def obtener_centros_por_cp(codigo_postal):
+    """
+    Endpoint para obtener centros por código postal (versión REST)
+    
+    Args:
+        codigo_postal: Código postal a buscar
+    
+    Returns:
+        JSON con la lista de centros
+    """
+    # Redirigir a la versión con query parameters
+    return obtener_centros()
 
 # ========== ENDPOINTS PARA ACTIVIDADES ==========
 
