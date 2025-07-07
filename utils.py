@@ -32,6 +32,7 @@ def load_excel_data(connection, source):
         'poliza': ['poliza', 'policy'],
         'segmento': ['segmento', 'segment'],
         'email': ['email', 'correo electronico'],
+        'cita': ['cita', 'fecha_cita', 'fecha cita', 'appointment date'],
     }
 
     normalized_excel_cols = {re.sub(r'[^a-z0-9]+', '', str(col).lower().strip()): str(col) for col in df.columns}
@@ -53,7 +54,7 @@ def load_excel_data(connection, source):
         'conPack', 'ultimo_estado', 'resultado_llamada', 'telefono2', 'call_id',
         'call_time', 'call_duration', 'call_summary', 'call_recording_url',
         'status_level_1', 'status_level_2', 'hora_rellamada', 'error_tecnico',
-        'razon_vuelta_a_llamar', 'razon_no_interes', 'fecha_cita', 'certificado',
+        'razon_vuelta_a_llamar', 'razon_no_interes', 'certificado',
         'clinica_id', 'delegacion', 'fecha_nacimiento', 'nif', 'orden', 'poliza',
         'segmento', 'sexo'
     ]
