@@ -74,6 +74,14 @@ def index():
     stats = get_statistics()
     return render_template('dashboard.html', stats=stats)
 
+
+@bp.route('/reserve')
+@login_required
+def reserve():
+    """Página para realizar una reserva de cita."""
+    return render_template('reserve.html')
+
+
 @bp.route('/recargar-datos', methods=['GET', 'POST'])
 @login_required
 def recargar_datos():

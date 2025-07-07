@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Reservar Cita{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Reservar una Cita</h1>
+
+    <!-- Step 1: Search by Postal Code -->
+    <div class="card mb-3">
+        <div class="card-header fw-bold">Paso 1: Buscar Clínica</div>
+        <div class="card-body">
+            <div class="input-group">
+                <input type="text" id="postalCodeInput" class="form-control" placeholder="Introduce un código postal...">
+                <button id="searchClinicsBtn" class="btn btn-primary">Buscar Clínicas</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Select Clinic -->
+    <div class="card mb-3" id="clinicSelection" style="display: none;">
+        <div class="card-header fw-bold">Paso 2: Seleccionar Clínica</div>
+        <div class="card-body">
+            <select id="clinicSelect" class="form-select"></select>
+        </div>
+    </div>
+
+    <!-- Step 3: Select Activity -->
+    <div class="card mb-3" id="activitySelection" style="display: none;">
+        <div class="card-header fw-bold">Paso 3: Seleccionar Motivo de la Cita</div>
+        <div class="card-body">
+            <select id="activitySelect" class="form-select"></select>
+        </div>
+    </div>
+
+    <!-- Step 4: Available Slots -->
+    <div class="card mb-3" id="slotsDisplay" style="display: none;">
+        <div class="card-header fw-bold">Paso 4: Seleccionar Hora</div>
+        <div class="card-body" id="slotsContainer">
+            <!-- Slots will be injected here by JS -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBtn = document.getElementById('searchClinicsBtn');
+    const postalCodeInput = document.getElementById('postalCodeInput');
+    const clinicSelect = document.getElementById('clinicSelect');
+    const activitySelect = document.getElementById('activitySelect');
+    const slotsContainer = document.getElementById('slotsContainer');
+
+    const clinicCard = document.getElementById('clinicSelection');
+    const activityCard = document.getElementById('activitySelection');
+    const slotsCard = document.getElementById('slotsDisplay');
+
+    const API_BASE_URL = 'https://tuotempo-apis-production.up.railway.app';
+
+    async function showAlert(message, type = 'danger') {
+        // You can implement a more sophisticated alert/toast system here
+        alert(message);
+    }
+
+    // Step 1: Search for clinics
+    searchBtn.addEventListener('click', async () => {
+        const cp = postalCodeInput.value.trim();
+        if (!cp) {
+            showAlert('Por favor, introduce un código postal.');
+            return;
+        }
+        
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Buscando...';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/centros?cp=${cp}`);
+            const data = await response.json();
+
+            if (data.success && data.centros.length > 0) {
+                clinicSelect.innerHTML = '<option selected disabled>-- Selecciona una clínica --</option>';
+                data.centros.forEach(clinic => {
+                    const option = document.createElement('option');
+                    option.value = clinic.areaid;
+                    option.textContent = `${clinic.areaTitle} - ${clinic.address}, ${clinic.city}`;
+                    clinicSelect.appendChild(option);
+                });
+                clinicCard.style.display = 'block';
+                activityCard.style.display = 'none';
+                slotsCard.style.display = 'none';
+            } else {
+                showAlert(data.message || 'No se encontraron clínicas para este código postal.');
+                clinicCard.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error fetching clinics:', error);
+            showAlert('Hubo un error al buscar las clínicas.');
+        } finally {
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Buscar Clínicas';
+        }
+    });
+
+    // Step 2: When a clinic is selected, fetch activities
+    clinicSelect.addEventListener('change', async () => {
+        const clinicId = clinicSelect.value;
+        if (!clinicId || clinicId === '-- Selecciona una clínica --') return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/actividades?centro_id=${clinicId}`);
+            const data = await response.json();
+
+            if (data.success && data.actividades.length > 0) {
+                activitySelect.innerHTML = '<option selected disabled>-- Selecciona una actividad --</option>';
+                data.actividades.forEach(activity => {
+                    const option = document.createElement('option');
+                    option.value = activity.activityid;
+                    option.textContent = activity.activityTitle;
+                    activitySelect.appendChild(option);
+                });
+                activityCard.style.display = 'block';
+                slotsCard.style.display = 'none';
+            } else {
+                showAlert(data.message || 'No se encontraron actividades para esta clínica.');
+                activityCard.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error fetching activities:', error);
+            showAlert('Hubo un error al buscar las actividades.');
+        }
+    });
+    
+    // Step 3: When an activity is selected, fetch slots
+    activitySelect.addEventListener('change', async () => {
+        const clinicId = clinicSelect.value;
+        const activityId = activitySelect.value;
+        if (!clinicId || !activityId || activityId === '-- Selecciona una actividad --') return;
+
+        slotsContainer.innerHTML = '<div class="d-flex justify-content-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+        slotsCard.style.display = 'block';
+        
+        // NOTE: The /api/slots endpoint is not fully implemented yet.
+        // This part of the JS is a placeholder for when it's ready.
+        setTimeout(() => {
+             slotsContainer.innerHTML = `<div class="alert alert-warning">La funcionalidad para buscar y reservar horas (slots) aún no está implementada en la API.</div>`;
+        }, 1000);
+    });
+});
+</script>
+{% endblock %}
