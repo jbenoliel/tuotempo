@@ -22,7 +22,7 @@ def load_excel_data(connection, source):
     db_to_excel_map = {
         'nombre': ['nombre', 'name', 'first name', 'firstname'],
         'apellidos': ['apellidos', 'surname', 'last name', 'lastname'],
-        'telefono': ['teléfono', 'telefono', 'phone', 'mobile'],
+        'telefono': ['teléfono', 'telefono', 'phone', 'mobile', 'phone number'],
         'nif': ['nif', 'dni', 'documento'],
         'fecha_nacimiento': ['fecha nacimiento', 'fecha_nacimiento', 'birth date'],
         'sexo': ['sexo', 'gender'],
@@ -33,6 +33,10 @@ def load_excel_data(connection, source):
         'segmento': ['segmento', 'segment'],
         'email': ['email', 'correo electronico'],
         'cita': ['cita', 'fecha_cita', 'fecha cita', 'appointment date'],
+        'nombre_clinica': ['nombre_clinica', 'nombre clinica', 'clinic name'],
+        'direccion_clinica': ['direccion_clinica', 'direccion clinica', 'clinic address'],
+        'codigo_postal': ['codigo_postal', 'codigo postal', 'postal code'],
+        'ciudad': ['ciudad', 'city'],
     }
 
     normalized_excel_cols = {re.sub(r'[^a-z0-9]+', '', str(col).lower().strip()): str(col) for col in df.columns}
