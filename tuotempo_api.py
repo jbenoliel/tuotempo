@@ -44,7 +44,7 @@ class TuoTempoAPI:
             pre_key = "3a5835be0f540c7591c754a2bf0758bb"  # PRE environment
             pro_key = "24b98d8d41b970d38362b52bd3505c04"  # PRO environment
             self.api_key = pre_key if environment == "PRE" else pro_key
-    Ok
+
     def get_centers(self, province=None):
         """
         Get the list of all centers (clinics).
