@@ -270,6 +270,138 @@ def obtener_slots():
             "message": f"Error al procesar la solicitud: {str(e)}"
         }), 500
 
+# ========== ENDPOINTS PARA REALIZAR RESERVAS ==========
+
+@app.route('/api/reservar', methods=['POST'])
+def realizar_reserva():
+    """
+    Endpoint para realizar una reserva de cita
+    
+    JSON body debe incluir exactamente estos campos que muestra Postman:
+    - userid: ID del usuario/paciente (string)
+    - phone: Teléfono de contacto (string)
+    - slot.activityid: ID de la actividad (string)
+    - slot.startTime: Hora de inicio (HH:MM) (string)
+    - slot.start_date: Fecha (DD/MM/YYYY) (string)
+    - slot.endTime: Hora de fin (HH:MM) (string)
+    - slot.resourceid: ID del recurso/especialista (string)
+    - slot.areaid: ID del centro/área (string)
+    
+    Returns:
+        JSON con el resultado de la reserva
+    """
+    try:
+        # Obtener datos del cuerpo de la solicitud
+        data = request.json
+        logger.info(f"Datos recibidos: {data}")
+        
+        if not data:
+            return jsonify({
+                "result": "ERROR",
+                "msg": "No se recibieron datos para la reserva"
+            }), 400
+        
+        # Comprobar si tenemos 'userid' y 'phone' directamente en el request
+        # o tenemos que construir los campos desde los parámetros individuales
+        if all(k in data for k in ['userid', 'phone']):
+            # Formato completo
+            userid = data.get('userid')
+            phone = data.get('phone')
+            
+            # El slot puede venir como objeto o como campos individuales
+            if 'slot' in data and isinstance(data['slot'], dict):
+                slot = data['slot']
+            else:
+                # Construir objeto slot desde campos individuales
+                slot = {}
+                for key in ['activityid', 'startTime', 'start_date', 'endTime', 'resourceid', 'areaid']:
+                    slot_key = f"slot.{key}" if f"slot.{key}" in data else key
+                    slot[key] = data.get(slot_key)
+        else:
+            # Formato con campos individuales (desde formulario)
+            userid = data.get('userid', data.get('memberid'))
+            phone = data.get('phone')
+            
+            # Construir objeto slot
+            slot = {
+                'activityid': data.get('slot.activityid'),
+                'startTime': data.get('slot.startTime'),
+                'start_date': data.get('slot.start_date'),
+                'endTime': data.get('slot.endTime'),
+                'resourceid': data.get('slot.resourceid'),
+                'areaid': data.get('slot.areaid')
+            }
+        
+        # Validar datos obligatorios
+        if not userid:
+            return jsonify({"result": "ERROR", "msg": "No se especificó el ID de usuario"}), 400
+        if not phone:
+            return jsonify({"result": "ERROR", "msg": "No se especificó el teléfono de contacto"}), 400
+            
+        # Validar campos obligatorios del slot
+        required_fields = ['activityid', 'startTime', 'start_date', 'endTime', 'resourceid', 'areaid']
+        for field in required_fields:
+            if not slot.get(field):
+                return jsonify({"result": "ERROR", "msg": f"Falta el campo obligatorio: slot.{field}"}), 400
+        
+        logger.info(f"Reservando: usuario={userid}, teléfono={phone}, fecha={slot.get('start_date')}, hora={slot.get('startTime')}")
+        
+        # Preparar payload para la API
+        url = f"https://app.tuotempo.com/api/v3/tt_portal_adeslas/reservations"
+        headers = {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Authorization': f'Bearer 3a5835be0f540c7591c754a2bf0758bb'  # Usando clave PRE por defecto
+        }
+        params = {'lang': 'es'}
+        
+        # Crear el payload con todos los campos necesarios
+        payload = slot.copy()
+        payload.update({
+            'userid': userid,
+            'communication_phone': phone,
+            'tags': "WEB_NO_ASEGURADO",
+            'isExternalPayment': "false"
+        })
+        
+        # Debug
+        logger.info(f"URL: {url}")
+        logger.info(f"Payload: {json.dumps(payload, ensure_ascii=False)}")
+        
+        # Hacer la petición a la API de TuoTempo
+        response = requests.post(url, headers=headers, params=params, json=payload)
+        
+        # Procesar respuesta
+        logger.info(f"Status code: {response.status_code}")
+        logger.info(f"Respuesta: {response.text[:1000]}")
+        
+        try:
+            result = response.json()
+            if result.get("result") == "OK":
+                return jsonify({
+                    "result": "OK",
+                    "msg": "Reserva realizada con éxito",
+                    "return": result.get("return", {})
+                })
+            else:
+                error_msg = result.get('msg', 'Error desconocido al realizar la reserva')
+                logger.error(f"Error en reserva: {error_msg}")
+                return jsonify(result), 400
+                
+        except json.JSONDecodeError:
+            logger.error(f"Error decodificando respuesta: {response.text[:200]}...")
+            return jsonify({
+                "result": "ERROR", 
+                "msg": "Error decodificando respuesta", 
+                "response_text": response.text[:500]
+            }), 500
+            
+    except Exception as e:
+        logger.exception(f"Error al procesar la solicitud de reserva: {str(e)}")
+        return jsonify({
+            "result": "ERROR",
+            "msg": f"Error al procesar la solicitud de reserva: {str(e)}"
+        }), 500
+
 if __name__ == '__main__':
     # Obtener puerto del entorno o usar 5000 por defecto
     port = int(os.getenv('PORT', 5000))
