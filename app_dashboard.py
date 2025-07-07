@@ -68,9 +68,7 @@ def create_app(config_class='config.settings'):
 # Crear la aplicación para que Gunicorn la detecte
 app = create_app()
 
-# ------------------------
-#  RUTA /reserve
-# ------------------------
+# === RUTAS GLOBALES ===
 @app.route('/reserve', methods=['GET', 'POST'])
 def reserve():
     """Página para reservar citas (busca clínicas por código postal)"""
@@ -84,10 +82,13 @@ def reserve():
             error = 'Por favor, introduce un código postal.'
         else:
             try:
+                # Usar HTTPS para la llamada a la API
                 api_url = 'https://tuotempo-apis-production.up.railway.app/api/centros'
+                logger.info(f"Llamando a API con código postal: {postal_code}")
                 resp = requests.get(api_url, params={'cp': postal_code}, timeout=10)
-                resp.raise_for_status()
+                resp.raise_for_status()  # Lanzar excepción si hay error HTTP
                 data = resp.json()
+                logger.info(f"Respuesta de API: {data}")
                 if data.get('success'):
                     clinics = data.get('centros', [])
                     if not clinics:

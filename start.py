@@ -1,11 +1,15 @@
 import os
 import sys
 import subprocess
+import time
 
 # Obtener el nombre del servicio de la variable de entorno que proporciona Railway.
 service_name = os.environ.get('RAILWAY_SERVICE_NAME')
 
 print("--- Script Despachador de Servicios ---")
+print(f"Tiempo de inicio: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"Directorio actual: {os.getcwd()}")
+print(f"Archivos disponibles: {os.listdir('.')}")
 
 if not service_name:
     print("Error: La variable de entorno RAILWAY_SERVICE_NAME no está definida.")
@@ -22,17 +26,26 @@ commands = {
     'actualizarllamadas': 'gunicorn api_resultado_llamada:app',
     'tuotempo apis': 'gunicorn api_tuotempo:app',
     'tuotempo-apis': 'gunicorn api_tuotempo:app',
+    'tuotempo-apis-production': 'gunicorn api_tuotempo:app',
 }
 
-# Buscar el comando correspondiente al servicio actual.
-# Convertimos el nombre del servicio a minúsculas para una comparación robusta.
-service_name_lower = service_name.lower()
-command_to_run = None
-for key, command in commands.items():
-    # Las claves en nuestro diccionario ya están en minúsculas.
-    if key in service_name_lower:
-        command_to_run = command
-        break
+# MANEJO ESPECIAL para el servicio de APIs - match prioritario y exacto
+if 'tuotempo-apis-production' == service_name:
+    print("¡COINCIDENCIA EXACTA para tuotempo-apis-production!")
+    command_to_run = 'gunicorn api_tuotempo:app'
+else:
+    # Buscar el comando correspondiente al servicio actual para otros servicios
+    # Convertimos el nombre del servicio a minúsculas para una comparación robusta.
+    print(f"Buscando coincidencia para: '{service_name}'")
+    service_name_lower = service_name.lower()
+    command_to_run = None
+    for key, command in commands.items():
+        print(f"Comprobando si '{key}' coincide con '{service_name_lower}'")
+        # Las claves en nuestro diccionario ya están en minúsculas.
+        if key in service_name_lower:
+            command_to_run = command
+            print(f"¡Coincidencia encontrada! Usando comando: {command}")
+            break
 
 if command_to_run:
     print(f"Ejecutando comando: '{command_to_run}'")
