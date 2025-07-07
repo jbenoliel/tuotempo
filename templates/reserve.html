@@ -6,21 +6,33 @@
     <h1 class="mb-4">Reservar una Cita</h1>
 
     <!-- Step 1: Search by Postal Code -->
-    <div class="card mb-3">
-        <div class="card-header fw-bold">Paso 1: Buscar Clínica</div>
-        <div class="card-body">
-            <div class="input-group">
-                <input type="text" id="postalCodeInput" class="form-control" placeholder="Introduce un código postal...">
-                <button id="searchClinicsBtn" class="btn btn-primary">Buscar Clínicas</button>
+    <form method="POST" id="clinicSearchForm">
+        <div class="card mb-3">
+            <div class="card-header fw-bold">Paso 1: Buscar Clínica</div>
+            <div class="card-body">
+                <div class="input-group">
+                    <input type="text" id="postalCodeInput" name="postal_code" class="form-control" placeholder="Introduce un código postal..." value="{{ postal_code or '' }}">
+                    <button id="searchClinicsBtn" class="btn btn-primary" type="submit">Buscar Clínicas</button>
+                </div>
+                {% if error %}
+                    <div class="alert alert-danger mt-2">{{ error }}</div>
+                {% endif %}
             </div>
         </div>
-    </div>
+    </form>
 
     <!-- Step 2: Select Clinic -->
-    <div class="card mb-3" id="clinicSelection" style="display: none;">
+    <div class="card mb-3" id="clinicSelection" {% if not clinics %}style="display: none;"{% endif %}> 
         <div class="card-header fw-bold">Paso 2: Seleccionar Clínica</div>
         <div class="card-body">
-            <select id="clinicSelect" class="form-select"></select>
+            <select id="clinicSelect" class="form-select">
+                <option selected disabled>-- Selecciona una clínica --</option>
+                {% if clinics %}
+                    {% for clinic in clinics %}
+                        <option value="{{ clinic.areaid }}">{{ clinic.areaTitle }} - {{ clinic.address }}, {{ clinic.city }}</option>
+                    {% endfor %}
+                {% endif %}
+            </select>
         </div>
     </div>
 
@@ -44,6 +56,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('clinicSearchForm');
     const searchBtn = document.getElementById('searchClinicsBtn');
     const postalCodeInput = document.getElementById('postalCodeInput');
     const clinicSelect = document.getElementById('clinicSelect');
@@ -57,12 +70,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = 'https://tuotempo-apis-production.up.railway.app';
 
     async function showAlert(message, type = 'danger') {
-        // You can implement a more sophisticated alert/toast system here
+        // Simple alert for now
         alert(message);
     }
 
-    // Step 1: Search for clinics
-    searchBtn.addEventListener('click', async () => {
+    function populateClinics(clinics) {
+        clinicSelect.innerHTML = '<option selected disabled>-- Selecciona una clínica --</option>';
+        clinics.forEach(clinic => {
+            const option = document.createElement('option');
+            option.value = clinic.areaid;
+            option.textContent = `${clinic.areaTitle} - ${clinic.address}, ${clinic.city}`;
+            clinicSelect.appendChild(option);
+        });
+        clinicCard.style.display = 'block';
+        activityCard.style.display = 'none';
+        slotsCard.style.display = 'none';
+    }
+
+    searchForm.addEventListener('submit', async (event) => {
+        event.preventDefault(); // IMPORTANT: Prevents the page from reloading
+
         const cp = postalCodeInput.value.trim();
         if (!cp) {
             showAlert('Por favor, introduce un código postal.');
@@ -77,16 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             if (data.success && data.centros.length > 0) {
-                clinicSelect.innerHTML = '<option selected disabled>-- Selecciona una clínica --</option>';
-                data.centros.forEach(clinic => {
-                    const option = document.createElement('option');
-                    option.value = clinic.areaid;
-                    option.textContent = `${clinic.areaTitle} - ${clinic.address}, ${clinic.city}`;
-                    clinicSelect.appendChild(option);
-                });
-                clinicCard.style.display = 'block';
-                activityCard.style.display = 'none';
-                slotsCard.style.display = 'none';
+                populateClinics(data.centros);
             } else {
                 showAlert(data.message || 'No se encontraron clínicas para este código postal.');
                 clinicCard.style.display = 'none';
@@ -100,7 +118,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Step 2: When a clinic is selected, fetch activities
     clinicSelect.addEventListener('change', async () => {
         const clinicId = clinicSelect.value;
         if (!clinicId || clinicId === '-- Selecciona una clínica --') return;
@@ -129,7 +146,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Step 3: When an activity is selected, fetch slots
     activitySelect.addEventListener('change', async () => {
         const clinicId = clinicSelect.value;
         const activityId = activitySelect.value;
@@ -138,8 +154,6 @@ document.addEventListener('DOMContentLoaded', function() {
         slotsContainer.innerHTML = '<div class="d-flex justify-content-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
         slotsCard.style.display = 'block';
         
-        // NOTE: The /api/slots endpoint is not fully implemented yet.
-        // This part of the JS is a placeholder for when it's ready.
         setTimeout(() => {
              slotsContainer.innerHTML = `<div class="alert alert-warning">La funcionalidad para buscar y reservar horas (slots) aún no está implementada en la API.</div>`;
         }, 1000);
