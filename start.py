@@ -19,14 +19,16 @@ print(f"Servicio detectado: {service_name}")
 commands = {
     'web': 'gunicorn app_dashboard:app',
     'actualizarllamadas': 'gunicorn api_resultado_llamada:app',
-    'tuotempo-apis': 'gunicorn api_tuotempo:app',
+    'tuotempo apis': 'gunicorn api_tuotempo:app',
 }
 
 # Buscar el comando correspondiente al servicio actual.
-# Usamos 'in' para ser flexibles si Railway añade prefijos/sufijos.
+# Convertimos el nombre del servicio a minúsculas para una comparación robusta.
+service_name_lower = service_name.lower()
 command_to_run = None
 for key, command in commands.items():
-    if key in service_name:
+    # Las claves en nuestro diccionario ya están en minúsculas.
+    if key in service_name_lower:
         command_to_run = command
         break
 
