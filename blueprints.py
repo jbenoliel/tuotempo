@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, abort
 from functools import wraps
 import os
+import requests
 import humanize
 import datetime
 from werkzeug.utils import secure_filename
@@ -75,11 +76,40 @@ def index():
     return render_template('dashboard.html', stats=stats)
 
 
-@bp.route('/reserve')
+@bp.route('/reserve', methods=['GET', 'POST'])
 @login_required
 def reserve():
     """Página para realizar una reserva de cita."""
-    return render_template('reserve.html')
+    if request.method == 'POST':
+        postal_code = request.form.get('postal_code')
+        clinics = []
+        error = None
+        api_url = 'https://tuotempo-apis-production.up.railway.app/api/centros'
+        
+        if not postal_code:
+            error = 'Por favor, introduce un código postal.'
+        else:
+            try:
+                response = requests.get(api_url, params={'cp': postal_code})
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get('success') and data.get('centros'):
+                    clinics = data.get('centros')
+                else:
+                    error = data.get('message', 'No se encontraron clínicas para este código postal.')
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error calling clinic API: {e}")
+                error = "No se pudo comunicar con el servicio de clínicas."
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}")
+                error = "Ocurrió un error inesperado."
+
+        return render_template('reserve.html', clinics=clinics, error=error, postal_code=postal_code)
+    
+    # GET request
+    return render_template('reserve.html', clinics=[], error=None, postal_code='')
 
 
 @bp.route('/recargar-datos', methods=['GET', 'POST'])
