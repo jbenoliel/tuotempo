@@ -134,23 +134,12 @@ def get_statistics():
 
     try:
         with conn.cursor(dictionary=True) as cursor:
-            # Detectar si la columna call_time existe
-            cursor.execute("""
-                SELECT 1
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'leads'
-                  AND COLUMN_NAME = 'call_time'
-            """)
-            row_col = cursor.fetchone()
-            date_col = 'call_time' if row_col else 'created_at'
             # Total leads
             cursor.execute("SELECT COUNT(*) AS cnt FROM leads")
             stats['total_leads'] = cursor.fetchone()['cnt']
 
-            # Llamadas de hoy (fecha en la columna correspondiente)
-            cursor.execute(f"SELECT COUNT(*) AS cnt FROM leads WHERE DATE({date_col}) = CURDATE()")
-            stats['llamadas_hoy'] = cursor.fetchone()['cnt']
+            # Llamadas de hoy (temporalmente deshabilitado)
+            stats['llamadas_hoy'] = 0
 
             # Resumen de estados solicitados (status_level_1 + conPack)
             cursor.execute("""
@@ -200,32 +189,8 @@ def get_statistics():
             # Asegurar que todos los posibles subestados estén incluidos
             stats['subestados_no_interes'] = {sub: subestados_no_interes_actual.get(sub, 0) for sub in subestados_no_interes_posibles}
 
-            # Estadísticas diarias últimas 7 fechas
-            cursor.execute("""
-                SELECT DATE({date_col}) AS dia,
-                       COUNT(*) AS llamadas,
-                       SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' THEN 1 ELSE 0 END) AS citas,
-                       SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END) AS no_interesado
-                FROM leads
-                WHERE {date_col} IS NOT NULL
-                GROUP BY dia
-                ORDER BY dia DESC
-                LIMIT 7
-            """)
-            diarios_tmp = cursor.fetchall()
-            stats['diarios'] = [
-                {
-                    'fecha': (r['dia'].strftime('%d/%m') if r['dia'] else 'N/A'),
-                    'llamadas': r['llamadas'],
-                    'citas': r['citas'],
-                    'no_interesado': r['no_interesado'],
-                    'conversion': f"{(r['citas']/r['llamadas']*100):.0f}%" if r['llamadas'] else '0%'
-                }
-                for r in diarios_tmp
-            ][::-1]  # invertir para cronológico asc
-
-
-            
+            # Estadísticas diarias (temporalmente deshabilitado)
+            stats['diarios'] = []      
             
 
             # Tasa de conversión simple: leads con conPack=1 sobre total

@@ -2,6 +2,7 @@ import os
 import pymysql
 from dotenv import load_dotenv
 import logging
+from urllib.parse import urlparse
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -10,19 +11,36 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 load_dotenv()
 
 def get_db_connection():
-    """Crea y devuelve una conexión a la base de datos."""
+    """Crea y devuelve una conexión a la base de datos, priorizando MYSQL_URL si está disponible."""
     try:
-        connection = pymysql.connect(
-            host=os.getenv('MYSQL_HOST'),
-            user=os.getenv('MYSQL_USER'),
-            password=os.getenv('MYSQL_PASSWORD'),
-            database=os.getenv('MYSQL_DATABASE'),
-            port=int(os.getenv('MYSQL_PORT', 3306)),
-            cursorclass=pymysql.cursors.DictCursor
-        )
+        mysql_url = os.getenv('MYSQL_URL')
+        if mysql_url:
+            logging.info("Variable MYSQL_URL detectada. Usando para la conexión.")
+            url = urlparse(mysql_url)
+            connection_params = {
+                'host': url.hostname,
+                'user': url.username,
+                'password': url.password,
+                'database': url.path[1:],  # Eliminar la barra inicial '/'
+                'cursorclass': pymysql.cursors.DictCursor
+            }
+            if url.port:
+                connection_params['port'] = url.port
+        else:
+            logging.info("MYSQL_URL no encontrada. Usando variables de entorno individuales.")
+            connection_params = {
+                'host': os.getenv('MYSQL_HOST'),
+                'user': os.getenv('MYSQL_USER'),
+                'password': os.getenv('MYSQL_PASSWORD'),
+                'database': os.getenv('MYSQL_DATABASE'),
+                'port': int(os.getenv('MYSQL_PORT', 3306)),
+                'cursorclass': pymysql.cursors.DictCursor
+            }
+        
+        connection = pymysql.connect(**connection_params)
         logging.info("Conexión a la base de datos establecida con éxito.")
         return connection
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Error al conectar con la base de datos: {e}")
         raise
 

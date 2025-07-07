@@ -88,7 +88,7 @@
       <div class="card-body">
         <h6 class="text-center card-title">No interesado</h6>
         <div class="chart-container">
-          <canvas id="chartNoInteres"></canvas>
+          <canvas id="chartNoInteresado"></canvas>
         </div>
       </div>
     </div>
@@ -130,105 +130,113 @@
 {% endblock %}
 
 {% block scripts %}
+<script id="chart-data" type="application/json">
+    {{ stats | default({}) | tojson | safe }}
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-// Datos para gráficos
-const estadosLabels = {{ ['Cita con Pack','Cita sin Pack','Volver a llamar','No interesado'] | tojson | safe }};
-const estadosData = {{ [stats.estados.cita_con_pack, stats.estados.cita_sin_pack, stats.estados.volver_llamar, stats.estados.no_interesado] | tojson | safe }};
+document.addEventListener('DOMContentLoaded', function () {
+    // --- Data Preparation ---
+    const chartDataElement = document.getElementById('chart-data');
+    // Use a default empty object if stats are not available from the server
+    const stats = chartDataElement ? JSON.parse(chartDataElement.textContent || '{}') : {};
 
-// Convertir diccionarios a listas para los gráficos de barras
-const volverLabels = Object.keys({{ stats.subestados_volver | tojson | safe }});
-const volverData = Object.values({{ stats.subestados_volver | tojson | safe }});
+    // Helper function to safely get nested properties from the stats object
+    const get = (obj, path, defaultValue = 0) => {
+        const keys = Array.isArray(path) ? path : path.split('.');
+        let result = obj;
+        for (const key of keys) {
+            // Check if result is a valid object and has the key
+            if (result === null || result === undefined || typeof result !== 'object' || !(key in result)) {
+                return defaultValue;
+            }
+            result = result[key];
+        }
+        return result;
+    };
+    
+    // --- Chart Data Extraction ---
 
-const noIntLabels = Object.keys({{ stats.subestados_no_interes | tojson | safe }});
-const noIntData = Object.values({{ stats.subestados_no_interes | tojson | safe }});
+    // 1. Pie Chart Data
+    const pieLabels = ['Citas Agendadas', 'Volver a llamar', 'No Interesado'];
+    const pieData = [
+        get(stats, 'estados.cita_con_pack', 0) + get(stats, 'estados.cita_sin_pack', 0),
+        get(stats, 'estados.volver_llamar', 0),
+        get(stats, 'estados.no_interesado', 0)
+    ];
 
-const citasLabels = ['Con pack','Sin pack'];
-const citasData = {{ [stats.estados.cita_con_pack, stats.estados.cita_sin_pack] | tojson | safe }};
+    // 2. "Volver a llamar" Bar Chart Data
+    const volverData = get(stats, 'subestados_volver', {});
+    const volverLabels = Object.keys(volverData);
+    const volverValues = Object.values(volverData);
 
-// Gráfico de tarta para estados
-new Chart(document.getElementById('estadoChart'), {
-  type: 'pie',
-  data: {
-    labels: estadosLabels,
-    datasets: [{
-      data: estadosData,
-      backgroundColor: ['#4CAF50','#8BC34A','#FFC107','#F44336']
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { boxWidth: 12 }
-      }
+    // 3. "No Interesado" Bar Chart Data
+    const noInteresadoData = get(stats, 'subestados_no_interes', {});
+    const noInteresadoLabels = Object.keys(noInteresadoData);
+    const noInteresadoValues = Object.values(noInteresadoData);
+
+    // 4. "Citas" Bar Chart Data
+    const citasLabels = ['Con Pack', 'Sin Pack'];
+    const citasValues = [
+        get(stats, 'estados.cita_con_pack', 0),
+        get(stats, 'estados.cita_sin_pack', 0)
+    ];
+
+    // --- Chart Initialization ---
+
+    const barOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1,
+                    callback: function(value) { if (Number.isInteger(value)) { return value; } }
+                }
+            }
+        }
+    };
+
+    // Helper to create charts only if the canvas element exists
+    function createChart(elementId, config) {
+        const ctx = document.getElementById(elementId);
+        if (ctx) {
+            new Chart(ctx, config);
+        } else {
+            console.error('Chart canvas element not found:', elementId);
+        }
     }
-  }
-});
 
-// Gráfico de barras para Volver a llamar
-new Chart(document.getElementById('chartVolver'), {
-  type: 'bar',
-  data: {
-    labels: volverLabels,
-    datasets: [{
-      data: volverData,
-      backgroundColor: '#FFC107'
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { y: { 
-      beginAtZero: true,
-      ticks: { precision: 0 } // Solo números enteros
-    }}
-  }
-});
+    // Create all charts
+    createChart('estadoChart', {
+      type: 'pie',
+      data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: ['#4CAF50', '#FFC107', '#F44336'] }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Distribución Estados' }, legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+    });
 
-// Gráfico de barras para No interesado
-new Chart(document.getElementById('chartNoInteres'), {
-  type: 'bar',
-  data: {
-    labels: noIntLabels,
-    datasets: [{
-      data: noIntData,
-      backgroundColor: '#F44336'
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { y: { 
-      beginAtZero: true,
-      ticks: { precision: 0 } // Solo números enteros
-    }}
-  }
-});
+    createChart('chartVolver', {
+      type: 'bar',
+      data: { labels: volverLabels, datasets: [{ data: volverValues, backgroundColor: '#FFC107' }] },
+      options: { ...barOptions, plugins: { ...barOptions.plugins, title: { display: true, text: 'Subestados: Volver a llamar' } } }
+    });
 
-// Gráfico de barras para Citas
-new Chart(document.getElementById('chartCitas'), {
-  type: 'bar',
-  data: {
-    labels: citasLabels,
-    datasets: [{
-      data: citasData,
-      backgroundColor: ['#4CAF50','#8BC34A']
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { y: { 
-      beginAtZero: true,
-      ticks: { precision: 0 } // Solo números enteros
-    }}
-  }
+    createChart('chartNoInteresado', {
+      type: 'bar',
+      data: { labels: noInteresadoLabels, datasets: [{ data: noInteresadoValues, backgroundColor: '#F44336' }] },
+      options: { ...barOptions, plugins: { ...barOptions.plugins, title: { display: true, text: 'Subestados: No Interesado' } } }
+    });
+
+    createChart('chartCitas', {
+      type: 'bar',
+      data: { labels: citasLabels, datasets: [{ data: citasValues, backgroundColor: '#4CAF50' }] },
+      options: { ...barOptions, plugins: { ...barOptions.plugins, title: { display: true, text: 'Subestados: Citas' } } }
+    });
 });
 </script>
 {% endblock %}
