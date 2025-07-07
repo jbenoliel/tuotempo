@@ -144,11 +144,11 @@ def get_statistics():
             # Resumen de estados solicitados (status_level_1 + conPack)
             cursor.execute("""
                 SELECT
-                    SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END) AS contactados,
-                    SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END) AS volver_llamar,
-                    SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END) AS no_interesado,
-                    SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND (conPack IS NULL OR conPack = 0) THEN 1 ELSE 0 END) AS cita_sin_pack,
-                    SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND conPack = 1 THEN 1 ELSE 0 END) AS cita_con_pack
+                    IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END), 0) AS contactados,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS volver_llamar,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END), 0) AS no_interesado,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND (conPack IS NULL OR conPack = 0) THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND conPack = 1 THEN 1 ELSE 0 END), 0) AS cita_con_pack
                 FROM leads
             """)
             row_states = cursor.fetchone()
