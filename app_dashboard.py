@@ -72,6 +72,35 @@ if __name__ == '__main__':
     # Crear la aplicación usando la factory
     app = create_app()
     # El modo debug y el puerto se pueden controlar desde el archivo de configuración
+    @app.route('/reserve', methods=['GET', 'POST'])
+    def reserve():
+        """Página para reservar citas (busca clínicas por código postal)"""
+        clinics = []
+        error = None
+        postal_code = ''
+
+        if request.method == 'POST':
+            postal_code = request.form.get('postal_code', '').strip()
+            if not postal_code:
+                error = 'Por favor, introduce un código postal.'
+            else:
+                try:
+                    api_url = 'https://tuotempo-apis-production.up.railway.app/api/centros'
+                    resp = requests.get(api_url, params={'cp': postal_code}, timeout=10)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if data.get('success'):
+                        clinics = data.get('centros', [])
+                        if not clinics:
+                            error = 'No se encontraron clínicas para este código postal.'
+                    else:
+                        error = data.get('message', 'Error desconocido al consultar la API.')
+                except Exception as e:
+                    logger.error(f"Error al consultar la API de clínicas: {e}")
+                    error = 'No se pudo comunicar con el servicio de clínicas.'
+
+        return render_template('reserve.html', clinics=clinics, error=error, postal_code=postal_code)
+
     app.run(debug=app.config.get('DEBUG', True), 
             port=app.config.get('PORT', 5000),
             host=app.config.get('HOST', '0.0.0.0'))
