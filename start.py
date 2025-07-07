@@ -21,6 +21,7 @@ commands = {
     'dashboard': 'gunicorn app_dashboard:app',
     'actualizarllamadas': 'gunicorn api_resultado_llamada:app',
     'tuotempo apis': 'gunicorn api_tuotempo:app',
+    'tuotempo-apis': 'gunicorn api_tuotempo:app',
 }
 
 # Buscar el comando correspondiente al servicio actual.
