@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import os
 from dotenv import load_dotenv
 import logging
@@ -15,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 # Crear la aplicación Flask
 app = Flask(__name__)
+
+# Configurar CORS para permitir peticiones ÚNICAMENTE desde el dashboard de producción
+CORS(app, resources={r"/api/*": {"origins": "https://tuotempo-production.up.railway.app"}})
 
 # Configuración de la aplicación
 app.config['JSON_AS_ASCII'] = False  # Para manejar caracteres especiales en JSON
