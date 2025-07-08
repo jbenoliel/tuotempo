@@ -65,14 +65,66 @@ def actualizar_resultado():
 
     telefono = data.get('telefono')
 
-    # Recoger todos los campos posibles de la petición
+    # -------------------------------------------------------------
+    # 1. Extracción de parámetros adicionales y reglas de negocio
+    # -------------------------------------------------------------
+    buzon = data.get('buzon')                      # True si se cayó en buzón
+    volver_a_llamar_flag = data.get('volverALlamar')  # True si se debe volver a llamar
+
+    codigo_no_interes = data.get('codigoNoInteres')
+    codigo_volver_llamar = data.get('codigoVolverLlamar')
+
+    # Mapas de traducción de códigos compactos → descripciones
+    mapa_no_interes = {
+        'no disponibilidad': 'no disponibilidad cliente',
+        'descontento': 'Descontento con Adeslas',
+        'bajaProxima': 'Próxima baja',
+        'otros': 'No da motivos'
+    }
+
+    mapa_volver_llamar = {
+        'buzon': 'buzón',
+        'interrupcion': 'no disponible cliente',
+        'proble tecnico': 'Interesado. Problema técnico',
+        'proble_tecnico': 'Interesado. Problema técnico'
+    }
+
+    # -------------------------------------------------------------
+    # 2. Deducción automática de status_level_1 y status_level_2
+    # -------------------------------------------------------------
+    status_level_1 = None
+    status_level_2 = None
+
+    if data.get('nuevaCita'):
+        # Una nueva cita siempre se considera un Éxito
+        status_level_1 = 'Éxito'
+        status_level_2 = 'Cita programada'
+    elif buzon:
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = 'buzón'
+    elif volver_a_llamar_flag:
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = data.get('razonvueltaallamar') or 'Pendiente'
+    elif data.get('noInteresado') or codigo_no_interes in mapa_no_interes:
+        status_level_1 = 'No Interesado'
+        # Tomamos razón del mapa si existe, o texto libre proporcionado
+        status_level_2 = mapa_no_interes.get(codigo_no_interes, data.get('razonNoInteres'))
+    elif codigo_volver_llamar in mapa_volver_llamar:
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = mapa_volver_llamar[codigo_volver_llamar]
+    elif data.get('conPack'):
+        status_level_1 = 'Éxito'
+        status_level_2 = 'Contratado'
+    elif data.get('errorTecnico'):
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = 'Interesado. Problema técnico'
+
+    # -------------------------------------------------------------
+    # 3. Construcción de diccionario de actualización
+    # -------------------------------------------------------------
     update_fields = {
-
-        'status_level_1': data.get('status_level_1'),
-        'status_level_2': data.get('status_level_2'),
-        
-
-        # Nuevos campos detallados
+        'status_level_1': status_level_1,
+        'status_level_2': status_level_2,
         'conPack': data.get('conPack'),
         'hora_rellamada': data.get('horaRellamada'),
         'error_tecnico': data.get('errorTecnico'),
@@ -80,40 +132,13 @@ def actualizar_resultado():
         'razon_no_interes': data.get('razonNoInteres')
     }
 
-    # --- Mapeos de códigos compactos a descripciones ---
-    # 1) Razones de "No Interesado"
-    codigo_no_interes = data.get('codigoNoInteres')
-    mapa_no_interes = {
-        'no disponibilidad': 'no disponibilidad cliente',
-        'descontento': 'Descontento con Adeslas',
-        'bajaProxima': 'Próxima baja',
-        'otros': 'No da motivos'
-    }
-    if codigo_no_interes in mapa_no_interes:
-        update_fields['status_level_1'] = 'No Interesado'
-        update_fields['status_level_2'] = mapa_no_interes[codigo_no_interes]
-
-    # 2) Razones de "Volver a llamar"
-    codigo_volver_llamar = data.get('codigoVolverLlamar')
-    mapa_volver_llamar = {
-        'buzon': 'buzón',
-        'interrupcion': 'no disponible cliente',
-        'proble tecnico': 'Interesado. Problema técnico',
-        'proble_tecnico': 'Interesado. Problema técnico'
-    }
-    if codigo_volver_llamar in mapa_volver_llamar:
-        update_fields['status_level_1'] = 'Volver a llamar'
-        update_fields['status_level_2'] = mapa_volver_llamar[codigo_volver_llamar]
-
-    # Lógica de negocio para campos especiales
-    if data.get('noInteresado'):
-        update_fields['status_level_1'] = 'No Interesado'
-
-    # Si llega una nueva cita, actualizamos el campo 'fecha_cita'
+    # Si llega una nueva cita, actualizamos el campo 'cita'
     if data.get('nuevaCita'):
-        update_fields['cita'] = data.get('nuevaCita') # Guardamos la fecha/hora de la cita en la columna 'cita'
+        update_fields['cita'] = data.get('nuevaCita')
 
-    # Para mantener la compatibilidad, si llega status_level_2, lo usamos también para el campo antiguo 'resultado_ultima_gestion'
+    # -------------------------------------------------------------
+    # 4. Filtrar valores None para no sobreescribir con nulos
+    # -------------------------------------------------------------
 
     # Filtrar campos que son None para no sobreescribir datos existentes con nulos en la BD
     update_data = {k: v for k, v in update_fields.items() if v is not None}
