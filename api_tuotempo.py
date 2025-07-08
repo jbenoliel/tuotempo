@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 from dotenv import load_dotenv
 import logging
+import json
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
 
@@ -18,7 +19,10 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configurar CORS para permitir peticiones ÚNICAMENTE desde el dashboard de producción
-CORS(app, resources={r"/api/*": {"origins": "https://tuotempo-production.up.railway.app"}})
+frontend_origin_env = os.getenv("FRONTEND_ORIGIN", "*")
+# Permitir lista separada por comas
+allowed_origins = [o.strip() for o in frontend_origin_env.split(',')]
+CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
 # Configuración de la aplicación
 app.config['JSON_AS_ASCII'] = False  # Para manejar caracteres especiales en JSON
@@ -270,6 +274,8 @@ def obtener_slots():
             "message": f"Error al procesar la solicitud: {str(e)}"
         }), 500
 
+from datetime import datetime
+
 # ========== ENDPOINTS PARA REALIZAR RESERVAS ==========
 
 @app.route('/api/reservar', methods=['POST'])
@@ -401,6 +407,25 @@ def realizar_reserva():
             "result": "ERROR",
             "msg": f"Error al procesar la solicitud de reserva: {str(e)}"
         }), 500
+
+# ========== ENDPOINTS DE UTILIDAD ==========
+
+@app.route('/api/saludo', methods=['GET'])
+def saludo():
+    """Devuelve un saludo según la hora actual (Buenos días <14h, Buenas tardes >=14h)."""
+    hora_actual = datetime.now().hour
+    mensaje = "Buenos días" if hora_actual < 14 else "Buenas tardes"
+    # Usamos json.dumps con ensure_ascii=False para evitar el escape de caracteres unicode
+    response_data = {
+        "mensaje": mensaje,
+        "hora": hora_actual,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    return app.response_class(
+        response=json.dumps(response_data, ensure_ascii=False),
+        status=200,
+        mimetype="application/json; charset=utf-8"
+    )
 
 if __name__ == '__main__':
     # Obtener puerto del entorno o usar 5000 por defecto
