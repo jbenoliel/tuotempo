@@ -51,8 +51,13 @@ def table_exists(cursor, table_name: str) -> bool:
 
 def column_exists(cursor, table_name: str, column_name: str) -> bool:
     """Verifica si una columna existe en una tabla."""
-    cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,))
-    return cursor.fetchone() is not None
+    cursor.execute(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        (table_name, column_name)
+    )
+    result = cursor.fetchone()["COUNT(*)"] > 0
+    logging.info(f"Verificando columna '{column_name}' en tabla '{table_name}': {'existe' if result else 'no existe'}")
+    return result
 
 def update_usuarios_table(cursor):
     """Actualiza la tabla usuarios con los campos necesarios para autenticación por email."""
@@ -77,6 +82,11 @@ def update_usuarios_table(cursor):
     else:
         logging.info("La tabla 'usuarios' ya existe. Verificando y añadiendo columnas faltantes...")
         
+        # Verificar y añadir columna is_admin si no existe
+        if not column_exists(cursor, "usuarios", "is_admin"):
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")
+            logging.info("Columna 'is_admin' añadida a la tabla 'usuarios'.")
+            
         # Verificar y añadir columna email si no existe
         if not column_exists(cursor, "usuarios", "email"):
             cursor.execute("ALTER TABLE usuarios ADD COLUMN email VARCHAR(100) NULL UNIQUE")

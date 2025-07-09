@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Registro de Llamadas</h2>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Usuario</th>
+                    <th>Fecha y Hora de la Última Llamada</th>
+                    <th>Duración (s)</th>
+                    <th>Estado</th>
+                    <th>Notas</th>
+                    <th>Grabación</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for call in calls %}
+                <tr>
+                    <td>{{ call.username }}</td>
+                    <td>{{ call.last_call_timestamp if call.last_call_timestamp else 'N/A' }}</td>
+                    <td>{{ call.last_call_duration if call.last_call_duration is not none else 'N/A' }}</td>
+                    <td>{{ call.last_call_status if call.last_call_status else 'N/A' }}</td>
+                    <td>{{ call.last_call_notes if call.last_call_notes else 'N/A' }}</td>
+                    <td>
+                        {% if call.last_call_recording_url %}
+                            <a href="{{ call.last_call_recording_url }}" target="_blank">Escuchar</a>
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">No hay registros de llamadas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

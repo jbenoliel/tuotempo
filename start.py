@@ -1,4 +1,50 @@
 import os
+import subprocess
+import logging
+
+# Configurar logging para ver la salida en los logs de Railway
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def run_command(command):
+    """Ejecuta un comando y detiene el script si falla."""
+    logging.info(f"Ejecutando: {' '.join(command)}")
+    process = subprocess.run(command, capture_output=True, text=True)
+    if process.returncode != 0:
+        logging.error(f"Error al ejecutar {' '.join(command)}:")
+        logging.error(process.stdout)
+        logging.error(process.stderr)
+        exit(process.returncode)
+    logging.info(f"Comando {' '.join(command)} completado exitosamente.")
+
+def main():
+    """
+    Punto de entrada para Railway: ejecuta tareas de inicialización y luego el servidor web.
+    """
+    logging.info("--- Iniciando proceso de arranque --- ")
+
+    # 1. Ejecutar migraciones de base de datos
+    run_command(['python', 'db_migration_add_call_info.py'])
+
+    # 2. Asegurar que el usuario admin exista
+    run_command(['python', 'setup_railway.py'])
+
+    # 3. Iniciar el servidor web Gunicorn
+    # os.execvp reemplaza este script con el proceso de Gunicorn,
+    # que es la forma correcta de iniciar el servidor.
+    logging.info("--- Tareas de inicialización completadas. Iniciando Gunicorn... ---")
+    gunicorn_command = [
+        'gunicorn',
+        '--bind',
+        f"0.0.0.0:{os.getenv('PORT', '8080')}",
+        '--workers',
+        '4',
+        'app_dashboard:app'
+    ]
+    os.execvp('gunicorn', gunicorn_command)
+
+if __name__ == "__main__":
+    main()
+
 import sys
 import subprocess
 import time

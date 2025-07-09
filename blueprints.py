@@ -6,9 +6,11 @@ import humanize
 import datetime
 from werkzeug.utils import secure_filename
 import logging
+import secrets
+import string
 
 from db import get_connection
-from utils import load_excel_data, exportar_tabla_leads # Asumimos que estas funciones se moverán a utils.py
+from utils import load_excel_data, exportar_tabla_leads, send_password_reset_email, verify_reset_token # Asumimos que estas funciones se moverán a utils.py
 
 # Configurar logger para este blueprint
 logger = logging.getLogger(__name__)
@@ -31,35 +33,35 @@ def login_required(f):
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # Esta función necesitará bcrypt, que debería ser inicializado en la app principal
-    # Por ahora, la lógica se mantiene, pero la importación de bcrypt se gestionará en create_app
     from flask import current_app
 
-    error = None
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, username, password_hash FROM usuarios WHERE username = %s", (username,))
+        cursor.execute("SELECT id, username, password_hash, is_admin, is_active, email_verified FROM usuarios WHERE username = %s", (username,))
         user = cursor.fetchone()
         cursor.close()
         conn.close()
-        
-        # Asumimos que bcrypt está disponible a través de current_app
-        if user and current_app.bcrypt.check_password_hash(user['password_hash'], password):
+
+        if not user or not current_app.bcrypt.check_password_hash(user['password_hash'], password):
+            flash('Usuario o contraseña incorrectos.', 'danger')
+        elif not user['is_active']:
+            flash('Tu cuenta está desactivada. Contacta con un administrador.', 'warning')
+        elif not user['email_verified']:
+            flash('Tu email no ha sido verificado. Por favor, revisa tu correo.', 'warning')
+        else:
             session['logged_in'] = True
             session['user_id'] = user['id']
             session['username'] = user['username']
-            
-            flash('Has iniciado sesión correctamente', 'success')
+            session['is_admin'] = user['is_admin']
+            flash('Has iniciado sesión correctamente.', 'success')
             next_page = request.args.get('next')
             return redirect(next_page or url_for('main.index'))
-        else:
-            error = 'Usuario o contraseña incorrectos'
-    
-    return render_template('login.html', error=error)
+
+    return render_template('login.html')
 
 @bp.route('/logout')
 def logout():
@@ -293,3 +295,125 @@ def ver_clinica(id):
     finally:
         if conn.is_connected():
             conn.close()
+
+
+# --- DECORADORES Y RUTAS DE ADMINISTRACIÓN ---
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session or not session.get('is_admin'):
+            abort(403) # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
+
+@bp.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, username, email, is_active, is_admin, created_at FROM usuarios ORDER BY created_at DESC")
+    users = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('admin_users.html', users=users)
+
+@bp.route('/admin/create_user', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_create_user():
+    from flask import current_app
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        is_admin = 'is_admin' in request.form
+
+        if not username or not email:
+            flash('El nombre de usuario y el email son obligatorios.', 'danger')
+            return render_template('admin_create_user.html')
+
+        # Generar una contraseña aleatoria segura
+        alphabet = string.ascii_letters + string.digits
+        password = ''.join(secrets.choice(alphabet) for i in range(12))
+        password_hash = current_app.bcrypt.generate_password_hash(password).decode('utf-8')
+
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO usuarios (username, email, password_hash, is_admin, email_verified) VALUES (%s, %s, %s, %s, %s)",
+                (username, email, password_hash, is_admin, True)
+            )
+            conn.commit()
+            flash(f'Usuario {username} creado exitosamente.', 'success')
+            return redirect(url_for('main.admin_users'))
+        except Exception as e:
+            flash(f'Error al crear el usuario: {e}', 'danger')
+        finally:
+            if conn and conn.is_connected():
+                cursor.close()
+                conn.close()
+
+    return render_template('admin_create_user.html')
+
+@bp.route('/admin/users/<int:user_id>/reset-password', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_reset_password(user_id):
+    # Aquí se generaría un token y se enviaría por email.
+    # Por ahora, solo mostramos un mensaje de confirmación.
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT email, username FROM usuarios WHERE id = %s", (user_id,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if user:
+        try:
+            send_password_reset_email(user['email'], user_id)
+            flash(f"Se ha enviado un correo para restablecer la contraseña a {user['username']} ({user['email']}).", 'success')
+        except Exception as e:
+            logger.error(f"Error al enviar email de reseteo: {e}")
+            flash('No se pudo enviar el correo de restablecimiento. Revisa la configuración del servidor de correo.', 'danger')
+    else:
+        flash('Usuario no encontrado.', 'danger')
+    
+    return redirect(url_for('main.admin_users'))
+
+@bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password_with_token(token):
+    user_id = verify_reset_token(token)
+    if not user_id:
+        flash('El enlace de restablecimiento de contraseña es inválido o ha expirado.', 'danger')
+        return redirect(url_for('main.login'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        password_confirm = request.form.get('password_confirm')
+
+        if not password or password != password_confirm:
+            flash('Las contraseñas no coinciden o están vacías.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        from flask import current_app
+        password_hash = current_app.bcrypt.generate_password_hash(password).decode('utf-8')
+
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET password_hash = %s WHERE id = %s", (password_hash, user_id))
+            conn.commit()
+            flash('Tu contraseña ha sido actualizada exitosamente. Ya puedes iniciar sesión.', 'success')
+            return redirect(url_for('main.login'))
+        except Exception as e:
+            logger.error(f"Error al actualizar la contraseña: {e}")
+            flash('Ocurrió un error al actualizar tu contraseña.', 'danger')
+        finally:
+            if conn and conn.is_connected():
+                cursor.close()
+                conn.close()
+
+    return render_template('reset_password.html', token=token)
+

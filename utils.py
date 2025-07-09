@@ -1,4 +1,44 @@
 import pandas as pd
+from flask import url_for, current_app
+from flask_mail import Message
+from itsdangerous import URLSafeTimedSerializer
+
+def generate_reset_token(user_id):
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    return serializer.dumps(user_id, salt=current_app.config.get('SECURITY_PASSWORD_SALT', 'my_precious_salt'))
+
+def send_password_reset_email(user_email, user_id):
+    from app_dashboard import mail # Importación local para evitar importación circular
+    token = generate_reset_token(user_id)
+    reset_url = url_for('main.reset_password_with_token', token=token, _external=True)
+    
+    subject = "Restablecimiento de contraseña - TuoTempo"
+    html_body = f"""
+    <p>Hola,</p>
+    <p>Has solicitado restablecer tu contraseña para tu cuenta en TuoTempo.</p>
+    <p>Por favor, haz clic en el siguiente enlace para establecer una nueva contraseña:</p>
+    <p><a href="{reset_url}">{reset_url}</a></p>
+    <p>Si no has solicitado esto, por favor ignora este email.</p>
+    <p>Gracias,</p>
+    <p>El equipo de TuoTempo</p>
+    """
+    
+    msg = Message(subject, recipients=[user_email], html=html_body)
+    mail.send(msg)
+
+def verify_reset_token(token, max_age_seconds=1800):
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    try:
+        user_id = serializer.loads(
+            token,
+            salt=current_app.config.get('SECURITY_PASSWORD_SALT', 'my_precious_salt'),
+            max_age=max_age_seconds
+        )
+    except Exception:
+        return None
+    return user_id
+
+
 import os
 import re
 import logging

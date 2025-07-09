@@ -172,31 +172,6 @@
       }, 60000);
     </script>
     <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Dirección</th>
-                    <th>Teléfono</th>
-                    <th>Cita</th>
-                    <th>Con Pack</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for lead in leads %}
-                <tr>
-                    <td>{{ lead.nombre_clinica }}</td>
-                    <td>{{ lead.direccion_clinica }}</td>
-                    <td>{{ lead.telefono }}</td>
-                    <td>{{ lead.cita or '' }}</td>
-                    <td>{% if lead.conPack %}Sí{% else %}No{% endif %}</td>
-                    <td>{{ lead.ultimo_estado or '' }}</td>
-                    <td><!-- Acciones aquí --></td>
-                </tr>
-                {% endfor %}
-            </tbody>
         </table>
     </div>
 </div>
