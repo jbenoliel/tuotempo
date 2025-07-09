@@ -34,22 +34,25 @@ Este proyecto es una aplicación web basada en Flask para la gestión de contact
 ### Endpoint: POST /api/actualizar_resultado
 Servicio para actualizar el estado de un lead después de una llamada.
 
-**Parámetros JSON**
+**Parámetros JSON**  
+Los campos `status_level_1` y `status_level_2` **ya no se envían**; el backend los calcula automáticamente a partir de las reglas de negocio.
+
 | Campo | Tipo | Obligatorio | Descripción |
 |-------|------|-------------|-------------|
-| `telefono` | string | Sí | Número de teléfono del lead.
-| `status_level_1` | string | No* | Nivel 1 del estado. Requerido si no se envía otro campo actualizable.
-| `status_level_2` | string | No | Nivel 2 del estado.
-| `conPack` | boolean | No | `true` si se vendió pack.
-| `nuevaCita` | string `YYYY-MM-DD HH:MM` | No | Fecha/hora de nueva cita.
-| `horaRellamada` | string `YYYY-MM-DD HH:MM` | No | Programar rellamada.
-| `errorTecnico` | boolean | No | Marca error técnico.
-| `razonvueltaallamar` | string | No | Motivo detallado de rellamada.
-| `razonNoInteres` | string | No | Motivo detallado de no interés.
-| `codigoNoInteres` | string | No | Código abreviado (`no disponibilidad`, `descontento`, `bajaProxima`, `otros`).
-| `codigoVolverLlamar` | string | No | Código abreviado (`buzon`, `interrupcion`, `proble_tecnico`).
+| `telefono` | string | Sí | Número de teléfono del lead. |
+| `nuevaCita` | string `YYYY-MM-DD HH:MM` | No | Si se informa, la llamada se marca como **Éxito / Cita programada**. |
+| `buzon` | boolean | No | `true` si la llamada cae en buzón ⇒ **Volver a llamar / buzón**. |
+| `volverALlamar` | boolean | No | `true` para indicar que se debe volver a llamar. |
+| `noInteresado` | boolean | No | `true` ⇒ **No Interesado**. |
+| `conPack` | boolean | No | `true` ⇒ **Éxito / Contratado**. |
+| `horaRellamada` | string `HH:MM` | No | Hora sugerida para la rellamada. |
+| `errorTecnico` | boolean | No | `true` ⇒ **Volver a llamar / Problema técnico**. |
+| `razonvueltaallamar` | string | No | Motivo textual de la rellamada. |
+| `razonNoInteres` | string | No | Motivo textual de no interés. |
+| `codigoNoInteres` | string | No | Código corto para no interés (`no disponibilidad`, `descontento`, `bajaProxima`, `otros`). |
+| `codigoVolverLlamar` | string | No | Código corto para rellamada (`buzon`, `interrupcion`, `proble_tecnico`). |
 
-*Se requiere al menos uno de los campos opcionales para que la petición sea aceptada.
+*Debe enviarse al menos un campo opcional (además de `telefono`) para que la petición sea procesada.*
 
 **Respuestas**
 | Código | Caso |
@@ -59,15 +62,23 @@ Servicio para actualizar el estado de un lead después de una llamada.
 | `404` | No existe lead con el teléfono indicado. |
 | `500` | Error de base de datos.
 
-Ejemplo:
+Ejemplo completo:
 ```bash
 curl -X POST https://actualizarllamadas-production.up.railway.app/api/actualizar_resultado \
   -H "Content-Type: application/json" \
   -d '{
     "telefono": "600123456",
-    "status_level_1": "Volver a llamar",
-    "codigoVolverLlamar": "buzon",
-    "horaRellamada": "2025-07-06 12:00"
+    "nuevaCita": "2025-08-01 10:00",
+    "buzon": false,
+    "volverALlamar": false,
+    "noInteresado": false,
+    "conPack": true,
+    "horaRellamada": "18:30",
+    "errorTecnico": false,
+    "razonvueltaallamar": "Cliente ocupado",
+    "razonNoInteres": "No le interesa el producto",
+    "codigoNoInteres": "descontento",
+    "codigoVolverLlamar": "buzon"
   }'
 ```
 

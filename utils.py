@@ -124,6 +124,8 @@ def get_statistics():
         'llamadas_hoy': 0,
         'contactados': 0,
         'conversion_rate': '0%',
+        'citas_contactados_rate': '0%',
+        'citas_total': 0,
         'estados': {
             'volver_llamar': 0,
             'no_interesado': 0,
@@ -164,6 +166,14 @@ def get_statistics():
                 'cita_sin_pack': row_states['cita_sin_pack'],
                 'cita_con_pack': row_states['cita_con_pack']
             }
+
+            # Calcular total de citas y tasa sobre contactados
+            stats['citas_total'] = row_states['cita_sin_pack'] + row_states['cita_con_pack']
+
+            if stats['contactados']:
+                stats['citas_contactados_rate'] = f"{(stats['citas_total'] / stats['contactados'] * 100):.0f}%"
+            else:
+                stats['citas_contactados_rate'] = '0%'
 
             # Definir todos los posibles subestados según la tabla proporcionada
             subestados_volver_posibles = [

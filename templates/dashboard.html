@@ -3,16 +3,17 @@
 {% block content %}
 <h1 class="text-center my-4">Dashboard Seguimiento de Llamadas</h1>
 
+<!-- Fila 1: Métricas principales -->
 <div class="row text-center g-3">
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-3">
     <div class="card bg-primary text-white h-100">
       <div class="card-body p-3">
-        <h6 class="mb-1">Total llamadas</h6>
+        <h6 class="mb-1">Total leads</h6>
         <h2 class="mb-0">{{ stats.total_leads }}</h2>
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-3">
     <div class="card bg-success text-white h-100">
       <div class="card-body p-3">
         <h6 class="mb-1">Leads contactados</h6>
@@ -20,7 +21,27 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-3">
+    <div class="card bg-secondary text-white h-100">
+      <div class="card-body p-3">
+        <h6 class="mb-1">Tasa contacto</h6>
+        <h2 class="mb-0">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card bg-dark text-white h-100">
+      <div class="card-body p-3">
+        <h6 class="mb-1">% Citas / Contactados</h6>
+        <h2 class="mb-0">{{ stats.citas_contactados_rate }}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fila 2: Métricas secundarias -->
+<div class="row text-center g-3 mt-2">
+  <div class="col-6 col-md-4">
     <div class="card bg-info text-white h-100">
       <div class="card-body p-3">
         <h6 class="mb-1">Citas agendadas</h6>
@@ -28,7 +49,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-4">
     <div class="card bg-warning text-dark h-100">
       <div class="card-body p-3">
         <h6 class="mb-1">Volver a llamar</h6>
@@ -36,19 +57,11 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-xl-2">
-    <div class="card bg-yellow text-dark h-100" style="background-color:#ffc107;">
+  <div class="col-6 col-md-4">
+    <div class="card h-100" style="background-color:#ffc107;">
       <div class="card-body p-3">
         <h6 class="mb-1">No interesados</h6>
         <h2 class="mb-0">{{ stats.estados.no_interesado }}</h2>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-4 col-xl-2">
-    <div class="card bg-secondary text-white h-100">
-      <div class="card-body p-3">
-        <h6 class="mb-1">Tasa contacto</h6>
-        <h2 class="mb-0">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h2>
       </div>
     </div>
   </div>
