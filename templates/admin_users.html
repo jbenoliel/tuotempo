@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Administración de Usuarios - TuoTempo{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Administración de Usuarios</h1>
+        <a href="{{ url_for('main.admin_create_user') }}" class="btn btn-primary">
+            <i class="fas fa-user-plus"></i> Crear Usuario
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Administrador</th>
+                            <th>Activo</th>
+                            <th>Email Verificado</th>
+                            <th>Fecha Creación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.is_admin %}
+                                    <span class="badge bg-success">Sí</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.email_verified %}
+                                    <span class="badge bg-success">Verificado</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.created_at.strftime('%d/%m/%Y %H:%M') if user.created_at else 'N/A' }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="resetPassword('{{ user.id }}', '{{ user.email }}')">
+                                        <i class="fas fa-key"></i> Reset
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-{{ 'danger' if user.is_active else 'success' }}" 
+                                            onclick="toggleActive('{{ user.id }}', {{ user.is_active|lower }})">
+                                        <i class="fas fa-{{ 'ban' if user.is_active else 'check' }}"></i> 
+                                        {{ 'Desactivar' if user.is_active else 'Activar' }}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para confirmar acciones -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirmar acción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                ¿Estás seguro de que deseas realizar esta acción?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmButton">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Función para resetear contraseña
+    function resetPassword(userId, email) {
+        document.getElementById('confirmModalLabel').textContent = 'Confirmar reset de contraseña';
+        document.getElementById('confirmModalBody').textContent = 
+            `¿Estás seguro de que deseas enviar un email de restablecimiento de contraseña a ${email}?`;
+        
+        const confirmButton = document.getElementById('confirmButton');
+        confirmButton.className = 'btn btn-primary';
+        confirmButton.textContent = 'Enviar email';
+        
+        confirmButton.onclick = function() {
+            // Aquí se implementará la llamada AJAX para resetear la contraseña
+            // Por ahora, redirigimos a una URL ficticia
+            window.location.href = `/admin/users/${userId}/reset-password`;
+        };
+        
+        const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        modal.show();
+    }
+    
+    // Función para activar/desactivar usuario
+    function toggleActive(userId, isActive) {
+        const action = isActive ? 'desactivar' : 'activar';
+        
+        document.getElementById('confirmModalLabel').textContent = `Confirmar ${action} usuario`;
+        document.getElementById('confirmModalBody').textContent = 
+            `¿Estás seguro de que deseas ${action} este usuario?`;
+        
+        const confirmButton = document.getElementById('confirmButton');
+        confirmButton.className = `btn btn-${isActive ? 'danger' : 'success'}`;
+        confirmButton.textContent = isActive ? 'Desactivar' : 'Activar';
+        
+        confirmButton.onclick = function() {
+            // Aquí se implementará la llamada AJAX para activar/desactivar
+            // Por ahora, redirigimos a una URL ficticia
+            window.location.href = `/admin/users/${userId}/${isActive ? 'deactivate' : 'activate'}`;
+        };
+        
+        const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        modal.show();
+    }
+</script>
+{% endblock %}
