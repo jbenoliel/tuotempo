@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Herramientas del Sistema{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-tools me-2"></i> Herramientas del Sistema
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-phone-alt fa-3x text-primary"></i>
+                            </div>
+                            <h5 class="card-title">Llamadas Automáticas</h5>
+                            <p class="card-text">Sistema automatizado de llamadas con IA para contactar leads de forma eficiente.</p>
+                            <a href="{{ url_for('main.calls_manager') }}" class="btn btn-primary">
+                                <i class="fas fa-rocket me-1"></i> Iniciar Llamadas
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-users fa-3x text-success"></i>
+                            </div>
+                            <h5 class="card-title">Gestión de Leads</h5>
+                            <p class="card-text">Administra y visualiza todos los leads del sistema de forma organizada.</p>
+                            <a href="{{ url_for('main.leads') }}" class="btn btn-success">
+                                <i class="fas fa-list me-1"></i> Ver Leads
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-upload fa-3x text-info"></i>
+                            </div>
+                            <h5 class="card-title">Cargar Datos</h5>
+                            <p class="card-text">Importa nuevos leads desde archivos Excel o CSV al sistema.</p>
+                            <a href="{{ url_for('main.recargar_datos') }}" class="btn btn-info">
+                                <i class="fas fa-file-upload me-1"></i> Subir Archivo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

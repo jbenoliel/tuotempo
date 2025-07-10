@@ -62,7 +62,8 @@ def load_excel_data(connection, source):
     db_to_excel_map = {
         'nombre': ['nombre', 'name', 'first name', 'firstname'],
         'apellidos': ['apellidos', 'surname', 'last name', 'lastname'],
-        'telefono': ['teléfono', 'telefono', 'phone', 'mobile', 'phone number'],
+        'telefono': ['teléfono', 'telefono', 'telefono1', 'teléfono1', 'phone', 'mobile', 'phone number'],
+        'telefono2': ['teléfono2', 'telefono2', 'telefono 2', 'teléfono 2', 'phone2', 'mobile2', 'telefono secundario'],
         'nif': ['nif', 'dni', 'documento'],
         'fecha_nacimiento': ['fecha nacimiento', 'fecha_nacimiento', 'birth date'],
         'sexo': ['sexo', 'gender'],
@@ -139,20 +140,34 @@ def load_excel_data(connection, source):
         'total': len(df)
     }
 
-def exportar_tabla_leads(connection):
+def exportar_datos_completos(connection):
+    """
+    Exporta las tablas 'leads' y 'pearl_calls' a un único archivo Excel con dos pestañas.
+    """
     try:
+        # 1. Definir el directorio y crear el nombre del archivo
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         os.makedirs(data_dir, exist_ok=True)
-        df = pd.read_sql("SELECT * FROM leads", connection)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"leads_backup_{timestamp}.xlsx"
+        filename = f"export_completo_{timestamp}.xlsx"
         filepath = os.path.join(data_dir, filename)
-        df.to_excel(filepath, index=False)
-        logger.info(f"Tabla leads exportada a {filepath} con {len(df)} registros")
+
+        # 2. Leer ambas tablas en DataFrames de pandas
+        df_leads = pd.read_sql("SELECT * FROM leads", connection)
+        logger.info(f"Leídos {len(df_leads)} registros de la tabla 'leads'.")
+        df_calls = pd.read_sql("SELECT * FROM pearl_calls", connection)
+        logger.info(f"Leídos {len(df_calls)} registros de la tabla 'pearl_calls'.")
+
+        # 3. Usar pd.ExcelWriter para crear el archivo con dos pestañas
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            df_leads.to_excel(writer, sheet_name='Leads', index=False)
+            df_calls.to_excel(writer, sheet_name='Llamadas', index=False)
+        
+        logger.info(f"Datos exportados a {filepath} con {len(df_leads)} leads y {len(df_calls)} llamadas.")
         return True, filepath
     except Exception as e:
-        error_msg = f"Error al exportar tabla leads: {str(e)}"
-        logger.error(error_msg)
+        error_msg = f"Error al exportar los datos completos: {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return False, error_msg
 
 from db import get_connection

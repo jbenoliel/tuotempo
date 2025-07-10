@@ -10,7 +10,7 @@ import secrets
 import string
 
 from db import get_connection
-from utils import load_excel_data, exportar_tabla_leads, send_password_reset_email, verify_reset_token # Asumimos que estas funciones se moverán a utils.py
+from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token # Asumimos que estas funciones se moverán a utils.py
 
 # Configurar logger para este blueprint
 logger = logging.getLogger(__name__)
@@ -187,12 +187,23 @@ def ejecutar_recarga(archivo_path):
             flash("No se pudo conectar a la base de datos.", "danger")
             return redirect(url_for('main.recargar_datos'))
 
-        logger.info(f"Vaciando la tabla 'leads' desde: {os.path.basename(archivo_path)}")
-        with connection.cursor() as cursor:
-            cursor.execute("TRUNCATE TABLE leads")
-        logger.info("Tabla 'leads' vaciada.")
+        cursor = connection.cursor()
+        try:
+            logger.info(f"Vaciando tablas 'leads' y 'pearl_calls' desde: {os.path.basename(archivo_path)}")
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
+            cursor.execute("TRUNCATE TABLE pearl_calls;")
+            logger.info("Tabla 'pearl_calls' vaciada.")
+            cursor.execute("TRUNCATE TABLE leads;")
+            logger.info("Tabla 'leads' vaciada.")
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
+            logger.info("Revisiones de Foreign Key reactivadas.")
+        finally:
+            # Nos aseguramos de que los checks se reactiven incluso si algo falla
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
+            cursor.close()
 
         resultado_carga = load_excel_data(connection, archivo_path)
+        connection.commit() # Forzar el commit para que los datos sean visibles inmediatamente
         registros = resultado_carga.get('insertados', 0)
         errores = resultado_carga.get('errores', 0)
         mensaje = f"Recarga completada. Insertados: {registros}. Errores: {errores}."
@@ -227,28 +238,33 @@ def ejecutar_recarga(archivo_path):
     
     return redirect(url_for('main.recargar_datos'))
 
-@bp.route('/exportar-tabla-leads')
+@bp.route('/exportar-datos-completos')
 @login_required
-def exportar_tabla_leads_endpoint():
+def exportar_datos_completos_endpoint():
+    """Endpoint para descargar el archivo Excel con leads y llamadas."""
     try:
         connection = get_connection()
-        success, result = exportar_tabla_leads(connection)
+        success, result = exportar_datos_completos(connection)
         if success:
             filepath = result
             filename = os.path.basename(filepath)
-            cursor = connection.cursor()
-            cursor.execute(
-                "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
-                (session['user_id'], filename, 0, 'export', f'Exportado a {filename}')
-            )
+            # Registrar la acción de exportación en el historial
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
+                    (session['user_id'], filename, 0, 'export', f'Exportado a {filename}')
+                )
             connection.commit()
-            cursor.close()
-            flash(f'Datos exportados a {filename}', 'success')
+            flash(f'Datos exportados correctamente en el archivo {filename}', 'success')
         else:
-            flash(f'Error al exportar: {result}', 'danger')
-        connection.close()
+            flash(f'Error al exportar los datos: {result}', 'danger')
     except Exception as e:
-        flash(f'Error al exportar: {str(e)}', 'danger')
+        logger.error(f"Error en el endpoint de exportación: {e}", exc_info=True)
+        flash(f'Ocurrió un error inesperado durante la exportación: {e}', 'danger')
+    finally:
+        if 'connection' in locals() and connection and connection.is_connected():
+            connection.close()
+            
     return redirect(url_for('main.recargar_datos'))
 
 @bp.route('/leads')
@@ -318,6 +334,13 @@ def admin_users():
     cursor.close()
     conn.close()
     return render_template('admin_users.html', users=users)
+
+@bp.route('/admin/tools')
+@login_required
+@admin_required
+def admin_tools():
+    """Página que muestra las herramientas de administración del sistema."""
+    return render_template('admin/tools.html')
 
 @bp.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
@@ -416,4 +439,56 @@ def reset_password_with_token(token):
                 conn.close()
 
     return render_template('reset_password.html', token=token)
+
+# --- RUTA DEL GESTOR DE LLAMADAS ---
+
+@bp.route('/calls-manager')
+@login_required
+def calls_manager():
+    """Página principal del gestor de llamadas automáticas."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener todos los leads para mostrar en la tabla
+        cursor.execute("SELECT * FROM leads ORDER BY id DESC")
+        calls = cursor.fetchall()
+        
+        # Obtener estadísticas rápidas para el dashboard
+        cursor.execute("SELECT call_status, COUNT(*) as count FROM leads GROUP BY call_status")
+        status_counts = {row['call_status']: row['count'] for row in cursor.fetchall()}
+        
+        stats = {
+            'total': sum(status_counts.values()),
+            'pending': status_counts.get('pending', 0),
+            'in_progress': status_counts.get('in_progress', 0),
+            'completed': status_counts.get('completed', 0),
+            'error': status_counts.get('error', 0)
+        }
+
+    except Exception as e:
+        logger.error(f"Error al obtener los datos para el gestor de llamadas: {e}")
+        flash('No se pudieron cargar los datos de las llamadas. Revise los logs.', 'danger')
+        calls = []
+        stats = {}
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
+            
+    return render_template('calls_manager.html', calls=calls, stats=stats)
+
+# --- REGISTRO DE APIS ---
+
+def register_apis(app):
+    """Registra todas las APIs en la aplicación Flask."""
+    try:
+        # Registrar API de llamadas
+        from api_pearl_calls import register_calls_api
+        register_calls_api(app)
+        logger.info("API de llamadas registrada correctamente")
+    except ImportError as e:
+        logger.error(f"Error importando API de llamadas: {e}")
+    except Exception as e:
+        logger.error(f"Error registrando APIs: {e}")
 

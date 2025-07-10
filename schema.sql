@@ -2,6 +2,7 @@
 -- Se puede ejecutar de forma segura, ya que elimina las tablas si ya existen.
 
 -- Eliminar tablas en orden inverso para evitar problemas de claves foráneas
+DROP TABLE IF EXISTS `pearl_calls`;
 DROP TABLE IF EXISTS `recargas`;
 DROP TABLE IF EXISTS `leads`;
 DROP TABLE IF EXISTS `usuarios`;
@@ -54,7 +55,41 @@ CREATE TABLE `leads` (
   `call_time` DATETIME NULL,
   `call_duration` INT NULL,
   `call_summary` TEXT NULL,
-  `call_recording_url` TEXT NULL
+  `call_recording_url` TEXT NULL,
+  -- Campos para el sistema de llamadas automáticas con Pearl AI
+  `call_status` ENUM('no_selected', 'selected', 'calling', 'completed', 'error', 'busy', 'no_answer') DEFAULT 'no_selected' COMMENT 'Estado actual de la llamada automática',
+  `call_priority` INT DEFAULT 3 COMMENT 'Prioridad de llamada (1=Alta, 3=Normal, 5=Baja)',
+  `selected_for_calling` BOOLEAN DEFAULT FALSE COMMENT 'Flag para indicar si el lead está seleccionado para llamar',
+  `pearl_outbound_id` VARCHAR(100) NULL COMMENT 'ID de la campaña outbound de Pearl AI',
+  `last_call_attempt` DATETIME NULL COMMENT 'Fecha y hora del último intento de llamada',
+  `call_attempts_count` INT DEFAULT 0 COMMENT 'Número de intentos de llamada realizados',
+  `call_error_message` TEXT NULL COMMENT 'Último mensaje de error en caso de fallo en la llamada',
+  `pearl_call_response` TEXT NULL COMMENT 'Respuesta completa de la API de Pearl AI',
+  `call_notes` TEXT NULL COMMENT 'Notas adicionales sobre la llamada',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp de última actualización del registro'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices para optimizar consultas del sistema de llamadas
+CREATE INDEX idx_call_status ON leads(call_status);
+CREATE INDEX idx_selected_for_calling ON leads(selected_for_calling);
+CREATE INDEX idx_call_priority ON leads(call_priority);
+CREATE INDEX idx_last_call_attempt ON leads(last_call_attempt);
+CREATE INDEX idx_pearl_outbound_id ON leads(pearl_outbound_id);
+
+-- --- Tabla de Llamadas de Pearl --- 
+-- Almacena un registro detallado de cada llamada gestionada a través de Pearl AI.
+CREATE TABLE `pearl_calls` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `call_id` VARCHAR(64) NOT NULL UNIQUE COMMENT 'ID único de la llamada en Pearl AI',
+  `phone_number` VARCHAR(20) NOT NULL COMMENT 'Número de teléfono al que se llamó',
+  `call_time` DATETIME NOT NULL COMMENT 'Fecha y hora de la llamada',
+  `duration` INT DEFAULT 0 COMMENT 'Duración de la llamada en segundos',
+  `summary` TEXT COMMENT 'Resumen de la conversación generado por IA',
+  `collected_info` JSON COMMENT 'Datos estructurados recogidos durante la llamada',
+  `recording_url` VARCHAR(512) COMMENT 'URL de la grabación de la llamada',
+  `lead_id` INT NULL COMMENT 'ID del lead asociado en nuestra BBDD',
+  INDEX `idx_phone` (`phone_number`),
+  CONSTRAINT `fk_pearl_calls_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --- Tabla de Recargas ---

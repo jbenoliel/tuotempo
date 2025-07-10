@@ -10,18 +10,16 @@ import logging
 import mysql.connector
 from datetime import datetime
 from db import get_connection
-from app_dashboard import load_excel_data, init_database
+from utils import load_excel_data
+from init_db import init_database
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# URL del archivo Excel en GitHub (con parámetro para evitar caché)
-EXCEL_URL = (
-    "https://raw.githubusercontent.com/jbenoliel/tuotempo/main/data.xlsx"
-    "?v=" + str(datetime.now().timestamp())
-)
+# Ruta local al archivo Excel de prueba
+EXCEL_PATH = r"C:\\Users\\jbeno\\Dropbox\\TEYAME\\Prueba Segurcaixa\\data de prueba callsPearl.xlsx"
 
 def recargar_excel():
     """
@@ -51,16 +49,14 @@ def recargar_excel():
         connection = get_connection()
         
         # Cargar datos del Excel
-        logger.info(f"Recargando datos desde Excel: {EXCEL_URL}")
-        success, message = load_excel_data(connection, EXCEL_URL)
+        logger.info(f"Recargando datos desde Excel local: {EXCEL_PATH}")
+        stats = load_excel_data(connection, EXCEL_PATH)
         connection.close()
         
-        if success:
-            logger.info("¡Datos recargados con éxito!")
-            return True, message
-        else:
-            logger.error(f"Error al recargar datos: {message}")
-            return False, message
+        logger.info(f"Resultado carga: {stats}")
+        inserted = stats.get('insertados', 0)
+        errors = stats.get('errores', 0)
+        return True, f"Insertados {inserted}, errores {errors}"
             
     except Exception as e:
         logger.error(f"Error inesperado al recargar Excel: {str(e)}")

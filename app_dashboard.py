@@ -35,6 +35,10 @@ def create_app(config_class='config.settings'):
     with app.app_context():
         from blueprints import bp as main_blueprint
         app.register_blueprint(main_blueprint)
+        
+        # 4.1. Registrar APIs
+        from blueprints import register_apis
+        register_apis(app)
 
     # 5. Definir un comando CLI para crear un usuario (opcional pero útil)
     @app.cli.command("create-user")
@@ -67,40 +71,6 @@ def create_app(config_class='config.settings'):
 
 # Crear la aplicación para que Gunicorn la detecte
 app = create_app()
-
-# === RUTAS GLOBALES ===
-@app.route('/reserve', methods=['GET', 'POST'])
-def reserve():
-    """Página para reservar citas (busca clínicas por código postal)"""
-    clinics = []
-    error = None
-    postal_code = ''
-
-    if request.method == 'POST':
-        postal_code = request.form.get('postal_code', '').strip()
-        if not postal_code:
-            error = 'Por favor, introduce un código postal.'
-        else:
-            try:
-                # Usar HTTPS para la llamada a la API
-                api_url = 'https://tuotempo-apis-production.up.railway.app/api/centros'
-                logger.info(f"Llamando a API con código postal: {postal_code}")
-                resp = requests.get(api_url, params={'cp': postal_code}, timeout=10)
-                resp.raise_for_status()  # Lanzar excepción si hay error HTTP
-                data = resp.json()
-                logger.info(f"Respuesta de API: {data}")
-                if data.get('success'):
-                    clinics = data.get('centros', [])
-                    if not clinics:
-                        error = 'No se encontraron clínicas para este código postal.'
-                else:
-                    error = data.get('message', 'Error desconocido al consultar la API.')
-            except Exception as e:
-                logger.error(f"Error al consultar la API de clínicas: {e}")
-                error = 'No se pudo comunicar con el servicio de clínicas.'
-
-    return render_template('reserve.html', clinics=clinics, error=error, postal_code=postal_code)
-
 
 if __name__ == '__main__':
     # Crear la aplicación usando la factory
