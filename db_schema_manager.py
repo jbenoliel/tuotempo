@@ -97,6 +97,47 @@ def get_current_schema(cursor):
 
 
 def compare_and_apply_schema(cursor, ideal_schema, current_schema):
+    """Compara y aplica cambios. Devuelve True si todo fue exitoso, False si hubo algún error."""
+    logger.info("--- Comparando esquemas y aplicando migraciones ---")
+    all_ok = True
+
+    # Paso 1: Detectar y crear tablas faltantes
+    for table_name, table_data in ideal_schema.items():
+        if table_name not in current_schema:
+            logger.info(f"La tabla '{table_name}' no existe. Creándola...")
+            try:
+                cursor.execute(table_data['full_statement'])
+                logger.info(f"✅ Tabla '{table_name}' creada exitosamente.")
+            except Exception as e:
+                logger.error(f"❌ Error al crear la tabla '{table_name}': {e}", exc_info=True)
+                all_ok = False
+                continue
+    
+    if not all_ok:
+        logger.error("Se encontraron errores al crear tablas. No se continuará con las columnas para evitar fallos en cascada.")
+        return False
+
+    logger.info("Recargando esquema actual después de la posible creación de tablas...")
+    current_schema = get_current_schema(cursor.connection.cursor())
+
+    # Paso 2: Detectar y añadir columnas faltantes
+    for table_name, table_data in ideal_schema.items():
+        if table_name not in current_schema:
+            logger.warning(f"Saltando la tabla '{table_name}' porque no se pudo crear o no existe.")
+            continue
+
+        for col_name, col_definition in table_data['columns'].items():
+            if col_name not in current_schema[table_name]:
+                logger.info(f"La columna '{col_name}' no existe en la tabla '{table_name}'. Añadiéndola...")
+                try:
+                    query = f"ALTER TABLE {table_name} ADD COLUMN {col_definition}"
+                    cursor.execute(query)
+                    logger.info(f"✅ Columna '{col_name}' añadida a la tabla '{table_name}' exitosamente.")
+                except Exception as e:
+                    logger.error(f"❌ Error al añadir la columna '{col_name}' a '{table_name}': {e}", exc_info=True)
+                    all_ok = False
+    
+    return all_ok
     """Compara el esquema ideal con el actual y aplica los cambios necesarios."""
     logger.info("--- Comparando esquemas y aplicando migraciones ---")
 
@@ -135,7 +176,7 @@ def compare_and_apply_schema(cursor, ideal_schema, current_schema):
                     logger.error(f"❌ Error al añadir la columna '{col_name}' a '{table_name}': {e}")
 
 def run_intelligent_migration():
-    """Punto de entrada para la migración inteligente."""
+    """Punto de entrada para la migración inteligente. Devuelve True en éxito, False en fallo."""
     logger.info("--- Iniciando Migración Inteligente de Base de Datos ---")
     db_conn = None
     try:
@@ -154,14 +195,22 @@ def run_intelligent_migration():
         current_schema = get_current_schema(db_conn.cursor())
 
         # 3. Comparar y aplicar los cambios necesarios
-        compare_and_apply_schema(db_conn.cursor(), ideal_schema, current_schema)
+        success = compare_and_apply_schema(db_conn.cursor(), ideal_schema, current_schema)
 
+        if success:
+            db_conn.commit()
+            logger.info("Cambios de migración confirmados en la base de datos.")
+            return True
+        else:
+            logger.error("Se detectaron errores durante la migración. Revirtiendo cambios...")
+            db_conn.rollback()
+            return False
 
-        db_conn.commit()
     except Exception as e:
-        logger.error(f"Error catastrófico durante la migración inteligente: {e}")
+        logger.error(f"Error catastrófico durante la migración inteligente: {e}", exc_info=True)
         if db_conn:
             db_conn.rollback()
+        return False
     finally:
         if db_conn and db_conn.is_connected():
             db_conn.close()

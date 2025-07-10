@@ -115,6 +115,26 @@ MYSQL_PORT=<puerto MySQL>
 TUOTEMPO_INSTANCE_ID=tt_portal_adeslas
 ```
 
+## Gestión de la Base de Datos y Migraciones
+
+Este proyecto utiliza un **sistema de migración de base de datos inteligente y automatizado** para mantener el esquema de la base de datos sincronizado con el código.
+
+### ¿Cómo funciona?
+
+1.  **Fuente Única de Verdad**: El fichero `schema.sql` es la **definición canónica** de la estructura de la base de datos. Contiene todas las sentencias `CREATE TABLE` que describen el estado ideal del esquema.
+2.  **Gestor de Esquemas Automático**: El script `db_schema_manager.py` es el encargado de las migraciones. **No es necesario ejecutarlo manualmente**.
+3.  **Ejecución en el Arranque**: El orquestador principal (`start.py`) ejecuta este gestor de esquemas cada vez que la aplicación se inicia (tanto en local como en producción).
+4.  **Comparación y Aplicación**: El gestor compara el esquema definido en `schema.sql` con el esquema de la base de datos activa. Si detecta discrepancias (tablas o columnas que faltan), genera y ejecuta automáticamente las sentencias `CREATE TABLE` o `ALTER TABLE` necesarias para sincronizar la base de datos.
+
+### Flujo de trabajo para desarrolladores
+
+Si necesitas realizar un cambio en la estructura de la base de datos (añadir una tabla, una columna, etc.), el proceso es muy sencillo:
+
+1.  **Modifica `schema.sql`**: Abre el fichero `schema.sql` y aplica los cambios directamente en la sentencia `CREATE TABLE` correspondiente.
+2.  **Reinicia la aplicación**: La próxima vez que la aplicación se inicie, el sistema de migración detectará tus cambios y los aplicará a la base de datos automáticamente.
+
+**Ya no es necesario crear scripts de migración manuales (`db_migration_*.py`).**
+
 ## Flujo de integración
 
 El flujo implementado sigue estos pasos:

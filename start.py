@@ -42,17 +42,28 @@ def run_command(command):
         return False
 
 def run_migrations():
-    """Ejecuta el sistema de migración inteligente basado en esquemas."""
+    """Ejecuta el sistema de migración inteligente. Si falla, detiene el arranque."""
     logging.info("--- 1. Iniciando Sistema de Migración Inteligente ---")
+    success = False
     try:
+        # Importar aquí para evitar dependencias circulares si el gestor usa logging
         from db_schema_manager import run_intelligent_migration
-        run_intelligent_migration()
+        
+        # La función de migración debería devolver True si tiene éxito
+        if run_intelligent_migration():
+            success = True
+            logging.info("✅ Sistema de Migración Inteligente completado exitosamente.")
+        else:
+            logging.error("❌ El sistema de migración informó de un fallo durante la ejecución.")
+
     except ImportError as e:
-        logging.error(f"No se pudo importar el gestor de esquemas: {e}")
-        logging.error("Asegúrate de que 'db_schema_manager.py' existe y no tiene errores.")
+        logging.critical(f"FATAL: No se pudo importar 'db_schema_manager'. Error: {e}")
     except Exception as e:
-        logging.error(f"Ocurrió un error inesperado durante la migración inteligente: {e}")
-    logging.info("--- Sistema de Migración Inteligente completado ---")
+        logging.critical(f"FATAL: Ocurrió un error catastrófico durante la migración: {e}", exc_info=True)
+    
+    if not success:
+        logging.critical("--- 💥 La migración de la base de datos falló. El servicio no puede arrancar. ---")
+        sys.exit(1) # Detener el proceso para evitar que la app corra en un estado inconsistente
 
 def verify_deployment():
     """Verifica la integridad del despliegue."""
