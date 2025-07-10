@@ -166,8 +166,9 @@ def main():
     logging.info(f"📁 Directorio de trabajo: {os.getcwd()}")
     logging.info("=" * 60)
 
-    service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'web').lower()
-    logging.info(f"Servicio detectado en Railway: '{service_name}'")
+    raw_service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'default')
+    service_name = raw_service_name.lower().replace(' ', '-') # Normalizar nombre
+    logging.info(f"Servicio detectado en Railway: '{raw_service_name}' (Normalizado: '{service_name}')")
 
     # Mapeo de servicios específicos a sus comandos de inicio
     service_commands = {
@@ -176,7 +177,7 @@ def main():
     }
 
     # Flujo para el servicio web principal (dashboard + APIs)
-    if 'web' in service_name or 'dashboard' in service_name:
+    if 'web' in service_name or 'dashboard' in service_name or 'tuotempo-apis' in service_name:
         logging.info("Iniciando flujo de despliegue para el servicio web principal.")
         run_migrations()
         if not verify_deployment():
