@@ -6,6 +6,10 @@ from mysql.connector import Error
 
 from config import settings
 
+def get_database_name():
+    """Devuelve el nombre de la base de datos desde la configuración."""
+    return settings.DB_DATABASE
+
 def get_connection():
     """Obtiene una conexión a MySQL usando la configuración de Settings."""
     cfg = {
