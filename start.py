@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- CONFIGURACIÓN ---
-MIGRATION_SCRIPTS = []
+# Ya no se necesita MIGRATION_SCRIPTS, se descubrirán automáticamente.
 CRITICAL_MODULES = {
     'pearl_caller': 'Cliente de API Pearl AI',
     'call_manager': 'Gestor de la cola de llamadas',
@@ -42,16 +42,17 @@ def run_command(command):
         return False
 
 def run_migrations():
-    """Ejecuta las migraciones de BD."""
-    logging.info("--- 1. Ejecutando Migraciones de Base de Datos ---")
-    if not MIGRATION_SCRIPTS:
-        logging.info("No hay migraciones para ejecutar.")
-    for script in MIGRATION_SCRIPTS:
-        if os.path.exists(script):
-            run_command(['python', script])
-        else:
-            logging.warning(f"Script de migración no encontrado: {script}")
-    logging.info("--- Migraciones completadas ---")
+    """Ejecuta el sistema de migración inteligente basado en esquemas."""
+    logging.info("--- 1. Iniciando Sistema de Migración Inteligente ---")
+    try:
+        from db_schema_manager import run_intelligent_migration
+        run_intelligent_migration()
+    except ImportError as e:
+        logging.error(f"No se pudo importar el gestor de esquemas: {e}")
+        logging.error("Asegúrate de que 'db_schema_manager.py' existe y no tiene errores.")
+    except Exception as e:
+        logging.error(f"Ocurrió un error inesperado durante la migración inteligente: {e}")
+    logging.info("--- Sistema de Migración Inteligente completado ---")
 
 def verify_deployment():
     """Verifica la integridad del despliegue."""
