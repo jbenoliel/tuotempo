@@ -60,12 +60,40 @@ def run_migrations():
         # Importar aquí para evitar dependencias circulares si el gestor usa logging
         from db_schema_manager import run_intelligent_migration
         
-        # La función de migración debería devolver True si tiene éxito
-        if run_intelligent_migration():
-            success = True
-            logging.info("✅ Sistema de Migración Inteligente completado exitosamente.")
+        # Obtener el nombre del servicio de Railway y normalizarlo
+        service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'local').lower().replace(' ', '-')
+
+        # Lista de servicios que SÍ deben ejecutar la migración.
+        # Añade aquí los nombres de tus servicios principales (ej: el de la API o el front-end web)
+        MIGRATION_SERVICES = ['web', 'tuotempo-apis', 'tuotempo-apis-production', 'dashboard']
+
+        # Comprobar si el servicio actual debe ejecutar la migración
+        should_run_migration = any(mig_service in service_name for mig_service in MIGRATION_SERVICES)
+
+        if os.environ.get('RAILWAY_SERVICE_NAME') is None:
+            # Si no estamos en Railway (ej. local), siempre ejecutar la migración
+            logging.info("Entorno local detectado. Se ejecutará la migración.")
+            should_run_migration = True
+
+        if should_run_migration:
+            logging.info(f"El servicio '{service_name}' SÍ está configurado para ejecutar la migración.")
+            
+            # Conectar las variables de la base de datos si no están presentes (para servicios que las necesitan)
+            db_host = os.environ.get('MYSQLHOST')
+            if not db_host:
+                logging.critical("Este servicio debe ejecutar la migración pero no tiene las variables de entorno de la base de datos (ej. MYSQLHOST). Abortando.")
+                sys.exit(1)
+
+            if run_intelligent_migration():
+                success = True
+                logging.info("✅ Sistema de Migración Inteligente completado exitosamente.")
+            else:
+                logging.error("❌ El sistema de migración informó de un fallo durante la ejecución.")
+                # success sigue siendo False, lo que es correcto para detener el servicio.
         else:
-            logging.error("❌ El sistema de migración informó de un fallo durante la ejecución.")
+            logging.info(f"El servicio '{service_name}' NO está configurado para ejecutar la migración. Saltando este paso.")
+            # Si no se debe ejecutar la migración, se considera un éxito para que el servicio arranque.
+            success = True
 
     except ImportError as e:
         logging.critical(f"FATAL: No se pudo importar 'db_schema_manager'. Error: {e}")
