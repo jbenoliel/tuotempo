@@ -64,8 +64,9 @@ def run_migrations():
         service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'local').lower().replace(' ', '-')
 
         # Lista de servicios que SÍ deben ejecutar la migración.
-        # Añade aquí los nombres de tus servicios principales (ej: el de la API o el front-end web)
-        MIGRATION_SERVICES = ['web', 'tuotempo-apis', 'tuotempo-apis-production', 'dashboard']
+        # --- IMPORTANTE: Pon aquí el nombre EXACTO y NORMALIZADO de tu servicio web principal ---
+        # Por ejemplo, si tu servicio principal en Railway se llama "Tuotempo WEB", pon 'tuotempo-web'.
+        MIGRATION_SERVICES = ['web'] # Se asume que 'web' es el servicio principal. Ajústalo si es necesario.
 
         # Comprobar si el servicio actual debe ejecutar la migración
         should_run_migration = any(mig_service in service_name for mig_service in MIGRATION_SERVICES)
