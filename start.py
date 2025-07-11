@@ -5,6 +5,17 @@ import sys
 import time
 import threading
 
+# --- Bloque de Depuración de Variables de Entorno ---
+# Imprime todas las variables de entorno para verificar la configuración en Railway.
+logging.info("--- [DEBUG] Mostrando variables de entorno disponibles ---")
+for key, value in os.environ.items():
+    # Por seguridad, ocultamos valores de variables que parezcan sensibles
+    if 'SECRET' in key.upper() or 'PASSWORD' in key.upper() or 'KEY' in key.upper():
+        logging.info(f"ENV: {key}=********")
+    else:
+        logging.info(f"ENV: {key}={value}")
+logging.info("--- [DEBUG] Fin de la lista de variables de entorno ---")
+
 # --- CONFIGURACIÓN ---
 # Ya no se necesita MIGRATION_SCRIPTS, se descubrirán automáticamente.
 CRITICAL_MODULES = {
