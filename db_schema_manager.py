@@ -51,7 +51,8 @@ def parse_sql_schema(file_path='schema.sql'):
         
         for line in column_lines:
             line_lower = line.lower()
-            if line_lower.startswith(('primary key', 'constraint', 'foreign key', 'index', 'key', ')', 'engine=')):
+            # Ignorar líneas que no son definiciones de columna (claves, índices, etc.)
+            if line_lower.startswith(('primary key', 'constraint', 'foreign key', 'index', 'key', ')', 'engine=', 'create index')):
                 continue
 
             col_name_match = re.match(r'`?(\w+)`?', line)
