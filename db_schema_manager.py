@@ -7,6 +7,7 @@ y aplica las diferencias (nuevas tablas, nuevas columnas) de forma automática.
 
 import logging
 import re
+import os
 import sys
 from db import get_connection, get_database_name
 
@@ -18,7 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def parse_sql_schema(file_path='schema.sql'):
+def parse_sql_schema():
+    # Construir una ruta absoluta al fichero schema.sql para evitar problemas en despliegue
+    # __file__ es la ruta del script actual (db_schema_manager.py)
+    # os.path.dirname() obtiene el directorio de ese script
+    # os.path.join() une el directorio con el nombre del fichero de forma segura
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, 'schema.sql')
+
     logger.info(f"--- Analizando el esquema de la base de datos desde '{file_path}' ---")
     schema = {}
     try:
