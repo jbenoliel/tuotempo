@@ -113,5 +113,5 @@ CREATE TABLE `recargas` (
 -- Insertar un usuario administrador por defecto para poder iniciar sesión la primera vez.
 -- La contraseña es 'admin'. ¡Cámbiala en un entorno de producción real!
 -- La contraseña hash fue generada con: bcrypt.generate_password_hash('admin').decode('utf-8')
-INSERT INTO `usuarios` (username, password_hash) VALUES ('admin', '$2b$12$DbmIZImk9bCbjH.L3hJzPO0wGkLz2O8H3a./2Y/i2r3sM0m2q9.iK');
+INSERT INTO `usuarios` (username, password_hash, is_admin, email_verified) VALUES ('admin', '$2b$12$DbmIZImk9bCbjH.L3hJzPO0wGkLz2O8H3a./2Y/i2r3sM0m2q9.iK', 1, 1);
 

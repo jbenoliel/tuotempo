@@ -86,8 +86,20 @@ def run_migrations():
                 sys.exit(1)
 
             if run_intelligent_migration():
-                success = True
-                logging.info("✅ Sistema de Migración Inteligente completado exitosamente.")
+                logging.info("✅ Sistema de Migración Inteligente (esquema) completado exitosamente.")
+                # Ahora, ejecutar migraciones de datos adicionales
+                logging.info("--- Iniciando migraciones de datos adicionales ---")
+                try:
+                    from db_migration_verify_admin import run_migration as verify_admin_migration
+                    if verify_admin_migration():
+                        logging.info("✅ Migración de datos 'verify_admin' completada.")
+                        success = True # Solo si ambas migraciones tienen éxito
+                    else:
+                        logging.error("❌ La migración de datos 'verify_admin' falló.")
+                        success = False
+                except Exception as e:
+                    logging.error(f"❌ Error catastrófico durante la migración de datos: {e}")
+                    success = False
             else:
                 logging.error("❌ El sistema de migración informó de un fallo durante la ejecución.")
                 # success sigue siendo False, lo que es correcto para detener el servicio.

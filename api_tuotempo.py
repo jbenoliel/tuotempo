@@ -7,6 +7,7 @@ import logging
 import json
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
+from flask_bcrypt import Bcrypt
 
 # Cargar variables de entorno
 load_dotenv()
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 # Crear la aplicación Flask
 app = Flask(__name__)
+
+bcrypt = Bcrypt(app)
+app.bcrypt = bcrypt # Adjuntar bcrypt a la app para que esté disponible en current_app
 
 # Configurar CORS para permitir peticiones ÚNICAMENTE desde el dashboard de producción
 frontend_origin_env = os.getenv("FRONTEND_ORIGIN", "*")

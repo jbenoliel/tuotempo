@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, abort, current_app
 from functools import wraps
 import os
 import requests
@@ -33,7 +33,6 @@ def login_required(f):
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
-    from flask import current_app
 
     if request.method == 'POST':
         username = request.form.get('username')
