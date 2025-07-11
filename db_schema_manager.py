@@ -19,8 +19,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def parse_sql_schema(file_path='schema.sql'):
-    """Analiza un fichero .sql y extrae la definición de las tablas y columnas."""
-    ideal_schema = {}
+    logger.info(f"--- Analizando el esquema de la base de datos desde '{file_path}' ---")
+    schema = {}
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -28,40 +28,47 @@ def parse_sql_schema(file_path='schema.sql'):
         logger.error(f"El fichero de esquema '{file_path}' no fue encontrado.")
         return {}
 
-    # Eliminar sentencias INSERT para procesar solo la estructura
-    content = re.sub(r'INSERT INTO .*?;', '', content, flags=re.IGNORECASE | re.DOTALL)
+    # Dividir el script en sentencias individuales usando el punto y coma como delimitador
+    sql_statements = [s.strip() for s in content.split(';') if s.strip()]
 
+    for statement in sql_statements:
+        # Procesar únicamente las sentencias CREATE TABLE
+        if not statement.upper().startswith('CREATE TABLE'):
+            continue
 
-    table_definitions = re.findall(r'(CREATE TABLE `?\w+`? .*?\);)', content, re.DOTALL | re.IGNORECASE)
-    
-    for full_create_statement in table_definitions:
-        table_name_match = re.search(r'CREATE TABLE `?(\w+)`?', full_create_statement, re.IGNORECASE)
+        table_name_match = re.search(r'CREATE TABLE `?(\w+)`?', statement, re.IGNORECASE)
         if not table_name_match:
             continue
         table_name = table_name_match.group(1)
-
-        ideal_schema[table_name] = {'full_statement': full_create_statement, 'columns': {}}
-
-        columns_str_match = re.search(r'\((.*)\)', full_create_statement, re.DOTALL)
-        if not columns_str_match:
-            continue
-        columns_str = columns_str_match.group(1)
-
-        column_lines = [line.strip() for line in columns_str.strip().split('\n') if line.strip()]
         
-        for line in column_lines:
-            line_lower = line.lower()
-            # Ignorar líneas que no son definiciones de columna (claves, índices, etc.)
-            if line_lower.startswith(('primary key', 'constraint', 'foreign key', 'index', 'key', ')', 'engine=', 'create index')):
-                continue
+        # Añadimos el punto y coma que perdimos en el split para que sea una sentencia válida
+        schema[table_name] = {'columns': {}, 'full_statement': statement + ';'}
 
+        # Extraer el contenido entre los paréntesis de la definición de la tabla
+        columns_block_match = re.search(r'\((.*)\)', statement, re.DOTALL)
+        if not columns_block_match:
+            continue
+        columns_block = columns_block_match.group(1)
+
+        # Dividir el bloque en líneas de definición individuales
+        # Esto es más robusto que dividir solo por comas, ya que maneja saltos de línea
+        column_lines = [line.strip() for line in columns_block.split('\n') if line.strip()]
+
+        for line in column_lines:
+            # Ignorar líneas que no son definiciones de columna
+            clean_line = line.upper().strip()
+            if clean_line.startswith(('PRIMARY KEY', 'CONSTRAINT', 'FOREIGN KEY', 'INDEX', 'KEY', ')')):
+                continue
+            
+            # Extraer el nombre de la columna
             col_name_match = re.match(r'`?(\w+)`?', line)
             if col_name_match:
                 col_name = col_name_match.group(1)
-                ideal_schema[table_name]['columns'][col_name] = line.rstrip(',')
+                # Guardar la definición completa de la columna, quitando la coma final si la tiene
+                schema[table_name]['columns'][col_name] = line.rstrip(',')
 
-    logger.info(f"Esquema ideal cargado desde '{file_path}' con {len(ideal_schema)} tablas.")
-    return ideal_schema
+    logger.info(f"Esquema ideal cargado desde '{file_path}' con {len(schema)} tablas.")
+    return schema
 
 def get_current_schema(cursor):
     """Inspecciona la base de datos y devuelve su esquema actual."""
