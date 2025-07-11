@@ -28,6 +28,10 @@ def parse_sql_schema(file_path='schema.sql'):
         logger.error(f"El fichero de esquema '{file_path}' no fue encontrado.")
         return {}
 
+    # Eliminar sentencias INSERT para procesar solo la estructura
+    content = re.sub(r'INSERT INTO .*?;', '', content, flags=re.IGNORECASE | re.DOTALL)
+
+
     table_definitions = re.findall(r'(CREATE TABLE `?\w+`? .*?\);)', content, re.DOTALL | re.IGNORECASE)
     
     for full_create_statement in table_definitions:
