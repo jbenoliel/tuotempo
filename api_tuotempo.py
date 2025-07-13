@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
 from flask_bcrypt import Bcrypt
+import random
 
 # Cargar variables de entorno
 load_dotenv()
@@ -292,7 +293,18 @@ def reservar():
     if not user_info or not availability:
         return jsonify({"error": "Faltan 'user_info' o 'availability' en el payload"}), 400
 
-    # Validar datos del usuario
+    # --- DIAGNOSTIC TEST: Generate unique and realistic user data ---
+    surnames = ['Gomez', 'Ramirez', 'Fernandez', 'Lopez', 'Martinez', 'Ruiz']
+    original_lname = user_info.get('lname', 'Test')
+    user_info['lname'] = f"{original_lname} {random.choice(surnames)}"
+    
+    # Generate a new valid 9-digit Spanish mobile number starting with 6
+    user_info['phone'] = f"6{random.randint(10000000, 99999999)}"
+    
+    logging.info(f"DIAGNOSTIC: Testing with unique user: {user_info['fname']} {user_info['lname']}, Phone: {user_info['phone']}")
+    # ----------------------------------------------------------------
+
+    # Validar que los campos necesarios en user_info no estén vacíos
     required_user_keys = ['fname', 'lname', 'birthday', 'phone']
     if not all(key in user_info for key in required_user_keys):
         return jsonify({"error": f"Faltan datos en user_info. Se requiere: {required_user_keys}"}), 400
