@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 import logging
 import json
+import time
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
 from flask_bcrypt import Bcrypt
@@ -438,3 +439,98 @@ if __name__ == '__main__':
     
     # Ejecutar la aplicación
     app.run(host='0.0.0.0', port=port, debug=True)
+
+# --- API ENCAPSULADA DE DISPONIBILIDADES (V1) ---
+
+def _fetch_tuotempo_availabilities_with_retry(params):
+    """
+    Función auxiliar que llama a la API de Tuotempo con un reintento.
+    """
+    base_url = "https://app.tuotempo.com/api/v3/tt_portal_adeslas/availabilities"
+    # Primer intento
+    try:
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()  # Lanza excepción para errores 4xx/5xx
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logging.warning(f"Primer intento a la API de Tuotempo falló: {e}. Reintentando en 1 segundo...")
+        time.sleep(1)
+        # Segundo intento
+        try:
+            response = requests.get(base_url, params=params, timeout=15)
+            response.raise_for_status()
+            logging.info("Segundo intento a la API de Tuotempo exitoso.")
+            return response.json()
+        except requests.exceptions.RequestException as e_retry:
+            logging.error(f"El segundo intento a la API de Tuotempo también falló: {e_retry}")
+            return None  # Devuelve None si ambos intentos fallan
+
+@app.route('/api/v1/availabilities', methods=['GET'])
+def get_availabilities_v1():
+    """
+    Endpoint para obtener disponibilidades de Tuotempo, con lógica de reintento
+    y filtrado por preferencia horaria.
+
+    Parámetros de la query string:
+    - activityid: ID de la actividad.
+    - areaId: ID del área.
+    - start_date: Fecha de inicio en formato DD-MM-YYYY.
+    - preferencia: 'manana', 'tarde' o 'indiferente' (opcional, por defecto 'indiferente').
+    """
+    # 1. Obtener parámetros de la petición
+    activity_id = request.args.get('activityid')
+    area_id = request.args.get('areaId')
+    start_date = request.args.get('start_date')
+    preferencia = request.args.get('preferencia', 'indiferente').lower()
+
+    if not all([activity_id, area_id, start_date]):
+        return jsonify({"error": "Faltan parámetros requeridos (activityid, areaId, start_date)"}), 400
+
+    # 2. Preparar parámetros para la API de Tuotempo
+    params = {
+        'lang': 'es',
+        'activityid': activity_id,
+        'areaId': area_id,
+        'start_date': start_date,
+        'bypass_availabilities_fallback': 'False',
+        'numDays': 15
+    }
+
+    # Si hay preferencia, pedimos más resultados para poder filtrar
+    if preferencia in ['manana', 'tarde']:
+        params['maxResults'] = 20
+    else:
+        params['maxResults'] = 3
+
+    # 3. Llamar a la API con reintento
+    data = _fetch_tuotempo_availabilities_with_retry(params)
+
+    if data is None or not data.get('availabilities'):
+        return jsonify({"error": "No se pudieron obtener disponibilidades desde Tuotempo tras dos intentos."}), 503
+
+    availabilities = data['availabilities']
+
+    # 4. Filtrar por preferencia si es necesario
+    if preferencia in ['manana', 'tarde']:
+        filtered_slots = []
+        for slot in availabilities:
+            try:
+                # La hora viene en formato 'HH:MM'
+                slot_time = datetime.strptime(slot['time'], '%H:%M').time()
+                
+                # Definimos mañana como antes de las 15:00
+                is_morning = slot_time.hour < 15
+                
+                if preferencia == 'manana' and is_morning:
+                    filtered_slots.append(slot)
+                elif preferencia == 'tarde' and not is_morning:
+                    filtered_slots.append(slot)
+            except (ValueError, KeyError):
+                # Ignorar slots con formato de hora incorrecto
+                continue
+        
+        # Devolvemos hasta 3 resultados filtrados
+        return jsonify({"availabilities": filtered_slots[:3]})
+    else:
+        # Si la preferencia es indiferente, devolvemos los resultados tal cual (ya limitados a 3)
+        return jsonify({"availabilities": availabilities})
