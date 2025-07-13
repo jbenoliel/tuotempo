@@ -1,9 +1,0 @@
-{
-  "result": "EXCEPTION",
-  "return": "",
-  "msg": "Reserva no disponible",
-  "exception": "TUOTEMPO_RESERVATION_EXCEPTION",
-  "execution_time": 551,
-  "debug": "",
-  "net_execution_time": 551
-}
