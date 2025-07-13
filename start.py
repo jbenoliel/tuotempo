@@ -80,10 +80,11 @@ def run_migrations():
             logging.info(f"El servicio '{service_name}' SÍ está configurado para ejecutar la migración.")
             
             # Conectar las variables de la base de datos si no están presentes (para servicios que las necesitan)
-            db_host = os.environ.get('MYSQLHOST')
-            if not db_host:
-                logging.critical("Este servicio debe ejecutar la migración pero no tiene las variables de entorno de la base de datos (ej. MYSQLHOST). Abortando.")
-                sys.exit(1)
+            # Si las variables de entorno de la BD no están definidas, asumimos que es un entorno local
+            # y nos saltamos la migración para permitir que el servidor arranque.
+            if not all(os.getenv(var) for var in ['MYSQLHOST', 'MYSQLUSER', 'MYSQLPASSWORD', 'MYSQLDATABASE', 'MYSQLPORT']):
+                logging.warning("No se encontraron las variables de entorno de la base de datos. Saltando la migración automática. El servidor arrancará sin conexión a la BD.")
+                return # Salimos de la función de migración
 
             if run_intelligent_migration():
                 logging.info("✅ Sistema de Migración Inteligente (esquema) completado exitosamente.")
