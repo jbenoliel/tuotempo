@@ -163,5 +163,8 @@ availabilities_response.json
 user_registration_response.json
 reservation_response.json
 *_response.json
-api_tuotempo.py
-payload.json
+
+
+# carpetas de cache de slots
+autoslots/
+cached_slots/
