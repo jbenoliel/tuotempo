@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -63,8 +64,10 @@ class TuoTempoAPI:
         # Add province filter if provided
         if province:
             params["province"] = province
-        
+
+        logging.info(f"[TuoTempoAPI] GET Centers - URL: {url}, Params: {params}")
         response = requests.get(url, headers=self.headers, params=params)
+        logging.info(f"[TuoTempoAPI] GET Centers - Response: {response.status_code}")
         return response.json()
     
     def get_available_slots(self, activity_id, area_id, start_date, resource_id=None, min_time=None, max_time=None):
@@ -130,8 +133,10 @@ class TuoTempoAPI:
             params["minTime"] = min_time
         if max_time:
             params["maxTime"] = max_time
-        
+
+        logging.info(f"[TuoTempoAPI] GET Availabilities - URL: {url}, Params: {params}")
         response = requests.get(url, headers=self.headers, params=params)
+        logging.info(f"[TuoTempoAPI] GET Availabilities - Response: {response.status_code}")
         return response.json()
     
     def register_non_insured_user(self, fname, lname, birthday, phone):
@@ -165,12 +170,15 @@ class TuoTempoAPI:
             "onetime_user": "1"  # Indicates that this is a temporary user linked to a single appointment
         }
         
+        logging.info(f"[TuoTempoAPI] POST Register User - URL: {url}, Payload: {json.dumps(payload)}")
         response = requests.post(url, headers=self.headers, params=params, json=payload)
         response_data = response.json()
+        logging.info(f"[TuoTempoAPI] POST Register User - Response: {response.status_code}, Body: {response.text[:200]}")
         
         # Store session ID for later use in confirming appointments
         if response_data.get("result") == "OK" and "sessionid" in response_data:
             self.session_id = response_data["sessionid"]
+            logging.info(f"[TuoTempoAPI] SessionID obtenido: {self.session_id}")
         
         return response_data
     
@@ -214,28 +222,20 @@ class TuoTempoAPI:
         headers = self.headers.copy()
         headers["Authorization"] = f"Bearer {self.api_key}"
         
-        # Debug: mostrar llamada completa
-        print("\n=== DEBUG /reservations ===")
-        print("URL:", url)
-        print("Params:", params)
-        print("Headers:", headers)
-        print("Payload:")
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
-        print("===========================\n")
+        logging.info(f"[TuoTempoAPI] POST Confirm Appointment - URL: {url}")
+        logging.info(f"[TuoTempoAPI] Headers: {headers}")
+        logging.info(f"[TuoTempoAPI] Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+
         response = requests.post(url, headers=headers, params=params, json=payload)
         
-        # Debug: mostrar respuesta completa
-        print("\n=== DEBUG RESPUESTA /reservations ===")
-        print("Status code:", response.status_code)
-        print("Headers:", dict(response.headers))
-        print("Contenido:", response.text[:500] + "..." if len(response.text) > 500 else response.text)
-        print("===========================\n")
-        
+        logging.info(f"[TuoTempoAPI] POST Confirm Appointment - Response: {response.status_code}")
+        logging.info(f"[TuoTempoAPI] Body: {response.text[:500] + '...' if len(response.text) > 500 else response.text}")
+
         try:
             return response.json()
         except json.JSONDecodeError as e:
-            print(f"Error al decodificar JSON: {e}")
-            return response.text
+            logging.error(f"[TuoTempoAPI] Error al decodificar JSON de respuesta: {e}")
+            return {"result": "ERROR", "msg": "Respuesta inválida de la API", "details": response.text}
     
     def handle_error(self, response):
         """

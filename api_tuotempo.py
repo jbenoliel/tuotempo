@@ -163,14 +163,11 @@ def obtener_actividades():
                 "message": "El parámetro centro_id es obligatorio"
             }), 400
         
-        logger.info(f"Buscando actividades para centro ID: {centro_id}")
-        
         # Crear instancia de la API
         api = TuoTempoAPI(lang='es', environment='PRE')
         
-        # Obtener actividades
         activities_response = api.get_activities(centro_id)
-        
+
         if activities_response.get("result") != "OK":
             error_msg = f"Error al obtener actividades: {activities_response.get('message', 'Error desconocido')}"
             logger.error(error_msg)
@@ -242,12 +239,9 @@ def obtener_slots():
                 "message": "Los parámetros centro_id, actividad_id y fecha_inicio son obligatorios"
             }), 400
         
-        logger.info(f"Buscando slots - Centro: {centro_id}, Actividad: {actividad_id}, Fecha: {fecha_inicio}")
-        
         # Crear instancia de la API
         api = TuoTempoAPI(lang='es', environment='PRE')
         
-        # Obtener slots disponibles
         slots_response = api.get_available_slots(
             activity_id=actividad_id,
             area_id=centro_id,
