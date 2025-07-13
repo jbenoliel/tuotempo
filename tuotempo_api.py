@@ -175,10 +175,16 @@ class TuoTempoAPI:
         response_data = response.json()
         logging.info(f"[TuoTempoAPI] POST Register User - Response: {response.status_code}, Body: {response.text[:200]}")
         
-        # Store session ID for later use in confirming appointments
-        if response_data.get("result") == "OK" and "sessionid" in response_data:
-            self.session_id = response_data["sessionid"]
-            logging.info(f"[TuoTempoAPI] SessionID obtenido: {self.session_id}")
+        # Store session ID for later use in confirming appointments.
+        # The sessionid can be at the root or nested inside user_info.
+        user_info = response_data.get("user_info", {})
+        session_id = response_data.get("sessionid") or user_info.get("sessionid")
+        
+        if session_id:
+            self.session_id = session_id
+            logging.info(f"[TuoTempoAPI] SessionID extraído y guardado: {self.session_id}")
+        else:
+            logging.warning("[TuoTempoAPI] No se encontró 'sessionid' en la respuesta de registro de usuario.")
         
         return response_data
     
