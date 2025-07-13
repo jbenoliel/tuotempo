@@ -9,7 +9,6 @@ import time
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
 from flask_bcrypt import Bcrypt
-import time
 
 
 # Cargar variables de entorno
@@ -323,10 +322,6 @@ def reservar():
         
         logging.info("Usuario registrado exitosamente. Procediendo a confirmar la cita.")
 
-        # --- DIAGNOSTIC: Esperar 2 segundos para posible replicación de datos del usuario ---
-        logging.info("Esperando 2 segundos para posible replicación de datos...")
-        time.sleep(2)
-        # ---------------------------------------------------------------------------------
 
         # 3. Confirmar la cita (la clase ya tiene el session_id necesario)
         confirm_response = api_client.confirm_appointment(

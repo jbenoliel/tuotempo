@@ -1,1 +1,1 @@
-web: python start.py
+web: gunicorn api_tuotempo:app
