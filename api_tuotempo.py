@@ -9,7 +9,8 @@ import time
 from datetime import datetime
 from tuotempo_api import TuoTempoAPI
 from flask_bcrypt import Bcrypt
-import random
+import time
+
 
 # Cargar variables de entorno
 load_dotenv()
@@ -293,16 +294,7 @@ def reservar():
     if not user_info or not availability:
         return jsonify({"error": "Faltan 'user_info' o 'availability' en el payload"}), 400
 
-    # --- DIAGNOSTIC TEST: Generate unique and realistic user data ---
-    surnames = ['Gomez', 'Ramirez', 'Fernandez', 'Lopez', 'Martinez', 'Ruiz']
-    original_lname = user_info.get('lname', 'Test')
-    user_info['lname'] = f"{original_lname} {random.choice(surnames)}"
-    
-    # Generate a new valid 9-digit Spanish mobile number starting with 6
-    user_info['phone'] = f"6{random.randint(10000000, 99999999)}"
-    
-    logging.info(f"DIAGNOSTIC: Testing with unique user: {user_info['fname']} {user_info['lname']}, Phone: {user_info['phone']}")
-    # ----------------------------------------------------------------
+
 
     # Validar que los campos necesarios en user_info no estén vacíos
     required_user_keys = ['fname', 'lname', 'birthday', 'phone']
@@ -330,6 +322,11 @@ def reservar():
             return jsonify({"error": "No se pudo registrar el usuario en TuoTempo", "details": user_reg_response}), 502
         
         logging.info("Usuario registrado exitosamente. Procediendo a confirmar la cita.")
+
+        # --- DIAGNOSTIC: Esperar 2 segundos para posible replicación de datos del usuario ---
+        logging.info("Esperando 2 segundos para posible replicación de datos...")
+        time.sleep(2)
+        # ---------------------------------------------------------------------------------
 
         # 3. Confirmar la cita (la clase ya tiene el session_id necesario)
         confirm_response = api_client.confirm_appointment(

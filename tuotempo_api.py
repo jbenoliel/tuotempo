@@ -229,8 +229,7 @@ class TuoTempoAPI:
             "userid": self.member_id.strip() if self.member_id else "",
             "communication_phone": communication_phone.strip(),
             "tags": "WEB_NO_ASEGURADO",
-            "isExternalPayment": "false",
-            "ignore_warnings": "true"
+            "isExternalPayment": "false"
         })
         
         # Add authorization header with the session's Bearer token
