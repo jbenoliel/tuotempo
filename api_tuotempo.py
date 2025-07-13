@@ -311,7 +311,9 @@ def reservar():
             phone=user_info['phone']
         )
 
-        if user_reg_response.get("result") != "OK":
+        # La API de TuoTempo a veces no devuelve 'result: OK' pero sí un sessionid, que es lo que necesitamos.
+        # Validamos la presencia de 'sessionid' o 'access_token' como señal de éxito.
+        if not user_reg_response.get("sessionid") and not user_reg_response.get("access_token"):
             logging.error(f"Error al registrar el usuario en TuoTempo: {user_reg_response}")
             return jsonify({"error": "No se pudo registrar el usuario en TuoTempo", "details": user_reg_response}), 502
         
