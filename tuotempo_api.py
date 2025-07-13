@@ -36,6 +36,7 @@ class TuoTempoAPI:
             "content-type": "application/json; charset=UTF-8"
         }
         self.session_id = None
+        self.member_id = None
         
         # Set API key based on environment
         if api_key:
@@ -185,6 +186,13 @@ class TuoTempoAPI:
             logging.info(f"[TuoTempoAPI] SessionID extraído y guardado: {self.session_id}")
         else:
             logging.warning("[TuoTempoAPI] No se encontró 'sessionid' en la respuesta de registro de usuario.")
+
+        member_id = user_info.get("memberid")
+        if member_id:
+            self.member_id = member_id
+            logging.info(f"[TuoTempoAPI] MemberID extraído y guardado: {self.member_id}")
+        else:
+            logging.warning("[TuoTempoAPI] No se encontró 'memberid' en la respuesta de registro de usuario.")
         
         return response_data
     
@@ -204,8 +212,8 @@ class TuoTempoAPI:
         Raises:
             ValueError: If no session_id is available (user not registered)
         """
-        if not self.session_id:
-            raise ValueError("No session ID available. Please register a user first.")
+        if not self.member_id or not self.session_id:
+            raise ValueError("No member ID or session ID available. Please register a user first.")
         
         url = f"{self.base_url}/{self.instance_id}/reservations"
         params = {"lang": self.lang}
@@ -218,15 +226,15 @@ class TuoTempoAPI:
         
         # Add required fields, ensuring all values are properly sanitized
         payload.update({
-            "userid": self.session_id.strip() if self.session_id else "",
+            "userid": self.member_id.strip() if self.member_id else "",
             "communication_phone": communication_phone.strip(),
             "tags": "WEB_NO_ASEGURADO",
             "isExternalPayment": "false"
         })
         
-        # Add authorization header with Bearer token
+        # Add authorization header with the session's Bearer token
         headers = self.headers.copy()
-        headers["Authorization"] = f"Bearer {self.api_key}"
+        headers["Authorization"] = f"Bearer {self.session_id}"
         
         logging.info(f"[TuoTempoAPI] POST Confirm Appointment - URL: {url}")
         logging.info(f"[TuoTempoAPI] Headers: {headers}")
