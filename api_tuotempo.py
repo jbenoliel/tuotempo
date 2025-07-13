@@ -282,13 +282,15 @@ from datetime import datetime
 @app.route('/api/reservar', methods=['POST'])
 def reservar():
     """Endpoint para reservar un slot siguiendo el flujo completo de TuoTempo."""
-    data = request.get_json()
-    if not data:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
         return jsonify({"error": "Invalid JSON"}), 400
 
     # Extraer datos del usuario y de la cita
     user_info = data.get('user_info')
     availability = data.get('availability')
+    cancel_after = bool(data.get('cancel'))  # Si es True se anula tras crear
+    env = data.get('env', 'PRO').upper() if isinstance(data.get('env', 'PRO'), str) else 'PRO'
 
     if not user_info or not availability:
         return jsonify({"error": "Faltan 'user_info' o 'availability' en el payload"}), 400
@@ -302,8 +304,7 @@ def reservar():
 
     try:
         # 1. Crear una instancia del cliente de la API
-        # Se asume entorno de producción (PRO) para las reservas, como en la lógica anterior.
-        api_client = TuoTempoAPI(environment="PRO")
+        api_client = TuoTempoAPI(environment=env)
 
         # 2. Registrar al usuario para obtener el session_id (la clase se encarga de guardarlo)
         logging.info(f"Registrando usuario: {user_info['fname']} {user_info['lname']}")
@@ -314,9 +315,8 @@ def reservar():
             phone=user_info['phone']
         )
 
-        # La API de TuoTempo a veces no devuelve 'result: OK' pero sí un sessionid, que es lo que necesitamos.
-        # Validamos la presencia de 'sessionid' o 'access_token' como señal de éxito.
-        if not user_reg_response.get("sessionid") and not user_reg_response.get("access_token"):
+        # La clase actual almacena session_id internamente. Validamos que se haya establecido.
+        if not api_client.session_id:
             logging.error(f"Error al registrar el usuario en TuoTempo: {user_reg_response}")
             return jsonify({"error": "No se pudo registrar el usuario en TuoTempo", "details": user_reg_response}), 502
         
@@ -332,6 +332,16 @@ def reservar():
         if confirm_response.get("result") != "OK":
             logging.error(f"Error al confirmar la cita en TuoTempo: {confirm_response}")
             return jsonify({"error": "No se pudo confirmar la cita en TuoTempo", "details": confirm_response}), 502
+
+        if cancel_after and confirm_response.get("result") == "OK":
+            resid = confirm_response.get("return") or confirm_response.get("resid")
+            if resid:
+                logging.info(f"Cancelando cita {resid} tras confirmación (petición del cliente)...")
+                cancel_resp = api_client.cancel_appointment(resid=resid, reason="Cancelación automática via API")
+                return jsonify({
+                    "booking": confirm_response,
+                    "cancellation": cancel_resp
+                })
 
         logging.info("Cita confirmada exitosamente.")
         return jsonify(confirm_response)

@@ -218,7 +218,7 @@ class TuoTempoAPI:
         payload = {}
         
         # Copiar datos de availability a payload
-        for key in ["resourceid", "startTime", "start_date", "endTime"]:
+        for key in ["activityid", "resourceid", "startTime", "start_date", "endTime"]:
             if key in availability:
                 payload[key] = availability[key]
         
@@ -232,10 +232,7 @@ class TuoTempoAPI:
         
         # Usar el API_KEY como Bearer token, no el session_id
         headers = self.headers.copy()
-        if self.environment == 'PRO':
-            headers["Authorization"] = f"Bearer {self.api_key_pro}"
-        else:
-            headers["Authorization"] = f"Bearer {self.api_key_pre}"
+        headers["Authorization"] = f"Bearer {self.api_key}"
         
         logging.info(f"[TuoTempoAPI] POST Confirm Appointment - URL: {url}")
         logging.info(f"[TuoTempoAPI] Headers: {headers}")
@@ -252,6 +249,42 @@ class TuoTempoAPI:
             logging.error(f"[TuoTempoAPI] Error al decodificar JSON de respuesta: {e}")
             return {"result": "ERROR", "msg": "Respuesta inválida de la API", "details": response.text}
     
+    def cancel_appointment(self, resid, reason=""):
+        """
+        Cancela una cita existente.
+
+        Endpoint: DELETE /reservations/{resid}
+
+        Args:
+            resid (str): ID de la reserva devuelto al crear la cita
+            reason (str, optional): Motivo de la cancelación (si el API lo requiere)
+
+        Returns:
+            dict: Respuesta de la API
+        """
+        if not resid:
+            raise ValueError("'resid' es obligatorio para cancelar la cita")
+
+        endpoint = f"/reservations/{resid}"
+        url = f"{self.base_url}/{self.instance_id}{endpoint}"
+
+        headers = self.headers.copy()
+        headers["Authorization"] = f"Bearer {self.api_key}"
+
+        params = {"lang": self.lang}
+        payload = {"reason": reason} if reason else None
+
+        logging.info(f"[TuoTempoAPI] DELETE Cancel Appointment - URL: {url}")
+        response = requests.delete(url, headers=headers, params=params, json=payload)
+        logging.info(f"[TuoTempoAPI] DELETE Cancel Appointment - Response: {response.status_code}")
+        logging.info(f"[TuoTempoAPI] Body: {response.text[:500] + '...' if len(response.text) > 500 else response.text}")
+
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            logging.error(f"[TuoTempoAPI] Error al decodificar JSON de respuesta: {e}")
+            return {"result": "ERROR", "msg": "Respuesta inválida de la API", "details": response.text}
+
     def handle_error(self, response):
         """
         Handle API error responses based on the exception type.
