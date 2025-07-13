@@ -62,13 +62,7 @@ def obtener_slots():
             resource_id=recurso_id
         )
 
-        # Guardar la respuesta cruda en un archivo para depuración
-        try:
-            with open("raw_slots_response.log", "w", encoding="utf-8") as f:
-                json.dump(slots_response, f, indent=4)
-            logger.info("Respuesta de slots guardada en raw_slots_response.log")
-        except Exception as e:
-            logger.error(f"No se pudo guardar la respuesta de slots en el archivo: {e}")
+
 
         if slots_response.get("result") != "OK":
             return jsonify({"success": False, "message": f"Error al obtener slots: {slots_response.get('message', 'Error desconocido')}"}), 500
@@ -107,13 +101,21 @@ def reservar():
     if not isinstance(data, dict):
         return jsonify({"error": "Invalid JSON"}), 400
 
+    env = data.get('env', 'PRO').upper()
     user_info = data.get('user_info')
     availability = data.get('availability')
     phone_cache = data.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
     desired_date = data.get('start_date')
     desired_time = data.get('startTime')
     cancel_after = bool(data.get('cancel'))
-    env = data.get('env', 'PRO').upper()
+
+    # --- Normalización de campos para robustez ---
+    if isinstance(availability, dict):
+        # Si el payload viene con los nombres de campo antiguos (con guion bajo), los renombramos.
+        if 'activity_id' in availability:
+            availability['activityid'] = availability.pop('activity_id')
+        if 'resource_id' in availability:
+            availability['resourceid'] = availability.pop('resource_id')
 
     # Si no se envió availability pero hay phone, intentamos cargar del cache
     if availability is None and phone_cache:
