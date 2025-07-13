@@ -157,3 +157,9 @@ Desktop.ini
 *~
 .directory
 .Trash-*
+
+# Archivos de respuesta de la API Tuotempo (scripts de prueba)
+availabilities_response.json
+user_registration_response.json
+reservation_response.json
+*_response.json

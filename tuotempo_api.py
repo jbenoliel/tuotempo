@@ -198,49 +198,50 @@ class TuoTempoAPI:
     
     def confirm_appointment(self, availability, communication_phone):
         """
-        Reserve an appointment associated with a specific user.
-        
-        Endpoint: POST /reservations
+        Confirma una cita en Tuotempo con los datos de disponibilidad y el usuario registrado
         
         Args:
-            availability (dict): Selected availability from get_available_slots() response
-            communication_phone (str): Contact phone number provided during user registration
-        
+            availability (dict): Información de disponibilidad de la cita
+            communication_phone (str): Teléfono de contacto
+            
         Returns:
-            dict: JSON response with appointment confirmation information
-        
-        Raises:
-            ValueError: If no session_id is available (user not registered)
+            dict: Respuesta de la API
         """
-        if not self.member_id or not self.session_id:
-            raise ValueError("No member ID or session ID available. Please register a user first.")
+        if not self.member_id:
+            raise ValueError("No member ID available. Please register a user first.")
+            
+        # Crear la URL para la confirmación de cita
+        endpoint = "/reservations"
+        url = f"{self.base_url}/{self.instance_id}{endpoint}"
         
-        url = f"{self.base_url}/{self.instance_id}/reservations"
-        params = {"lang": self.lang}
-        
-        # Create a copy of the availability and add required fields
-        # Make sure to create a new dict to avoid modifying the original
+        # Preparar payload con datos de la cita
         payload = {}
-        if isinstance(availability, dict):
-            payload = {k: v for k, v in availability.items()}
         
-        # Add required fields, ensuring all values are properly sanitized
+        # Copiar datos de availability a payload
+        for key in ["resourceid", "startTime", "start_date", "endTime"]:
+            if key in availability:
+                payload[key] = availability[key]
+        
+        # Añadir datos adicionales usando los nombres de campo correctos (con mayúscula inicial)
         payload.update({
             "userid": self.member_id.strip() if self.member_id else "",
-            "communication_phone": communication_phone.strip(),
-            "tags": "WEB_NO_ASEGURADO",
+            "Communication_phone": communication_phone.strip(),  # C mayúscula
+            "Tags": "WEB_NO_ASEGURADO",  # T mayúscula
             "isExternalPayment": "false"
         })
         
-        # Add authorization header with the session's Bearer token
+        # Usar el API_KEY como Bearer token, no el session_id
         headers = self.headers.copy()
-        headers["Authorization"] = f"Bearer {self.session_id}"
+        if self.environment == 'PRO':
+            headers["Authorization"] = f"Bearer {self.api_key_pro}"
+        else:
+            headers["Authorization"] = f"Bearer {self.api_key_pre}"
         
         logging.info(f"[TuoTempoAPI] POST Confirm Appointment - URL: {url}")
         logging.info(f"[TuoTempoAPI] Headers: {headers}")
         logging.info(f"[TuoTempoAPI] Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
 
-        response = requests.post(url, headers=headers, params=params, json=payload)
+        response = requests.post(url, headers=headers, json=payload)
         
         logging.info(f"[TuoTempoAPI] POST Confirm Appointment - Response: {response.status_code}")
         logging.info(f"[TuoTempoAPI] Body: {response.text[:500] + '...' if len(response.text) > 500 else response.text}")
