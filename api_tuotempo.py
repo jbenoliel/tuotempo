@@ -195,6 +195,7 @@ def reservar():
                     except Exception:
                         return d
                 norm_partial_date = norm(partial_date) if partial_date else None
+                matched = False
                 for s in slots_list:
                     if not isinstance(s, dict):
                         continue
@@ -204,7 +205,15 @@ def reservar():
                             if k not in availability and k in s:
                                 availability[k] = s[k]
                         logger.info(f"Availability completada desde cache: añadidos {[k for k in critical_keys if k in s]}")
+                        matched = True
                         break
+                # Fallback: si no hay coincidencia exacta usa el primer slot disponible
+                if not matched and slots_list:
+                    fallback_slot = slots_list[0]
+                    for k in critical_keys:
+                        if k in fallback_slot and k not in availability:
+                            availability[k] = fallback_slot[k]
+                    logger.warning("No se encontró match exacto en el caché; se usó el primer slot como fallback.")
             except Exception as e:
                 logger.warning(f"No se pudo completar availability desde cache: {e}")
 

@@ -1,24 +1,14 @@
 {
   "env": "PRO",
-  "phone": "34612345678",
-  "start_date": "18/07/2025",
-  "startTime": "12:20",
-  "cancel": true,
-  "availability": {
-    "activityid": "sc1595303167583c",
-    "activityTitle": "Primera Visita",
-    "areaid": "default@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44xowswy_sejh",
-    "end_date": "18/07/2025",
-    "endTime": "12:40",
-    "resourceid": "sc1601b4ea040c89@tt_adeslas_ecexpd4f_ef3ewl7a_ei4z3vee_44xowswy_sejh",
-    "resourceName": "Gral./prosto Dr.Ramirez Calleja",
-    "start_date": "18/07/2025",
-    "startTime": "12:20"
-  },
+  "phone": "+34629203315",
   "user_info": {
-    "fname": "Test",
-    "lname": "Reservado",
-    "birthday": "17/01/1975",
-    "phone": "+34612345678"
+    "fname": "jose carlos",
+    "lname": "romata",
+    "birthday": "17/1/1975",
+    "phone": "+34629203315"
+  },
+  "availability": {
+    "start_date": "30/07/2025",
+    "startTime": "09:30"
   }
 }
