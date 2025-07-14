@@ -44,7 +44,7 @@ def _extract_availabilities(resp: dict) -> list:
     return re.sub(r"\D", "", phone)
 
 # Carpeta para cachear slots
-SLOTS_CACHE_DIR = Path("cached_slots")
+SLOTS_CACHE_DIR = Path("/tmp/cached_slots")
 SLOTS_CACHE_DIR.mkdir(exist_ok=True)
 
 # Crear la aplicación Flask
@@ -137,10 +137,8 @@ def obtener_slots():
                 break  # encontramos disponibilidad, salimos del bucle
 
         # Guardar la respuesta (del intento con más información) en caché
-        cache_dir = Path('cached_slots')
-        cache_dir.mkdir(exist_ok=True)
         phone_norm = _norm_phone(phone)
-        cache_file = cache_dir / f"slots_{phone_norm}.json"
+        cache_file = SLOTS_CACHE_DIR / f"slots_{phone_norm}.json"
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(slots_return, f, ensure_ascii=False, indent=4)
         logging.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
