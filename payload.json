@@ -1,14 +1,14 @@
 {
   "env": "PRO",
-  "phone": "+34629203315",
+  "phone": "629203315",
   "user_info": {
     "fname": "jose carlos",
     "lname": "romata",
     "birthday": "17/1/1975",
-    "phone": "+34629203315"
+    "phone": "629203315"
   },
   "availability": {
-    "start_date": "16/07/2025",
-    "startTime": "12:30"
+    "start_date": "23/07/2025",
+    "startTime": "12:40"
   }
 }

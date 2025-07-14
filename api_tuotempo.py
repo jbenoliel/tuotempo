@@ -1,33 +1,43 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from datetime import datetime, timedelta
 import os
 import requests
 from dotenv import load_dotenv
-import logging
+from pathlib import Path
 import json
 import re
-from typing import Optional
-from pathlib import Path
-from datetime import datetime, timedelta
-from tuotempo_api import TuoTempoAPI
-from flask_bcrypt import Bcrypt
+import logging
+from tuotempo import Tuotempo
 
-# Cargar variables de entorno
+
+
+# --- Cargar variables de entorno ---
 load_dotenv()
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# --- Inicialización de la App Flask ---
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": os.getenv('FRONTEND_ORIGIN', '*')}})
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'un-secreto-muy-secreto')
 
-# Utilidad para normalizar teléfonos (quitar +, espacios y cualquier cosa que no sea dígito)
-
-def _norm_phone(phone: Optional[str]) -> Optional[str]:
-    """Elimina cualquier carácter no numérico para usar en nombres de fichero."""
+# --- Funciones de Utilidad ---
+def _norm_phone(phone: str) -> str:
+    """Normaliza un número de teléfono eliminando caracteres no numéricos."""
     if not phone:
-        return phone
+        return ""
     return re.sub(r"\D", "", phone)
 
-# Extraer lista de availabilities desde la respuesta varía de Tuotempo
+def parse_date(date_string):
+    """Intenta convertir un string de fecha a objeto date, probando varios formatos."""
+    if not isinstance(date_string, str):
+        return None
+    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
+        try:
+            return datetime.strptime(date_string, fmt).date()
+        except (ValueError, TypeError):
+            pass
+    app.logger.warning(f"No se pudo procesar la fecha: {date_string} con los formatos conocidos.")
+    return None
 
 def _extract_availabilities(resp: dict) -> list:
     """Devuelve la lista de availabilities sin importar la profundidad."""
@@ -35,123 +45,101 @@ def _extract_availabilities(resp: dict) -> list:
         return []
     if 'availabilities' in resp and isinstance(resp['availabilities'], list):
         return resp['availabilities']
-    try:
-        return resp['return']['results']['availabilities']
-    except (KeyError, TypeError):
-        return []
-    if not phone:
-        return phone
-    return re.sub(r"\D", "", phone)
+    for key, value in resp.items():
+        if isinstance(value, dict):
+            found = _extract_availabilities(value)
+            if found:
+                return found
+    return []
 
-# Carpeta para cachear slots
-SLOTS_CACHE_DIR = Path("/tmp/cached_slots")
+# --- Configuración de Caché ---
+import tempfile
+
+# Usar tempfile.gettempdir() que es compatible con Windows y Unix
+SLOTS_CACHE_DIR = Path(tempfile.gettempdir()) / "cached_slots"
+# Asegurar que el directorio existe
 SLOTS_CACHE_DIR.mkdir(exist_ok=True)
 
-# Crear la aplicación Flask
-app = Flask(__name__)
-bcrypt = Bcrypt(app)
-app.bcrypt = bcrypt
-
-# Configurar CORS
-frontend_origin_env = os.getenv("FRONTEND_ORIGIN", "*")
-allowed_origins = [o.strip() for o in frontend_origin_env.split(',')]
-CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
-
-app.config['JSON_AS_ASCII'] = False
-app.secret_key = os.getenv('SECRET_KEY', 'clave-secreta-por-defecto')
-
-@app.route('/api/status', methods=['GET'])
+# --- Endpoints de la API ---
+@app.route('/api/status')
 def status():
+    """Endpoint de estado para verificar que la API está viva."""
     return jsonify({
-        "service": "API TuoTempo Unificada",
-        "status": "online",
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'service': os.getenv('RAILWAY_SERVICE_NAME', 'Unknown')
     })
 
 @app.route('/api/slots', methods=['GET'])
 def obtener_slots():
-    env = request.args.get('env')
+    env = request.args.get('env', 'PRO').upper()
+    
+    # Valores predeterminados si las variables de entorno no están disponibles
+    api_key = os.getenv(f'TUOTEMPO_API_KEY_{env}')
+    api_secret = os.getenv(f'TUOTEMPO_API_SECRET_{env}', 'default_secret')
+    instance_id = os.getenv('TUOTEMPO_INSTANCE_ID', 'tt_portal_adeslas')
+    
+    # Usar valores predeterminados para PRO y PRE si no están en las variables de entorno
+    if not api_key:
+        if env == 'PRO':
+            api_key = "24b98d8d41b970d38362b52bd3505c04"
+        else:  # PRE
+            api_key = "3a5835be0f540c7591c754a2bf0758bb"
+    
+    app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
+        
+    tuotempo = Tuotempo(api_key, api_secret, instance_id)
+    
     centro_id = request.args.get('centro_id')
-    actividad_id = request.args.get('actividad_id', 'sc159232371eb9c1')
-    fecha_inicio = request.args.get('fecha_inicio')
-    resource_id = request.args.get('resource_id')
-    time_preference = request.args.get('time_preference')  # MORNING o AFTERNOON
+    fecha_inicio_str = request.args.get('fecha_inicio')
     phone = request.args.get('phone')
+    periodo = request.args.get('periodo')
 
-    if not all([env, centro_id, fecha_inicio, phone]):
-        return jsonify({"success": False, "message": "Faltan parámetros requeridos (env, centro_id, actividad_id, fecha_inicio, phone)"}), 400
-
-    if env.upper() == 'PRE':
-        api_key = os.getenv('TUOTEMPO_API_KEY_PRE')
-        api_secret = os.getenv('TUOTEMPO_API_SECRET_PRE')
-    elif env.upper() == 'PRO':
-        api_key = os.getenv('TUOTEMPO_API_KEY_PRO')
-        api_secret = os.getenv('TUOTEMPO_API_SECRET_PRO')
-    else:
-        return jsonify({"success": False, "message": "Entorno no válido. Usa 'PRE' o 'PRO'."}), 400
-
-    instance_id = os.getenv('TUOTEMPO_INSTANCE_ID')
-    tuotempo = TuoTempoAPI(api_key, api_secret, instance_id, env)
-
-    # Convertir fecha a guiones si viene con /
-    if fecha_inicio and '/' in fecha_inicio:
-        fecha_inicio = fecha_inicio.replace('/', '-')
+    if not all([centro_id, fecha_inicio_str, phone]):
+        return jsonify({'error': 'Faltan parámetros: centro_id, fecha_inicio, phone'}), 400
 
     try:
-        # --- Búsqueda progresiva: fecha_inicio, +7 días y +14 días ---
-        if not fecha_inicio:
-            raise ValueError("fecha_inicio es requerida")
+        fecha_base_dt = datetime.strptime(fecha_inicio_str, "%d-%m-%Y")
+    except ValueError:
+        return jsonify({'error': 'Formato de fecha_inicio inválido, usar DD-MM-YYYY'}), 400
 
-        fecha_base_dt = datetime.strptime(fecha_inicio, "%d-%m-%Y")
-        slots_list = []
-        slots_return = {}
+    slots_list = []
+    slots_return = {}
+    
+    for offset_weeks in range(4):
+        fecha_consulta_dt = fecha_base_dt + timedelta(days=7 * offset_weeks)
+        fecha_consulta_str = fecha_consulta_dt.strftime("%d-%m-%Y")
+        
+        app.logger.info(f"Buscando slots para la semana del {fecha_consulta_str}")
+        res = tuotempo.get_available_slots(locations_lid=[centro_id], start_date=fecha_consulta_str, days=7)
+        app.logger.info(f"Respuesta CRUDA de Tuotempo API: {json.dumps(res, indent=2)}")
+        
+        slots_return = res
+        current_slots = _extract_availabilities(res)
+        
+        if current_slots:
+            if periodo == 'manana':
+                slots_list.extend([s for s in current_slots if int(s['startTime'].split(':')[0]) < 14])
+            elif periodo == 'tarde':
+                slots_list.extend([s for s in current_slots if int(s['startTime'].split(':')[0]) >= 14])
+            else:
+                slots_list.extend(current_slots)
 
-        for offset_weeks in range(3):  # 0, 7, 14 días
-            consulta_dt = fecha_base_dt + timedelta(days=7 * offset_weeks)
-            consulta_str = consulta_dt.strftime("%d-%m-%Y")
-            logging.info(f"Intento {offset_weeks + 1}/3 - Buscando slots para {consulta_str}")
+        if slots_list:
+            app.logger.info(f"Encontrados {len(slots_list)} slots. Terminando búsqueda.")
+            break
 
-            res = tuotempo.get_available_slots(
-                activity_id=actividad_id,
-                area_id=centro_id,
-                start_date=consulta_str,
-                resource_id=resource_id,
-                time_preference=time_preference
-            )
-            slots_return = res  # guardamos la última respuesta, tenga o no slots
-
-            if isinstance(res, dict):
-                result_flag = res.get('result')
-                exception_code = res.get('exception')
-
-                if result_flag == 'OK':
-                    slots_list = _extract_availabilities(res)
-                elif result_flag == 'EXCEPTION' and exception_code == 'MEMBER_NOT_FOUND':
-                    slots_list = []  # sin disponibilidad, seguimos buscando
-                else:
-                    error_message = res.get('msg', 'Error desconocido')
-                    logging.error(f"Error al obtener slots de Tuotempo: {error_message}")
-                    return jsonify({'success': False, 'message': f'Error al obtener slots: {error_message}'}), 500
-
-            if slots_list:
-                break  # encontramos disponibilidad, salimos del bucle
-
-        # Guardar la respuesta (del intento con más información) en caché
-        phone_norm = _norm_phone(phone)
-        cache_file = SLOTS_CACHE_DIR / f"slots_{phone_norm}.json"
+    phone_norm = _norm_phone(phone)
+    cache_file = SLOTS_CACHE_DIR / f"slots_{phone_norm}.json"
+    try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(slots_return, f, ensure_ascii=False, indent=4)
-        logging.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
-
-        return jsonify({'success': True, 'slots': slots_list})
-
-        # Si la respuesta no es un dict, es un error inesperado
-        logging.error(f"Respuesta inesperada de Tuotempo: {slots_return}")
-        return jsonify({'success': False, 'message': 'Respuesta inesperada de Tuotempo'}), 500
-
+        app.logger.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
     except Exception as e:
-        logging.error(f"Excepción en /api/slots: {str(e)}")
-        return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
+        app.logger.error(f"No se pudo escribir en el fichero de caché {cache_file}: {e}")
+
+    return jsonify({'success': True, 'slots': slots_list})
+
 
 @app.route('/api/reservar', methods=['POST'])
 def reservar():
@@ -162,142 +150,89 @@ def reservar():
     env = data.get('env', 'PRO').upper()
     user_info = data.get('user_info')
     availability = data.get('availability')
-    phone_cache = data.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
-    desired_date = data.get('start_date')
-    desired_time = data.get('startTime')
-    cancel_after = bool(data.get('cancel'))
+    phone_cache = user_info.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
 
-    # --- Normalización de campos para robustez ---
+    if not all([user_info, availability, phone_cache]):
+        return jsonify({"error": "Faltan campos clave: user_info, availability o phone"}), 400
+
+    # Valores predeterminados si las variables de entorno no están disponibles
+    api_key = os.getenv(f'TUOTEMPO_API_KEY_{env}')
+    api_secret = os.getenv(f'TUOTEMPO_API_SECRET_{env}', 'default_secret')
+    instance_id = os.getenv('TUOTEMPO_INSTANCE_ID', 'tt_portal_adeslas')
+    
+    # Usar valores predeterminados para PRO y PRE si no están en las variables de entorno
+    if not api_key:
+        if env == 'PRO':
+            api_key = "24b98d8d41b970d38362b52bd3505c04"
+        else:  # PRE
+            api_key = "3a5835be0f540c7591c754a2bf0758bb"
+    
+    app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
+
+    tuotempo = Tuotempo(api_key, api_secret, instance_id)
+
     if isinstance(availability, dict):
-        # Si el payload viene con los nombres de campo antiguos (con guion bajo), los renombramos.
-        if 'activity_id' in availability:
-            availability['activityid'] = availability.pop('activity_id')
-        if 'resource_id' in availability:
-            availability['resourceid'] = availability.pop('resource_id')
+        if 'activity_id' in availability: availability['activityid'] = availability.pop('activity_id')
+        if 'resource_id' in availability: availability['resourceid'] = availability.pop('resource_id')
 
-    # --- Completar availability desde la caché si faltan campos críticos ---
     critical_keys = {'endTime', 'resourceid', 'activityid'}
-    if availability and phone_cache and (critical_keys - availability.keys()):
+    if critical_keys - availability.keys():
         cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
         if cache_path.exists():
             try:
                 with cache_path.open('r', encoding='utf-8') as f:
                     cached_response = json.load(f)
                 slots_list = _extract_availabilities(cached_response)
-                # usar fecha/hora del availability parcial
-                partial_date = availability.get('start_date')
-                partial_time = availability.get('startTime')
-                def norm(d):
-                    try:
-                        return datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y") if '-' in d else d
-                    except Exception:
-                        return d
-                norm_partial_date = norm(partial_date) if partial_date else None
-                matched = False
-                for s in slots_list:
-                    if not isinstance(s, dict):
-                        continue
-                    if (s.get('start_date') in {partial_date, norm_partial_date}) and s.get('startTime') == partial_time:
-                        # merge missing keys
-                        for k in critical_keys:
-                            if k not in availability and k in s:
-                                availability[k] = s[k]
-                        logger.info(f"Availability completada desde cache: añadidos {[k for k in critical_keys if k in s]}")
-                        matched = True
-                        break
-                # Fallback: si no hay coincidencia exacta usa el primer slot disponible
-                if not matched and slots_list:
-                    fallback_slot = slots_list[0]
-                    for k in critical_keys:
-                        if k in fallback_slot and k not in availability:
-                            availability[k] = fallback_slot[k]
-                    logger.warning("No se encontró match exacto en el caché; se usó el primer slot como fallback.")
-            except Exception as e:
-                logger.warning(f"No se pudo completar availability desde cache: {e}")
-
-    # Si no se envió availability pero hay phone, intentamos cargar del cache
-    if availability is None and phone_cache:
-        cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
-        if cache_path.exists():
-            logger.info(f"Cache file found: {cache_path}")
-            try:
-                with cache_path.open("r", encoding="utf-8") as f:
-                    cached_response = json.load(f)
-                logger.info(f"Cache content loaded. Keys: {list(cached_response.keys())}")
-
-                slots_list = _extract_availabilities(cached_response)
-                if slots_list:
-                    logger.info(f"Se extrajeron {len(slots_list)} slots de la clave 'availabilities' en el caché.")
-                else:
-                    logger.warning("No se encontró la clave 'availabilities' o estaba vacía en el caché.")
-
-                # Si hay slots en el cache, buscar el que coincida
-                if slots_list and desired_date and desired_time:
-                    def normalize(d):
-                        try:
-                            return datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y") if '-' in d else d
-                        except ValueError:
-                            return d
-                    norm_date = normalize(desired_date)
-                    for i, s in enumerate(slots_list):
-                        logger.info(f"Processing slot item #{i}: Type={type(s)}, Content={s}")
-                        # Ignorar elementos que no son diccionarios (slots válidos)
-                        if not isinstance(s, dict):
-                            logger.warning(f"Item #{i} is not a dict, skipping.")
-                            continue
-                        if s.get('start_date') == norm_date and s.get('startTime') == desired_time:
-                            availability = s
-                            logger.info(f"SUCCESS: Slot found in cache for {norm_date} at {desired_time}")
-                            break
-                if not availability:
-                    logger.warning("Slot NOT found in cache for the specified date/time.")
                 
-                # Borrar el cache DESPUÉS de usarlo con éxito
-                if availability:
-                    cache_path.unlink(missing_ok=True)
-                    logger.info(f"Cache {cache_path} eliminado tras su uso.")
+                availability_completed = False
+                for s in slots_list:
+                    if not isinstance(s, dict): continue
+                    
+                    cached_date = parse_date(s.get('start_date'))
+                    request_date = parse_date(availability.get('start_date'))
 
+                    if cached_date and request_date and cached_date == request_date and s.get('startTime') == availability.get('startTime'):
+                        app.logger.info(f"Slot encontrado en caché. Completando datos desde: {s}")
+                        availability.update(s)
+                        availability_completed = True
+                        app.logger.info(f"Availability completada desde cache. Datos actuales: {availability}")
+                        break                 
+                if not availability_completed:
+                    app.logger.warning(f"No se encontró un slot coincidente en la caché para {availability.get('start_date')} a las {availability.get('startTime')}")
             except Exception as e:
-                logger.warning(f"No se pudo leer o procesar el cache de slots: {e}")
+                app.logger.error(f"Error al leer o procesar el fichero de caché {cache_path}: {e}")
 
-    if not user_info or not availability:
-        return jsonify({"error": "Faltan 'user_info' o 'availability' en el payload"}), 400
+    missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
+    if missing_fields:
+        return jsonify({"error": f"Faltan campos críticos para la reserva: {missing_fields}. No se pudieron completar desde la caché."}), 400
 
-    required_keys = ['fname', 'lname', 'birthday', 'phone']
-    if not all(key in user_info for key in required_keys):
-        return jsonify({"error": f"Faltan datos en user_info. Se requiere: {required_keys}"}), 400
+    user_info_norm = {
+        'name': user_info.get('fname'),
+        'surname': user_info.get('lname'),
+        'birth_date': user_info.get('birthday'),
+        'mobile_phone': user_info.get('phone')
+    }
+    
+    availability_norm = {
+        'start_date': availability.get('start_date'),
+        'startTime': availability.get('startTime'),
+        'endTime': availability.get('endTime'),
+        'resourceid': availability.get('resourceid'),
+        'activityid': availability.get('activityid')
+    }
 
     try:
-        api_client = TuoTempoAPI(environment=env)
-        # Extraer solo los campos requeridos por la función para evitar TypeErrors
-        required_user_fields = {
-            'fname': user_info.get('fname'),
-            'lname': user_info.get('lname'),
-            'birthday': user_info.get('birthday'),
-            'phone': user_info.get('phone')
-        }
-        user_reg_response = api_client.register_non_insured_user(**required_user_fields)
-
-        if not api_client.session_id:
-            return jsonify({"error": "No se pudo registrar el usuario", "details": user_reg_response}), 502
-
-        confirm_response = api_client.confirm_appointment(availability, user_info['phone'])
-
-        if confirm_response.get("result") != "OK":
-            return jsonify({"error": "No se pudo confirmar la cita", "details": confirm_response}), 502
-
-        if cancel_after:
-            resid = confirm_response.get("return") or confirm_response.get("resid")
-            if resid:
-                cancel_resp = api_client.cancel_appointment(resid, "Cancelación automática")
-                return jsonify({"booking": confirm_response, "cancellation": cancel_resp})
-
-        return jsonify(confirm_response)
-
+        res = tuotempo.create_reservation(user_info=user_info_norm, availability=availability_norm)
+        if res.get('result') == 'OK':
+            return jsonify(res), 200
+        else:
+            app.logger.error(f"Fallo en la reserva de Tuotempo: {res}")
+            return jsonify({"error": "No se pudo confirmar la cita", "details": res}), 502
     except Exception as e:
-        logger.error(f"Excepción inesperada durante la reserva: {e}")
-        return jsonify({"error": "Ocurrió un error inesperado"}), 500
+        app.logger.exception("Excepción al llamar a Tuotempo para crear la reserva")
+        return jsonify({"error": "Ocurrió un error interno en el servidor"}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
+    # Forzamos el modo debug para obtener logs detallados y reinicio automático
     app.run(host='0.0.0.0', port=port, debug=True)
