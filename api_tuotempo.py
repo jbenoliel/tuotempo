@@ -144,15 +144,21 @@ def reservar():
                 # usar fecha/hora del availability parcial
                 partial_date = availability.get('start_date')
                 partial_time = availability.get('startTime')
+                def norm(d):
+                    try:
+                        return datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y") if '-' in d else d
+                    except Exception:
+                        return d
+                norm_partial_date = norm(partial_date) if partial_date else None
                 for s in slots_list:
                     if not isinstance(s, dict):
                         continue
-                    if s.get('start_date') == partial_date and s.get('startTime') == partial_time:
+                    if (s.get('start_date') in {partial_date, norm_partial_date}) and s.get('startTime') == partial_time:
                         # merge missing keys
                         for k in critical_keys:
                             if k not in availability and k in s:
                                 availability[k] = s[k]
-                        logger.info("Availability completada desde cache con campos faltantes")
+                        logger.info(f"Availability completada desde cache: añadidos {[k for k in critical_keys if k in s]}")
                         break
             except Exception as e:
                 logger.warning(f"No se pudo completar availability desde cache: {e}")
