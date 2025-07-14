@@ -163,7 +163,7 @@ def reservar():
     # --- Completar availability desde la caché si faltan campos críticos ---
     critical_keys = {'endTime', 'resourceid', 'activityid'}
     if availability and phone_cache and (critical_keys - availability.keys()):
-        cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
+        cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
         if cache_path.exists():
             try:
                 with cache_path.open('r', encoding='utf-8') as f:
@@ -193,7 +193,7 @@ def reservar():
 
     # Si no se envió availability pero hay phone, intentamos cargar del cache
     if availability is None and phone_cache:
-        cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
+        cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
         if cache_path.exists():
             logger.info(f"Cache file found: {cache_path}")
             try:
