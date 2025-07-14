@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import logging
 import json
 import re
+from typing import Optional
 from pathlib import Path
 from datetime import datetime, timedelta
 from tuotempo_api import TuoTempoAPI
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Utilidad para normalizar teléfonos (quitar +, espacios y cualquier cosa que no sea dígito)
 
-def _norm_phone(phone: str | None) -> str | None:
+def _norm_phone(phone: Optional[str]) -> Optional[str]:
     if not phone:
         return phone
     return re.sub(r"\D", "", phone)
