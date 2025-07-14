@@ -132,6 +132,31 @@ def reservar():
         if 'resource_id' in availability:
             availability['resourceid'] = availability.pop('resource_id')
 
+    # --- Completar availability desde la caché si faltan campos críticos ---
+    critical_keys = {'endTime', 'resourceid', 'activityid'}
+    if availability and phone_cache and (critical_keys - availability.keys()):
+        cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
+        if cache_path.exists():
+            try:
+                with cache_path.open('r', encoding='utf-8') as f:
+                    cached_response = json.load(f)
+                slots_list = cached_response.get('availabilities', [])
+                # usar fecha/hora del availability parcial
+                partial_date = availability.get('start_date')
+                partial_time = availability.get('startTime')
+                for s in slots_list:
+                    if not isinstance(s, dict):
+                        continue
+                    if s.get('start_date') == partial_date and s.get('startTime') == partial_time:
+                        # merge missing keys
+                        for k in critical_keys:
+                            if k not in availability and k in s:
+                                availability[k] = s[k]
+                        logger.info("Availability completada desde cache con campos faltantes")
+                        break
+            except Exception as e:
+                logger.warning(f"No se pudo completar availability desde cache: {e}")
+
     # Si no se envió availability pero hay phone, intentamos cargar del cache
     if availability is None and phone_cache:
         cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
