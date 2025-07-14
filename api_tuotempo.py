@@ -233,6 +233,7 @@ def reservar():
         return jsonify({"error": "Ocurrió un error interno en el servidor"}), 500
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    # Forzamos el modo debug para obtener logs detallados y reinicio automático
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # Gunicorn será el servidor en producción. Esto es para compatibilidad y pruebas locales.
+    # Railway asigna el puerto dinámicamente a través de la variable de entorno PORT.
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
