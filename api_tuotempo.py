@@ -44,56 +44,71 @@ def status():
 
 @app.route('/api/slots', methods=['GET'])
 def obtener_slots():
+    env = request.args.get('env')
+    centro_id = request.args.get('centro_id')
+    actividad_id = request.args.get('actividad_id', 'sc159232371eb9c1')
+    fecha_inicio = request.args.get('fecha_inicio')
+    resource_id = request.args.get('resource_id')
+    time_preference = request.args.get('time_preference')  # MORNING o AFTERNOON
+    phone = request.args.get('phone')
+
+    if not all([env, centro_id, fecha_inicio, phone]):
+        return jsonify({"success": False, "message": "Faltan parámetros requeridos (env, centro_id, actividad_id, fecha_inicio, phone)"}), 400
+
+    if env.upper() == 'PRE':
+        api_key = os.getenv('TUOTEMPO_API_KEY_PRE')
+        api_secret = os.getenv('TUOTEMPO_API_SECRET_PRE')
+    elif env.upper() == 'PRO':
+        api_key = os.getenv('TUOTEMPO_API_KEY_PRO')
+        api_secret = os.getenv('TUOTEMPO_API_SECRET_PRO')
+    else:
+        return jsonify({"success": False, "message": "Entorno no válido. Usa 'PRE' o 'PRO'."}), 400
+
+    instance_id = os.getenv('TUOTEMPO_INSTANCE_ID')
+    tuotempo = TuoTempoAPI(api_key, api_secret, instance_id, env)
+
+    # Convertir fecha a guiones si viene con /
+    if fecha_inicio and '/' in fecha_inicio:
+        fecha_inicio = fecha_inicio.replace('/', '-')
+
     try:
-        centro_id = request.args.get('centro_id')
-        actividad_id = request.args.get('actividad_id')
-        fecha_inicio = request.args.get('fecha_inicio')
-        recurso_id = request.args.get('recurso_id')
-        phone_cache = request.args.get('phone')
-
-        if not all([centro_id, actividad_id, fecha_inicio]):
-            return jsonify({"success": False, "message": "centro_id, actividad_id y fecha_inicio son obligatorios"}), 400
-
-        api = TuoTempoAPI(lang='es', environment='PRE')
-        slots_response = api.get_available_slots(
+        slots_return = tuotempo.get_available_slots(
             activity_id=actividad_id,
             area_id=centro_id,
             start_date=fecha_inicio,
-            resource_id=recurso_id
+            resource_id=resource_id,
+            time_preference=time_preference
         )
 
+        if isinstance(slots_return, dict):
+            result_flag = slots_return.get('result')
+            exception_code = slots_return.get('exception')
+            if result_flag == 'OK':
+                slots_list = slots_return.get('availabilities', [])
+            elif result_flag == 'EXCEPTION' and exception_code == 'MEMBER_NOT_FOUND':
+                # Significa simplemente que no hay disponibilidad; tratamos como lista vacía
+                slots_list = []
+                logging.info("Tuotempo devolvió MEMBER_NOT_FOUND: sin disponibilidad, no es error.")
+            else:
+                error_message = slots_return.get('msg', 'Error desconocido')
+                logging.error(f"Error al obtener slots de Tuotempo: {error_message}")
+                return jsonify({'success': False, 'message': f'Error al obtener slots: {error_message}'}), 500
 
-
-        if slots_response.get("result") != "OK":
-            return jsonify({"success": False, "message": f"Error al obtener slots: {slots_response.get('message', 'Error desconocido')}"}), 500
-
-        # Guardar en cache si se proporcionó phone
-        if phone_cache and slots_response:
-            cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
-            try:
-                with cache_path.open("w", encoding="utf-8") as f:
-                    json.dump(slots_response, f, indent=4)
-                logger.info(f"Slots guardados en cache: {cache_path}")
-            except Exception as e:
-                logger.warning(f"No se pudo guardar el cache de slots: {e}")
-
-        # Extraer la lista de slots para la respuesta
-        slots_return = slots_response.get('return')
-        slots_list = []
-        if isinstance(slots_return, list):
-            slots_list = slots_return
-        elif isinstance(slots_return, dict):
-            slots_list = slots_return.get('availabilities', [])
-
-        return jsonify({
-            "success": True,
-            "message": f"Se encontraron {len(slots_list)} slots disponibles",
-            "slots": slots_list
-        })
+            # Guardar la respuesta completa en caché
+            cache_dir = Path('cached_slots')
+            cache_dir.mkdir(exist_ok=True)
+            cache_file = cache_dir / f'slots_{phone}.json'
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(slots_return, f, ensure_ascii=False, indent=4)
+            logging.info(f"Slots guardados en caché para el teléfono {phone} en {cache_file}")
+            return jsonify({'success': True, 'slots': slots_list})
+        else:
+            logging.error(f"Respuesta inesperada de Tuotempo: {slots_return}")
+            return jsonify({'success': False, 'message': 'Respuesta inesperada de Tuotempo'}), 500
 
     except Exception as e:
-        logger.exception(f"Error al procesar la solicitud de slots: {e}")
-        return jsonify({"success": False, "message": f"Error al procesar la solicitud: {e}"}), 500
+        logging.error(f"Excepción en /api/slots: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
 
 @app.route('/api/reservar', methods=['POST'])
 def reservar():
@@ -127,14 +142,11 @@ def reservar():
                     cached_response = json.load(f)
                 logger.info(f"Cache content loaded. Keys: {list(cached_response.keys())}")
 
-                slots_return = cached_response.get('return')
-                slots_list = []
-                # La verdadera lista de slots está en la clave 'availabilities' del diccionario 'return'
-                if isinstance(slots_return, dict) and 'availabilities' in slots_return:
-                    slots_list = slots_return.get('availabilities', [])
-                    logger.info(f"Extracted {len(slots_list)} slots from 'availabilities' key.")
+                slots_list = cached_response.get('availabilities', [])
+                if slots_list:
+                    logger.info(f"Se extrajeron {len(slots_list)} slots de la clave 'availabilities' en el caché.")
                 else:
-                    logger.warning(f"Could not find 'availabilities' key in the cached response.")
+                    logger.warning("No se encontró la clave 'availabilities' o estaba vacía en el caché.")
 
                 # Si hay slots en el cache, buscar el que coincida
                 if slots_list and desired_date and desired_time:

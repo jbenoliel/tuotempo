@@ -71,74 +71,67 @@ class TuoTempoAPI:
         logging.info(f"[TuoTempoAPI] GET Centers - Response: {response.status_code}")
         return response.json()
     
-    def get_available_slots(self, activity_id, area_id, start_date, resource_id=None, min_time=None, max_time=None):
+    def get_available_slots(self, activity_id, area_id, start_date, resource_id=None, time_preference=None, min_time=None, max_time=None):
         """
         Get available slots for a specific service, center, and date.
         
         Endpoint: GET /availabilities
         
         Args:
-            activity_id (str): Service ID to search for (e.g., "sc159232371eb9c1" for first visit to general dentistry)
-            area_id (str): Center ID obtained from get_centers()
-            start_date (str): Start date in DD/MM/YYYY format (must be today or later)
-            resource_id (str, optional): Specialist ID. If not provided, slots for all specialists will be returned.
-            min_time (str, optional): Minimum time frame to consider:
-                - None: any time frame
-                - "360": morning only
-                - "900": afternoon only
-            max_time (str, optional): Maximum time frame to consider:
-                - None: any time frame
-                - "900": morning only
-                - "1260": afternoon only
+            activity_id (str): Service ID to search for
+            area_id (str): Center ID where the service is provided
+            start_date (str): Start date in DD/MM/YYYY format
+            resource_id (str, optional): Specialist ID.
         
         Returns:
             dict: JSON response with available slots
         """
-        # Validate that start_date is today or later
         from datetime import datetime
         
-        # Ensure start_date is in the correct format
-        if start_date:
-            try:
-                # Parse the provided date (DD/MM/YYYY)
-                date_parts = start_date.split('/')
-                if len(date_parts) == 3:
-                    day, month, year = map(int, date_parts)
-                    provided_date = datetime(year, month, day)
-                    
-                    # Get today's date
-                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                    
-                    # Ensure the date is today or later
-                    if provided_date < today:
-                        # If date is in the past, use today's date
-                        today_str = datetime.now().strftime("%d/%m/%Y")
-                        start_date = today_str
-            except (ValueError, IndexError):
-                # If there's any error parsing the date, keep the original value
-                pass
-        
+        # Ensure start_date is today or later
+        try:
+            provided_date = datetime.strptime(start_date, "%d/%m/%Y")
+            if provided_date < datetime.now().replace(hour=0, minute=0, second=0, microsecond=0):
+                start_date = datetime.now().strftime("%d/%m/%Y")
+        except (ValueError, IndexError):
+            pass
+
         url = f"{self.base_url}/{self.instance_id}/availabilities"
         params = {
             "lang": self.lang,
             "activityid": activity_id,
             "areaId": area_id,
             "start_date": start_date,
-            "bypass_availabilities_fallback": "true"  # Avoid searching in other locations if no slots are found
+            "bypass_availabilities_fallback": "true"
         }
+        # Añadir filtros de franja horaria si se solicitan
+        if time_preference:
+            pref = time_preference.upper()
+            if pref == 'MORNING':
+                params['minTime'] = '360'  # 06:00
+                params['maxTime'] = '900'  # 15:00
+            elif pref == 'AFTERNOON':
+                params['minTime'] = '900'  # 15:00
+                params['maxTime'] = '1260' # 21:00
+        # Sobrescribir si se pasan min_time/max_time explícitos
+        if min_time:
+            params['minTime'] = str(min_time)
+        if max_time:
+            params['maxTime'] = str(max_time)
         
-        # Add optional parameters if provided
         if resource_id:
             params["resourceId"] = resource_id
-        if min_time:
-            params["minTime"] = min_time
-        if max_time:
-            params["maxTime"] = max_time
 
         logging.info(f"[TuoTempoAPI] GET Availabilities - URL: {url}, Params: {params}")
         response = requests.get(url, headers=self.headers, params=params)
-        logging.info(f"[TuoTempoAPI] GET Availabilities - Response: {response.status_code}")
-        return response.json()
+        logging.info(
+            f"[TuoTempoAPI] GET Availabilities - Response: {response.status_code}, Body: {response.text[:500]}"
+        )
+        # Devolver el JSON si es posible; si falla, devolver texto crudo para depuración
+        try:
+            return response.json()
+        except ValueError:
+            return {"raw": response.text, "status_code": response.status_code}
     
     def register_non_insured_user(self, fname, lname, birthday, phone):
         """
