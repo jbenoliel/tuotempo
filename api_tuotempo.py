@@ -22,6 +22,23 @@ logger = logging.getLogger(__name__)
 # Utilidad para normalizar teléfonos (quitar +, espacios y cualquier cosa que no sea dígito)
 
 def _norm_phone(phone: Optional[str]) -> Optional[str]:
+    """Elimina cualquier carácter no numérico para usar en nombres de fichero."""
+    if not phone:
+        return phone
+    return re.sub(r"\D", "", phone)
+
+# Extraer lista de availabilities desde la respuesta varía de Tuotempo
+
+def _extract_availabilities(resp: dict) -> list:
+    """Devuelve la lista de availabilities sin importar la profundidad."""
+    if not isinstance(resp, dict):
+        return []
+    if 'availabilities' in resp and isinstance(resp['availabilities'], list):
+        return resp['availabilities']
+    try:
+        return resp['return']['results']['availabilities']
+    except (KeyError, TypeError):
+        return []
     if not phone:
         return phone
     return re.sub(r"\D", "", phone)
@@ -108,7 +125,7 @@ def obtener_slots():
                 exception_code = res.get('exception')
 
                 if result_flag == 'OK':
-                    slots_list = res.get('availabilities', [])
+                    slots_list = _extract_availabilities(res)
                 elif result_flag == 'EXCEPTION' and exception_code == 'MEMBER_NOT_FOUND':
                     slots_list = []  # sin disponibilidad, seguimos buscando
                 else:
@@ -168,7 +185,7 @@ def reservar():
             try:
                 with cache_path.open('r', encoding='utf-8') as f:
                     cached_response = json.load(f)
-                slots_list = cached_response.get('availabilities', [])
+                slots_list = _extract_availabilities(cached_response)
                 # usar fecha/hora del availability parcial
                 partial_date = availability.get('start_date')
                 partial_time = availability.get('startTime')
@@ -201,7 +218,7 @@ def reservar():
                     cached_response = json.load(f)
                 logger.info(f"Cache content loaded. Keys: {list(cached_response.keys())}")
 
-                slots_list = cached_response.get('availabilities', [])
+                slots_list = _extract_availabilities(cached_response)
                 if slots_list:
                     logger.info(f"Se extrajeron {len(slots_list)} slots de la clave 'availabilities' en el caché.")
                 else:
