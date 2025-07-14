@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import logging
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from tuotempo_api import TuoTempoAPI
 from flask_bcrypt import Bcrypt
 
@@ -72,39 +72,57 @@ def obtener_slots():
         fecha_inicio = fecha_inicio.replace('/', '-')
 
     try:
-        slots_return = tuotempo.get_available_slots(
-            activity_id=actividad_id,
-            area_id=centro_id,
-            start_date=fecha_inicio,
-            resource_id=resource_id,
-            time_preference=time_preference
-        )
+        # --- Búsqueda progresiva: fecha_inicio, +7 días y +14 días ---
+        if not fecha_inicio:
+            raise ValueError("fecha_inicio es requerida")
 
-        if isinstance(slots_return, dict):
-            result_flag = slots_return.get('result')
-            exception_code = slots_return.get('exception')
-            if result_flag == 'OK':
-                slots_list = slots_return.get('availabilities', [])
-            elif result_flag == 'EXCEPTION' and exception_code == 'MEMBER_NOT_FOUND':
-                # Significa simplemente que no hay disponibilidad; tratamos como lista vacía
-                slots_list = []
-                logging.info("Tuotempo devolvió MEMBER_NOT_FOUND: sin disponibilidad, no es error.")
-            else:
-                error_message = slots_return.get('msg', 'Error desconocido')
-                logging.error(f"Error al obtener slots de Tuotempo: {error_message}")
-                return jsonify({'success': False, 'message': f'Error al obtener slots: {error_message}'}), 500
+        fecha_base_dt = datetime.strptime(fecha_inicio, "%d-%m-%Y")
+        slots_list = []
+        slots_return = {}
 
-            # Guardar la respuesta completa en caché
-            cache_dir = Path('cached_slots')
-            cache_dir.mkdir(exist_ok=True)
-            cache_file = cache_dir / f'slots_{phone}.json'
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(slots_return, f, ensure_ascii=False, indent=4)
-            logging.info(f"Slots guardados en caché para el teléfono {phone} en {cache_file}")
-            return jsonify({'success': True, 'slots': slots_list})
-        else:
-            logging.error(f"Respuesta inesperada de Tuotempo: {slots_return}")
-            return jsonify({'success': False, 'message': 'Respuesta inesperada de Tuotempo'}), 500
+        for offset_weeks in range(3):  # 0, 7, 14 días
+            consulta_dt = fecha_base_dt + timedelta(days=7 * offset_weeks)
+            consulta_str = consulta_dt.strftime("%d-%m-%Y")
+            logging.info(f"Intento {offset_weeks + 1}/3 - Buscando slots para {consulta_str}")
+
+            res = tuotempo.get_available_slots(
+                activity_id=actividad_id,
+                area_id=centro_id,
+                start_date=consulta_str,
+                resource_id=resource_id,
+                time_preference=time_preference
+            )
+            slots_return = res  # guardamos la última respuesta, tenga o no slots
+
+            if isinstance(res, dict):
+                result_flag = res.get('result')
+                exception_code = res.get('exception')
+
+                if result_flag == 'OK':
+                    slots_list = res.get('availabilities', [])
+                elif result_flag == 'EXCEPTION' and exception_code == 'MEMBER_NOT_FOUND':
+                    slots_list = []  # sin disponibilidad, seguimos buscando
+                else:
+                    error_message = res.get('msg', 'Error desconocido')
+                    logging.error(f"Error al obtener slots de Tuotempo: {error_message}")
+                    return jsonify({'success': False, 'message': f'Error al obtener slots: {error_message}'}), 500
+
+            if slots_list:
+                break  # encontramos disponibilidad, salimos del bucle
+
+        # Guardar la respuesta (del intento con más información) en caché
+        cache_dir = Path('cached_slots')
+        cache_dir.mkdir(exist_ok=True)
+        cache_file = cache_dir / f'slots_{phone}.json'
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(slots_return, f, ensure_ascii=False, indent=4)
+        logging.info(f"Slots guardados en caché para el teléfono {phone} en {cache_file}")
+
+        return jsonify({'success': True, 'slots': slots_list})
+
+        # Si la respuesta no es un dict, es un error inesperado
+        logging.error(f"Respuesta inesperada de Tuotempo: {slots_return}")
+        return jsonify({'success': False, 'message': 'Respuesta inesperada de Tuotempo'}), 500
 
     except Exception as e:
         logging.error(f"Excepción en /api/slots: {str(e)}")
