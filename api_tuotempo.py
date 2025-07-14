@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 import logging
 import json
+import re
 from pathlib import Path
 from datetime import datetime, timedelta
 from tuotempo_api import TuoTempoAPI
@@ -16,6 +17,13 @@ load_dotenv()
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Utilidad para normalizar teléfonos (quitar +, espacios y cualquier cosa que no sea dígito)
+
+def _norm_phone(phone: str | None) -> str | None:
+    if not phone:
+        return phone
+    return re.sub(r"\D", "", phone)
 
 # Carpeta para cachear slots
 SLOTS_CACHE_DIR = Path("cached_slots")
@@ -113,10 +121,11 @@ def obtener_slots():
         # Guardar la respuesta (del intento con más información) en caché
         cache_dir = Path('cached_slots')
         cache_dir.mkdir(exist_ok=True)
-        cache_file = cache_dir / f'slots_{phone}.json'
+        phone_norm = _norm_phone(phone)
+        cache_file = cache_dir / f"slots_{phone_norm}.json"
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(slots_return, f, ensure_ascii=False, indent=4)
-        logging.info(f"Slots guardados en caché para el teléfono {phone} en {cache_file}")
+        logging.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
 
         return jsonify({'success': True, 'slots': slots_list})
 
