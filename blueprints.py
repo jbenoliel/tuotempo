@@ -10,7 +10,8 @@ import secrets
 import string
 
 from db import get_connection
-from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token # Asumimos que estas funciones se moverán a utils.py
+from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token
+from flask import send_file
 
 # Configurar logger para este blueprint
 logger = logging.getLogger(__name__)
@@ -254,7 +255,8 @@ def exportar_datos_completos_endpoint():
                     (session['user_id'], filename, 0, 'export', f'Exportado a {filename}')
                 )
             connection.commit()
-            flash(f'Datos exportados correctamente en el archivo {filename}', 'success')
+            # Enviar el archivo directamente al navegador
+            return send_file(filepath, as_attachment=True, download_name=filename)
         else:
             flash(f'Error al exportar los datos: {result}', 'danger')
     except Exception as e:
