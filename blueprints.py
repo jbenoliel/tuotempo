@@ -412,6 +412,7 @@ def register_apis(app):
     Importa y registra todos los Blueprints de las APIs en la aplicación principal.
     """
     try:
+        # Registrar APIs principales
         from api_tuotempo import tuotempo_api
         from api_resultado_llamada import resultado_api
 
@@ -421,9 +422,14 @@ def register_apis(app):
         
         logger.info("Blueprint 'tuotempo_api' registrado correctamente.")
         logger.info("Blueprint 'resultado_api' registrado correctamente.")
+        
+        # Registrar API de llamadas con un nombre único
+        from api_pearl_calls import register_calls_api
+        register_calls_api(app)
+        logger.info("API de llamadas registrada correctamente")
 
     except ImportError as e:
-        logger.critical(f"Error fatal: No se pudo importar un Blueprint de API: {e}")
+        logger.error(f"Error registrando APIs: {e}")
     except Exception as e:
         logger.critical(f"Error inesperado al registrar los Blueprints de API: {e}")
 
@@ -502,15 +508,6 @@ def calls_manager():
 
 # --- REGISTRO DE APIS ---
 
-def register_apis(app):
-    """Registra todas las APIs en la aplicación Flask."""
-    try:
-        # Registrar API de llamadas
-        from api_pearl_calls import register_calls_api
-        register_calls_api(app)
-        logger.info("API de llamadas registrada correctamente")
-    except ImportError as e:
-        logger.error(f"Error importando API de llamadas: {e}")
-    except Exception as e:
-        logger.error(f"Error registrando APIs: {e}")
+# Esta función ha sido combinada con la función register_apis anterior
+# para evitar el error de registro duplicado
 
