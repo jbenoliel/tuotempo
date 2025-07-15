@@ -62,8 +62,8 @@ def load_excel_data(connection, source):
     db_to_excel_map = {
         'nombre': ['nombre', 'name', 'first name', 'firstname'],
         'apellidos': ['apellidos', 'surname', 'last name', 'lastname'],
-        'telefono': ['teléfono', 'telefono', 'telefono1', 'teléfono1', 'phone', 'mobile', 'phone number'],
-        'telefono2': ['teléfono2', 'telefono2', 'telefono 2', 'teléfono 2', 'phone2', 'mobile2', 'telefono secundario'],
+        'telefono': ['teléfono', 'telefono', 'telefono1', 'teléfono1', 'phone', 'mobile', 'phone number', 'tel', 'teléfono móvil', 'teléfono principal', 'teléfono contacto', 'teléfono cliente', 'número', 'número teléfono'],
+        'telefono2': ['teléfono2', 'telefono2', 'telefono 2', 'teléfono 2', 'phone2', 'mobile2', 'telefono secundario', 'tel2', 'teléfono alternativo', 'otro teléfono'],
         'nif': ['nif', 'dni', 'documento'],
         'fecha_nacimiento': ['fecha nacimiento', 'fecha_nacimiento', 'birth date'],
         'sexo': ['sexo', 'gender'],
@@ -109,6 +109,20 @@ def load_excel_data(connection, source):
         if col not in df.columns:
             df[col] = None
 
+    # Preprocesar teléfonos para asegurar que se importan correctamente
+    if 'telefono' in df.columns:
+        # Convertir NaN a None
+        df['telefono'] = df['telefono'].apply(lambda x: str(x).strip() if pd.notna(x) else None)
+        # Eliminar caracteres no numéricos pero mantener el + inicial si existe
+        df['telefono'] = df['telefono'].apply(lambda x: re.sub(r'[^0-9+]', '', str(x)) if pd.notna(x) else None)
+        # Asegurar que hay al menos un dígito
+        df['telefono'] = df['telefono'].apply(lambda x: x if pd.notna(x) and re.search(r'\d', str(x)) else None)
+        
+    if 'telefono2' in df.columns:
+        df['telefono2'] = df['telefono2'].apply(lambda x: str(x).strip() if pd.notna(x) else None)
+        df['telefono2'] = df['telefono2'].apply(lambda x: re.sub(r'[^0-9+]', '', str(x)) if pd.notna(x) else None)
+        df['telefono2'] = df['telefono2'].apply(lambda x: x if pd.notna(x) and re.search(r'\d', str(x)) else None)
+    
     # Reordenar columnas y convertir booleanos/tinyint
     df = df[leads_cols]
     if 'conPack' in df.columns:

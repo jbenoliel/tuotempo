@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fas fa-clinic-medical me-2"></i>
+            Detalles de la Clínica
+        </h1>
+        <a href="{{ url_for('main.leads') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Volver
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">{{ clinica.nombre_clinica }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Información de la Clínica</h6>
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 30%">Nombre:</th>
+                            <td>{{ clinica.nombre_clinica }}</td>
+                        </tr>
+                        <tr>
+                            <th>Dirección:</th>
+                            <td>{{ clinica.direccion_clinica }}</td>
+                        </tr>
+                        <tr>
+                            <th>Código Postal:</th>
+                            <td>{{ clinica.codigo_postal }}</td>
+                        </tr>
+                        <tr>
+                            <th>Ciudad:</th>
+                            <td>{{ clinica.ciudad }}</td>
+                        </tr>
+                        <tr>
+                            <th>ID de Clínica:</th>
+                            <td>{{ clinica.clinica_id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Delegación:</th>
+                            <td>{{ clinica.delegacion }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Información de Contacto</h6>
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 30%">Teléfono Principal:</th>
+                            <td>{{ clinica.telefono }}</td>
+                        </tr>
+                        <tr>
+                            <th>Teléfono Secundario:</th>
+                            <td>{{ clinica.telefono2 }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cita:</th>
+                            <td>{{ clinica.cita }}</td>
+                        </tr>
+                        <tr>
+                            <th>Pack:</th>
+                            <td>{% if clinica.conPack %}Sí{% else %}No{% endif %}</td>
+                        </tr>
+                        <tr>
+                            <th>Estado:</th>
+                            <td>{{ clinica.ultimo_estado }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            {% if clinica.call_id %}
+            <div class="mt-4">
+                <h6 class="fw-bold">Información de Llamada</h6>
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 30%">ID de Llamada:</th>
+                        <td>{{ clinica.call_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Hora de Llamada:</th>
+                        <td>{{ clinica.call_time }}</td>
+                    </tr>
+                    <tr>
+                        <th>Duración:</th>
+                        <td>{{ clinica.call_duration }} segundos</td>
+                    </tr>
+                    <tr>
+                        <th>Resumen:</th>
+                        <td>{{ clinica.call_summary }}</td>
+                    </tr>
+                    {% if clinica.call_recording_url %}
+                    <tr>
+                        <th>Grabación:</th>
+                        <td>
+                            <audio controls>
+                                <source src="{{ clinica.call_recording_url }}" type="audio/mpeg">
+                                Tu navegador no soporta el elemento de audio.
+                            </audio>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
