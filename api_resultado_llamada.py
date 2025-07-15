@@ -67,6 +67,9 @@ def actualizar_resultado():
     volver_a_llamar_flag = data.get('volverALlamar')  # True si se debe volver a llamar
 
     codigo_no_interes = data.get('codigoNoInteres')
+    # Permitir que venga como lista
+    if isinstance(codigo_no_interes, list):
+        codigo_no_interes = codigo_no_interes[0] if codigo_no_interes else None
     codigo_volver_llamar = data.get('codigoVolverLlamar')
 
     # Mapas de traducción de códigos compactos → descripciones
