@@ -216,8 +216,14 @@ def actualizar_resultado():
             values_digits = list(update_data.values()) + [telefono]
             cursor.execute(sql_query_digits, tuple(values_digits))
             if cursor.rowcount == 0:
-                logger.warning(f"No se encontró ningún lead con el teléfono: {telefono}")
-                return jsonify({"error": f"No se encontró ningún lead con el teléfono {telefono}"}), 404
+                # Puede que los valores enviados ya coincidan y por eso no se actualizó ninguna fila.
+                cursor.execute("SELECT 1 FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s LIMIT 1", (telefono,))
+                if cursor.fetchone():
+                    logger.info(f"Lead {telefono} encontrado pero sin cambios a aplicar.")
+                    return jsonify({"success": True, "message": "Lead encontrado. No había cambios que aplicar."})
+                else:
+                    logger.warning(f"No se encontró ningún lead con el teléfono: {telefono}")
+                    return jsonify({"error": f"No se encontró ningún lead con el teléfono {telefono}"}), 404
 
         conn.commit()
         logger.info(f"Lead con teléfono {telefono} actualizado correctamente. {cursor.rowcount} fila(s) afectada(s).")
