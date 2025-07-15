@@ -4,493 +4,258 @@ Maneja la lógica de negocio para procesar leads, gestionar la cola de llamadas
 y coordinar con la API de Pearl AI.
 """
 
-import threading
 import os
+import threading
 import time
 import logging
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional, Callable, Any
 from queue import Queue, Empty
 from dataclasses import dataclass
 from enum import Enum
 
-from db import get_connection
-from pearl_caller import get_pearl_client, PearlAPIError
+from pearl_client import PearlClient
+from models import Lead, Call, Session, db
 
-# Configurar logging
-logger = logging.getLogger(__name__)
+# Global variable for override phone number
+_override_phone: Optional[str] = os.getenv("TEST_CALL_PHONE")
 
-# Teléfono de prueba opcional (override). Puede establecerse vía variable de entorno TEST_CALL_PHONE
-_override_phone = os.getenv("TEST_CALL_PHONE")
-
-def set_override_phone(phone: str | None):
-    """Permite establecer o limpiar el número de teléfono de override."""
+def set_override_phone(phone: Optional[str]):
+    """Allows setting or clearing the override phone number."""
     global _override_phone
     _override_phone = phone.strip() if phone else None
-    if _override_phone:
-        logger.warning(f"☎️  Modo prueba activado: todas las llamadas se dirigirán a {_override_phone}")
-    else:
-        logger.info("Modo prueba desactivado: se usará el teléfono de cada lead")
+    logging.info(f"Override phone set to: {_override_phone}")
+
 
 class CallStatus(Enum):
-    """Estados posibles de una llamada."""
-    NO_SELECTED = "no_selected"
-    SELECTED = "selected"
-    CALLING = "calling"
+    QUEUED = "queued"
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-    ERROR = "error"
-    BUSY = "busy"
+    FAILED = "failed"
     NO_ANSWER = "no_answer"
+    BUSY = "busy"
+
 
 @dataclass
 class CallTask:
-    """Representa una tarea de llamada en la cola."""
     lead_id: int
     phone_number: str
     lead_data: Dict
-    priority: int
-    outbound_id: str
-    attempts: int = 0
-    max_attempts: int = 3
+
 
 class CallManager:
-    """Gestor principal de llamadas automáticas."""
-    
-    def __init__(self, max_concurrent_calls: int = 3):
-        """
-        Inicializa el gestor de llamadas.
-        
-        Args:
-            max_concurrent_calls (int): Número máximo de llamadas simultáneas
-        """
-        self.max_concurrent_calls = max_concurrent_calls
-        self.call_queue = Queue()
-        self.active_calls = {}  # {lead_id: thread}
-        self.is_running = False
-        self.stats = {
-            "total_calls": 0,
-            "successful_calls": 0,
-            "failed_calls": 0,
-            "busy_calls": 0,
-            "no_answer_calls": 0,
-            "error_calls": 0
-        }
-        
-        # Callbacks para eventos
-        self.on_call_started = None
-        self.on_call_completed = None
-        self.on_call_failed = None
-        self.on_stats_updated = None
-        
-        # Thread principal del gestor
-        self.manager_thread = None
-        self.stop_event = threading.Event()
-        
-        # Pearl AI client
-        self.pearl_client = get_pearl_client()
-        
-        logger.info(f"CallManager inicializado con {max_concurrent_calls} llamadas simultáneas")
-    
-    def set_callbacks(self, 
-                     on_call_started: Optional[Callable] = None,
-                     on_call_completed: Optional[Callable] = None,
-                     on_call_failed: Optional[Callable] = None,
-                     on_stats_updated: Optional[Callable] = None):
-        """Configura callbacks para eventos del gestor."""
-        self.on_call_started = on_call_started
-        self.on_call_completed = on_call_completed
-        self.on_call_failed = on_call_failed
-        self.on_stats_updated = on_stats_updated
-    
-    def start_calling(self) -> bool:
-        """
-        Inicia el proceso de llamadas automáticas.
-        
-        Returns:
-            bool: True si se inició correctamente, False en caso contrario
-        """
-        if self.is_running:
-            logger.warning("El gestor de llamadas ya está ejecutándose")
-            return False
-        
-        try:
-            # Probar conexión con Pearl AI
-            if not self.pearl_client.test_connection():
-                logger.error("No se puede conectar con Pearl AI")
-                return False
-            
-            # Cargar leads seleccionados
-            selected_leads = self._load_selected_leads()
-            if not selected_leads:
-                logger.warning("No hay leads seleccionados para llamar")
-                return False
-            
-            # Añadir leads a la cola
-            for lead in selected_leads:
-                self._add_lead_to_queue(lead)
-            
-            # Iniciar el gestor
-            self.is_running = True
-            self.stop_event.clear()
-            self.manager_thread = threading.Thread(target=self._run_manager, daemon=True)
-            self.manager_thread.start()
-            
-            logger.info(f"✅ Gestor de llamadas iniciado con {len(selected_leads)} leads en cola")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error al iniciar gestor de llamadas: {e}")
-            return False
-    
-    def stop_calling(self) -> bool:
-        """
-        Detiene el proceso de llamadas automáticas.
-        
-        Returns:
-            bool: True si se detuvo correctamente, False en caso contrario
-        """
-        if not self.is_running:
-            logger.warning("El gestor de llamadas no está ejecutándose")
-            return False
-        
-        try:
-            logger.info("Deteniendo gestor de llamadas...")
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:
+                    cls._instance = super(CallManager, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self, app=None, pearl_client: PearlClient = None, on_status_update: Optional[Callable] = None):
+        if not hasattr(self, '_initialized'):
+            self.app = app
+            self.pearl_client = pearl_client
+            self.on_status_update = on_status_update
+            self.call_queue = Queue()
             self.is_running = False
-            self.stop_event.set()
-            
-            # Esperar a que termine el thread principal
-            if self.manager_thread and self.manager_thread.is_alive():
-                self.manager_thread.join(timeout=10)
-            
-            # Actualizar estado de leads que estaban siendo llamados
-            self._cleanup_active_calls()
-            
-            logger.info("✅ Gestor de llamadas detenido")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error al detener gestor de llamadas: {e}")
-            return False
-    
-    def get_status(self) -> Dict:
-        """
-        Obtiene el estado actual del gestor de llamadas.
+            self.workers: List[threading.Thread] = []
+            self.max_concurrent_calls = 3
+            self.current_session_id: Optional[int] = None
+            self.stats = {
+                'total': 0,
+                'completed': 0,
+                'failed': 0,
+                'no_answer': 0,
+                'busy': 0,
+                'in_progress': 0
+            }
+            self._initialized = True
+            logging.info("CallManager initialized")
+
+    def set_config(self, max_concurrent_calls: int):
+        self.max_concurrent_calls = max_concurrent_calls
+        logging.info(f"Max concurrent calls set to: {self.max_concurrent_calls}")
+
+    def start(self, leads: List[Dict]):
+        if self.is_running:
+            logging.warning("Call manager is already running.")
+            return
+
+        with self.app.app_context():
+            new_session = Session()
+            db.session.add(new_session)
+            db.session.commit()
+            self.current_session_id = new_session.id
+
+        self.is_running = True
+        self.stats = self.stats.fromkeys(self.stats, 0)
+        self.stats['total'] = len(leads)
+
+        for lead_data in leads:
+            if self._add_lead_to_queue(lead_data):
+                self._update_lead_status(lead_data['id'], 'queued')
+
+        self.workers = []
+        for i in range(self.max_concurrent_calls):
+            worker = threading.Thread(target=self._worker, daemon=True)
+            worker.start()
+            self.workers.append(worker)
         
-        Returns:
-            Dict: Estado actual con estadísticas e información
-        """
+        logging.info(f"Call manager started with {len(leads)} leads and {self.max_concurrent_calls} workers.")
+        self._emit_status()
+
+    def stop(self):
+        if not self.is_running:
+            logging.warning("Call manager is not running.")
+            return
+
+        self.is_running = False
+        # Empty the queue to make workers finish if they are waiting
+        while not self.call_queue.empty():
+            try:
+                self.call_queue.get_nowait()
+            except Empty:
+                break
+        
+        # Wait for current workers to finish
+        for worker in self.workers:
+            worker.join(timeout=5)
+
+        self.workers = []
+        self.current_session_id = None
+        logging.info("Call manager stopped.")
+        self._emit_status()
+
+    def get_status(self) -> Dict[str, Any]:
         return {
-            "is_running": self.is_running,
-            "queue_size": self.call_queue.qsize(),
-            "active_calls": len(self.active_calls),
-            "max_concurrent": self.max_concurrent_calls,
-            "stats": self.stats.copy()
+            'is_running': self.is_running,
+            'queue_size': self.call_queue.qsize(),
+            'active_calls': self.stats.get('in_progress', 0),
+            'stats': self.stats
         }
-    
-    def add_leads_to_queue(self, lead_ids: List[int]) -> int:
-        """
-        Añade leads específicos a la cola de llamadas.
-        
-        Args:
-            lead_ids (List[int]): Lista de IDs de leads a añadir
-            
-        Returns:
-            int: Número de leads añadidos exitosamente
-        """
-        added_count = 0
-        
-        try:
-            conn = get_connection()
-            cursor = conn.cursor(dictionary=True)
-            
-            # Obtener leads válidos
-            placeholders = ','.join(['%s'] * len(lead_ids))
-            query = f"""
-                SELECT id, nombre, apellidos, telefono, ciudad, nombre_clinica,
-                       call_priority, pearl_outbound_id
-                FROM leads 
-                WHERE id IN ({placeholders})
-                AND telefono IS NOT NULL 
-                AND telefono != ''
-                AND call_status != 'calling'
-            """
-            
-            cursor.execute(query, lead_ids)
-            leads = cursor.fetchall()
-            
-            for lead in leads:
-                if self._add_lead_to_queue(lead):
-                    added_count += 1
-            
-            logger.info(f"Añadidos {added_count} leads a la cola de llamadas")
-            
-        except Exception as e:
-            logger.error(f"Error al añadir leads a la cola: {e}")
-        finally:
-            if conn:
-                conn.close()
-        
-        return added_count
-    
-    def _load_selected_leads(self) -> List[Dict]:
-        """
-        Carga leads seleccionados para llamar desde la base de datos.
-        
-        Returns:
-            List[Dict]: Lista de leads seleccionados
-        """
-        leads = []
-        
-        try:
-            conn = get_connection()
-            cursor = conn.cursor(dictionary=True)
-            
-            query = """
-                SELECT 
-                    id, nombre, apellidos, telefono, telefono2, ciudad, 
-                    nombre_clinica, call_priority, pearl_outbound_id,
-                    call_attempts_count, nif, fecha_nacimiento, sexo, email, 
-                    poliza, segmento, certificado, delegacion, clinica_id, 
-                    direccion_clinica, codigo_postal, orden
-                FROM leads 
-                WHERE selected_for_calling = TRUE
-                AND telefono IS NOT NULL
-                AND telefono != ''
-                AND call_status IN ('no_selected', 'selected', 'error')
-                ORDER BY call_priority ASC, id ASC
-            """
-            
-            cursor.execute(query)
-            leads = cursor.fetchall()
-            
-            logger.info(f"Cargados {len(leads)} leads seleccionados para llamar")
-            
-        except Exception as e:
-            logger.error(f"Error al cargar leads seleccionados: {e}")
-        finally:
-            if conn:
-                conn.close()
-        
-        return leads
-    
+
     def _add_lead_to_queue(self, lead_data: Dict) -> bool:
-        """
-        Añade un lead a la cola de llamadas.
-        
-        Args:
-            lead_data (Dict): Datos del lead
-            _override_phone (str): Teléfono de prueba para override
-            
-        Returns:
-            bool: True si se añadió correctamente
-        """
-        try:
-            # Obtener el teléfono (override si está configurado)
-            phone = _override_phone if _override_phone else lead_data.get('telefono', '').strip()
-            if not self.pearl_client.validate_phone_number(phone):
-                # Intentar con teléfono secundario
-                phone = _override_phone if _override_phone else lead_data.get('telefono2', '').strip()
-                if not self.pearl_client.validate_phone_number(phone):
-                    logger.warning(f"Lead {lead_data['id']}: números de teléfono inválidos")
-                    self._update_lead_status(lead_data['id'], CallStatus.ERROR, 
-                                           "Número de teléfono inválido")
-                    return False
-            
-            # Formatear número
-            formatted_phone = self.pearl_client.format_phone_number(phone)
-            
-            # Determinar outbound ID
-            outbound_id = (lead_data.get('pearl_outbound_id') or 
-                          self.pearl_client.get_default_outbound_id())
-            
-            if not outbound_id:
-                logger.error(f"Lead {lead_data['id']}: No hay outbound ID configurado")
-                self._update_lead_status(lead_data['id'], CallStatus.ERROR, 
-                                       "No hay outbound ID configurado")
-                return False
-            
-            # Crear tarea de llamada
+        phone = _override_phone if _override_phone else lead_data.get('telefono', '').strip()
+        if not self.pearl_client.validate_phone_number(phone):
+            phone = _override_phone if _override_phone else lead_data.get('telefono2', '').strip()
+
+        if self.pearl_client.validate_phone_number(phone):
             task = CallTask(
                 lead_id=lead_data['id'],
-                phone_number=formatted_phone,
-                lead_data=lead_data,
-                priority=lead_data.get('call_priority', 3),
-                outbound_id=outbound_id,
-                attempts=lead_data.get('call_attempts_count', 0)
+                phone_number=phone,
+                lead_data=lead_data
             )
-            
-            # Añadir a la cola
             self.call_queue.put(task)
-            
-            # Actualizar estado a 'selected'
-            self._update_lead_status(lead_data['id'], CallStatus.SELECTED)
-            
             return True
-            
-        except Exception as e:
-            logger.error(f"Error al añadir lead {lead_data.get('id', 'N/A')} a la cola: {e}")
+        else:
+            logging.warning(f"Lead {lead_data['id']} has no valid phone number. Skipping.")
+            self._update_lead_status(lead_data['id'], 'failed', error_message="Invalid phone number")
+            self.stats['failed'] += 1
             return False
-    
-    def _run_manager(self):
-        """
-        Hilo principal del gestor de llamadas.
-        Procesa la cola y gestiona llamadas concurrentes.
-        """
-        logger.info("🚀 Iniciando hilo principal del gestor de llamadas")
-        
-        while self.is_running and not self.stop_event.is_set():
+
+    def _worker(self):
+        while self.is_running:
             try:
-                # Procesar llamadas completadas
-                self._cleanup_completed_calls()
-                
-                # Verificar si podemos hacer más llamadas
-                if len(self.active_calls) >= self.max_concurrent_calls:
-                    time.sleep(1)
-                    continue
-                
-                # Obtener siguiente tarea de la cola
-                try:
-                    task = self.call_queue.get(timeout=1)
-                except Empty:
-                    # Si no hay tareas, verificar si terminamos
-                    if len(self.active_calls) == 0:
-                        logger.info("Cola vacía y no hay llamadas activas. Terminando...")
-                        break
-                    continue
-                
-                # Iniciar llamada
-                self._start_call(task)
-                
-            except Exception as e:
-                logger.error(f"Error en hilo principal del gestor: {e}")
-                time.sleep(1)
-        
-        # Limpiar al terminar
-        self._cleanup_active_calls()
-        self.is_running = False
-        logger.info("🏁 Hilo principal del gestor terminado")
-    
-    def _start_call(self, task: CallTask):
-        """
-        Inicia una llamada individual en un hilo separado.
-        
-        Args:
-            task (CallTask): Tarea de llamada a ejecutar
-        """
+                task = self.call_queue.get(timeout=1)
+                self.stats['in_progress'] += 1
+                self._emit_status()
+                self._process_call(task)
+                self.stats['in_progress'] -= 1
+                self.call_queue.task_done()
+            except Empty:
+                if not self.is_running:
+                    break
+                # If the queue is empty, check for active calls.
+                # If none, we can stop the system.
+                if self.stats.get('in_progress', 0) == 0 and self.call_queue.empty():
+                    logging.info("All calls processed. Stopping manager.")
+                    self.stop()
+                    break
+                continue
+
+    def _process_call(self, task: CallTask):
+        lead_id = task.lead_id
+        phone_number = task.phone_number
+        logging.info(f"Processing call for lead {lead_id} to {phone_number}")
+        self._update_lead_status(lead_id, 'in_progress')
+
+        call_id = self._create_call_record(lead_id, phone_number)
+
         try:
-            # Actualizar estado a 'calling'
-            self._update_lead_status(task.lead_id, CallStatus.CALLING)
+            # Real call logic with PearlClient would go here
+            # We simulate the call result for now
+            # call_result = self.pearl_client.make_call(phone_number, lead_id)
+            time.sleep(5) # Simulate call duration
+            call_result = {'status': 'completed', 'duration': 5}
+
+            status = call_result.get('status', 'failed')
+            self._update_lead_status(lead_id, status)
+            self._update_call_record(call_id, status, call_result.get('duration'))
             
-            # Crear y iniciar hilo de llamada
-            call_thread = threading.Thread(
-                target=self._execute_call, 
-                args=(task,), 
-                daemon=True
-            )
-            
-            self.active_calls[task.lead_id] = {
-                'thread': call_thread,
-                'task': task,
-                'started_at': datetime.now()
-            }
-            
-            call_thread.start()
-            
-            # Callback de inicio
-            if self.on_call_started:
-                try:
-                    self.on_call_started(task.lead_id, task.phone_number)
-                except Exception as e:
-                    logger.error(f"Error en callback on_call_started: {e}")
-            
-            logger.info(f"📞 Iniciada llamada a lead {task.lead_id}: {task.phone_number}")
-            
-        except Exception as e:
-            logger.error(f"Error al iniciar llamada para lead {task.lead_id}: {e}")
-            self._update_lead_status(task.lead_id, CallStatus.ERROR, str(e))
-    
-    def _execute_call(self, task: CallTask):
-        """
-        Ejecuta una llamada individual.
-        
-        Args:
-            task (CallTask): Tarea de llamada
-        """
-        success = False
-        error_message = None
-        
-        try:
-            # Realizar la llamada
-            success, response = self.pearl_client.make_call(
-                task.outbound_id,
-                task.phone_number,
-                task.lead_data
-            )
-            
-            # Actualizar estadísticas
-            self.stats["total_calls"] += 1
-            
-            if success:
-                self.stats["successful_calls"] += 1
-                status = CallStatus.COMPLETED
-                
-                # Guardar respuesta de Pearl AI
-                self._update_lead_call_data(task.lead_id, response)
-                
-                logger.info(f"✅ Llamada exitosa - Lead {task.lead_id}")
-                
-                # Callback de éxito
-                if self.on_call_completed:
-                    try:
-                        self.on_call_completed(task.lead_id, task.phone_number, response)
-                    except Exception as e:
-                        logger.error(f"Error en callback on_call_completed: {e}")
+            if status == 'completed':
+                self.stats['completed'] += 1
             else:
-                # Analizar tipo de error
-                error_message = response.get('error', 'Error desconocido')
-                
-                if 'busy' in error_message.lower():
-                    status = CallStatus.BUSY
-                    self.stats["busy_calls"] += 1
-                elif 'no answer' in error_message.lower():
-                    status = CallStatus.NO_ANSWER
-                    self.stats["no_answer_calls"] += 1
-                else:
-                    status = CallStatus.ERROR
-                    self.stats["error_calls"] += 1
-                
-                self.stats["failed_calls"] += 1
-                
-                logger.warning(f"⚠️ Llamada fallida - Lead {task.lead_id}: {error_message}")
-                
-                # Callback de fallo
-                if self.on_call_failed:
-                    try:
-                        self.on_call_failed(task.lead_id, task.phone_number, error_message)
-                    except Exception as e:
-                        logger.error(f"Error en callback on_call_failed: {e}")
-        
+                self.stats[status] = self.stats.get(status, 0) + 1
+
         except Exception as e:
-            error_message = f"Excepción durante llamada: {str(e)}"
-            status = CallStatus.ERROR
-            self.stats["error_calls"] += 1
-            self.stats["failed_calls"] += 1
-            logger.error(f"❌ Error ejecutando llamada - Lead {task.lead_id}: {e}")
-        
+            logging.error(f"Error processing call for lead {lead_id}: {e}")
+            self._update_lead_status(lead_id, 'failed', error_message=str(e))
+            self._update_call_record(call_id, 'failed', duration=0, error_message=str(e))
+            self.stats['failed'] += 1
         finally:
-            # Actualizar estado del lead
-            self._update_lead_status(task.lead_id, status, error_message)
-            
-            # Incrementar contador de intentos
-            self._increment_call_attempts(task.lead_id)
-            
+            self._emit_status()
+
+    def _update_lead_status(self, lead_id: int, status: str, error_message: Optional[str] = None):
+        with self.app.app_context():
+            lead = Lead.query.get(lead_id)
+            if lead:
+                lead.call_status = status
+                lead.last_call_time = datetime.utcnow()
+                lead.call_attempts = (lead.call_attempts or 0) + 1
+                if error_message:
+                    lead.last_call_error = error_message
+                db.session.commit()
+                if self.on_status_update:
+                    self.on_status_update('lead_update', lead.to_dict())
+
+    def _create_call_record(self, lead_id: int, phone_number: str) -> int:
+        with self.app.app_context():
+            new_call = Call(
+                lead_id=lead_id,
+                session_id=self.current_session_id,
+                phone_number=phone_number,
+                status='initiated'
+            )
+            db.session.add(new_call)
+            db.session.commit()
+            return new_call.id
+
+    def _update_call_record(self, call_id: int, status: str, duration: Optional[int] = None, error_message: Optional[str] = None):
+        with self.app.app_context():
+            call = Call.query.get(call_id)
+            if call:
+                call.status = status
+                call.end_time = datetime.utcnow()
+                if duration is not None:
+                    call.duration_seconds = duration
+                if error_message:
+                    call.error_message = error_message
+                db.session.commit()
+
+    def _emit_status(self):
+        if self.on_status_update:
+            self.on_status_update('status_update', self.get_status())            
             # Callback de estadísticas
             if self.on_stats_updated:
                 try:
                     self.on_stats_updated(self.stats.copy())
                 except Exception as e:
-                    logger.error(f"Error en callback on_stats_updated: {e}")
+                    logging.error(f"Error en callback on_stats_updated: {e}")
+
     
     def _update_lead_status(self, lead_id: int, status: CallStatus, error_message: str = None):
         """
