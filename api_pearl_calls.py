@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List
 
 from db import get_connection
-from call_manager import get_call_manager, CallStatus
+from call_manager import (CallManager, get_call_manager, CallStatus, set_override_phone)
 from pearl_caller import get_pearl_client, PearlAPIError
 
 # Configurar logging
@@ -86,8 +86,16 @@ def start_calling_system():
         # Configurar parámetros opcionales
         max_concurrent = data.get('max_concurrent', 3)
         selected_leads = data.get('selected_leads')
+        override_phone = data.get('override_phone')
         
         # Ajustar concurrencia si se especifica
+        if override_phone is not None:
+            set_override_phone(override_phone)
+            logger.warning(f"Modo teléfono de prueba activo: {override_phone}")
+        else:
+            # Si no se especifica override_phone, asegurarse de limpiar
+            set_override_phone(None)
+
         if max_concurrent != manager.max_concurrent_calls:
             manager.max_concurrent_calls = max_concurrent
             logger.info(f"Concurrencia ajustada a {max_concurrent} llamadas simultáneas")
@@ -481,6 +489,9 @@ def get_pearl_campaigns():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }), 500
+
+
+
 
 @api_pearl_calls.route('/test/connection', methods=['GET'])
 def test_pearl_connection():

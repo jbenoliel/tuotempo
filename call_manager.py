@@ -5,6 +5,7 @@ y coordinar con la API de Pearl AI.
 """
 
 import threading
+import os
 import time
 import logging
 import json
@@ -19,6 +20,18 @@ from pearl_caller import get_pearl_client, PearlAPIError
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+# Teléfono de prueba opcional (override). Puede establecerse vía variable de entorno TEST_CALL_PHONE
+_override_phone = os.getenv("TEST_CALL_PHONE")
+
+def set_override_phone(phone: str | None):
+    """Permite establecer o limpiar el número de teléfono de override."""
+    global _override_phone
+    _override_phone = phone.strip() if phone else None
+    if _override_phone:
+        logger.warning(f"☎️  Modo prueba activado: todas las llamadas se dirigirán a {_override_phone}")
+    else:
+        logger.info("Modo prueba desactivado: se usará el teléfono de cada lead")
 
 class CallStatus(Enum):
     """Estados posibles de una llamada."""
@@ -267,16 +280,17 @@ class CallManager:
         
         Args:
             lead_data (Dict): Datos del lead
+            _override_phone (str): Teléfono de prueba para override
             
         Returns:
             bool: True si se añadió correctamente
         """
         try:
-            # Validar número de teléfono
-            phone = lead_data.get('telefono', '').strip()
+            # Obtener el teléfono (override si está configurado)
+            phone = _override_phone if _override_phone else lead_data.get('telefono', '').strip()
             if not self.pearl_client.validate_phone_number(phone):
                 # Intentar con teléfono secundario
-                phone = lead_data.get('telefono2', '').strip()
+                phone = _override_phone if _override_phone else lead_data.get('telefono2', '').strip()
                 if not self.pearl_client.validate_phone_number(phone):
                     logger.warning(f"Lead {lead_data['id']}: números de teléfono inválidos")
                     self._update_lead_status(lead_data['id'], CallStatus.ERROR, 
