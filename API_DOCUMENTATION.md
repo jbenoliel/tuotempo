@@ -95,8 +95,10 @@ Actualiza el resultado de una llamada para un contacto específico identificado 
   - `interesado` (opcional, booleano): Marca el contacto como interesado
   - `no_interesado` (opcional, booleano): Marca el contacto como no interesado
   - `no_contesta` (opcional, booleano): Marca el contacto como no contesta
-  - `cita` (opcional, booleano): Marca si se ha concertado una cita
+  - `nuevaCita` (opcional, string): Fecha de la cita en formato DD/MM/YYYY
+  - `horaCita` (opcional, string): Hora de la cita en formato HH:MM:SS o HH:MM
   - `conPack` (opcional, booleano): Marca si el contacto tiene pack
+  - `horaRellamada` (opcional, string): Fecha y hora para volver a llamar en formato ISO
 
 **Respuesta exitosa**:
 ```json

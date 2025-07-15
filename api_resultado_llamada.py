@@ -127,9 +127,28 @@ def actualizar_resultado():
         'razon_no_interes': data.get('razonNoInteres')
     }
 
-    # Si llega una nueva cita, actualizamos el campo 'cita'
+    # Si llega una nueva cita, actualizamos el campo 'cita' y 'hora_cita'
     if data.get('nuevaCita'):
-        update_fields['cita'] = data.get('nuevaCita')
+        try:
+            # Intentar convertir el formato de fecha recibido (DD/MM/YYYY) a formato SQL (YYYY-MM-DD)
+            fecha_str = data.get('nuevaCita')
+            # Detectar el formato de la fecha recibida
+            if '/' in fecha_str:
+                # Formato DD/MM/YYYY
+                dia, mes, anio = fecha_str.split('/')
+                fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+            else:
+                # Asumir que ya viene en formato YYYY-MM-DD
+                fecha_formateada = fecha_str
+                
+            update_fields['cita'] = fecha_formateada
+            
+            # Si también viene la hora de la cita, la procesamos
+            if data.get('horaCita'):
+                update_fields['hora_cita'] = data.get('horaCita')
+        except Exception as e:
+            logger.error(f"Error al procesar la fecha de cita: {e}")
+            return jsonify({"error": f"Formato de fecha inválido: {data.get('nuevaCita')}. Use DD/MM/YYYY."}), 400
 
     # -------------------------------------------------------------
     # 4. Filtrar valores None para no sobreescribir con nulos

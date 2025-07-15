@@ -32,13 +32,14 @@ def verificar_estado():
         print(f"Error de conexión: {e}")
         return False
 
-def actualizar_resultado_llamada(telefono, cita=None, con_pack=False, no_interesado=False):
+def actualizar_resultado_llamada(telefono, fecha_cita=None, hora_cita=None, con_pack=False, no_interesado=False):
     """
     Actualiza el resultado de una llamada según los parámetros
     
     Args:
         telefono (str): Número de teléfono del contacto
-        cita (str, optional): Fecha y hora de la cita (formato YYYY-MM-DD HH:MM:SS)
+        fecha_cita (str, optional): Fecha de la cita (formato DD/MM/YYYY)
+        hora_cita (str, optional): Hora de la cita (formato HH:MM o HH:MM:SS)
         con_pack (bool, optional): Si la cita incluye pack
         no_interesado (bool, optional): Si el contacto no está interesado
         
@@ -50,12 +51,15 @@ def actualizar_resultado_llamada(telefono, cita=None, con_pack=False, no_interes
     # Preparar datos
     data = {
         "telefono": telefono,
-        "no_interesado": no_interesado
+        "noInteresado": no_interesado
     }
     
-    if cita:
-        data["cita"] = cita
+    if fecha_cita:
+        data["nuevaCita"] = fecha_cita
         data["conPack"] = con_pack
+        
+    if hora_cita:
+        data["horaCita"] = hora_cita
     
     # Hacer la solicitud
     try:
@@ -188,9 +192,12 @@ def main():
         
         # Ejemplo 2: Programar una cita
         print("\n=== 6. PROGRAMANDO UNA CITA ===")
-        fecha_cita = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"Programando cita para {nombre_completo} el {fecha_cita}...")
-        resultado = actualizar_resultado_llamada(telefono, cita=fecha_cita, con_pack=True)
+        # Formato de fecha DD/MM/YYYY
+        fecha_cita = datetime.now().strftime("%d/%m/%Y")
+        # Formato de hora HH:MM:SS
+        hora_cita = datetime.now().strftime("%H:%M:%S")
+        print(f"Programando cita para {nombre_completo} el {fecha_cita} a las {hora_cita}...")
+        resultado = actualizar_resultado_llamada(telefono, fecha_cita=fecha_cita, hora_cita=hora_cita, con_pack=True)
         if resultado.get('success', False):
             print(f"\n✅ Cita programada correctamente: {resultado.get('message', '')}")
         else:
