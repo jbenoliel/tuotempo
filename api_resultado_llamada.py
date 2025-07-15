@@ -210,8 +210,13 @@ def actualizar_resultado():
         cursor.execute(sql_query, tuple(values))
 
         if cursor.rowcount == 0:
-            logger.warning(f"No se encontró ningún lead con el teléfono: {telefono}")
-            return jsonify({"error": f"No se encontró ningún lead con el teléfono {telefono}"}), 404
+            # Intentar de nuevo comparando solo los dígitos del teléfono completos
+            logger.info("No hubo coincidencia exacta; probando coincidencia por todos los dígitos del número")
+            sql_query_digits = f"UPDATE leads SET {set_clause} WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s"
+            cursor.execute(sql_query_digits, (telefono,))
+            if cursor.rowcount == 0:
+                logger.warning(f"No se encontró ningún lead con el teléfono: {telefono}")
+                return jsonify({"error": f"No se encontró ningún lead con el teléfono {telefono}"}), 404
 
         conn.commit()
         logger.info(f"Lead con teléfono {telefono} actualizado correctamente. {cursor.rowcount} fila(s) afectada(s).")
