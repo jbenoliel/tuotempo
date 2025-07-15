@@ -127,7 +127,7 @@ def actualizar_resultado():
         'razon_no_interes': data.get('razonNoInteres')
     }
 
-    # Si llega una nueva cita, actualizamos el campo 'cita' y 'hora_cita'
+    # Si llega una nueva cita, actualizamos el campo 'cita' combinando fecha y hora
     if data.get('nuevaCita'):
         try:
             # Intentar convertir el formato de fecha recibido (DD/MM/YYYY) a formato SQL (YYYY-MM-DD)
@@ -140,12 +140,15 @@ def actualizar_resultado():
             else:
                 # Asumir que ya viene en formato YYYY-MM-DD
                 fecha_formateada = fecha_str
-                
-            update_fields['cita'] = fecha_formateada
             
-            # Si también viene la hora de la cita, la procesamos
+            # Si también viene la hora de la cita, la combinamos con la fecha
             if data.get('horaCita'):
-                update_fields['hora_cita'] = data.get('horaCita')
+                hora_str = data.get('horaCita')
+                # Combinar fecha y hora en un solo campo DATETIME
+                update_fields['cita'] = f"{fecha_formateada} {hora_str}"
+            else:
+                # Si no hay hora, usar solo la fecha con hora 00:00:00
+                update_fields['cita'] = f"{fecha_formateada} 00:00:00"
         except Exception as e:
             logger.error(f"Error al procesar la fecha de cita: {e}")
             return jsonify({"error": f"Formato de fecha inválido: {data.get('nuevaCita')}. Use DD/MM/YYYY."}), 400
