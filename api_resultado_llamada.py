@@ -58,7 +58,14 @@ def actualizar_resultado():
         logger.error("Petición rechazada: No se proporcionó número de teléfono.")
         return jsonify({"error": "Se requiere el número de teléfono"}), 400
 
-    telefono = data.get('telefono')
+    import re
+    telefono_raw = str(data.get('telefono'))
+    # Eliminar caracteres no numéricos
+    telefono_digits = re.sub(r'\D', '', telefono_raw)
+    # Conservar los 9 dígitos finales (núm. nacional) si sobran
+    if len(telefono_digits) > 9:
+        telefono_digits = telefono_digits[-9:]
+    telefono = telefono_digits
 
     # -------------------------------------------------------------
     # 1. Extracción de parámetros adicionales y reglas de negocio
@@ -192,7 +199,7 @@ def actualizar_resultado():
     sql_query = f"UPDATE leads SET {set_clause} WHERE telefono = %s"
     
     values = list(update_data.values())
-    values.append(telefono)
+    values.append(telefono)  # teléfono ya normalizado
 
     conn = get_db_connection()
     if not conn:
