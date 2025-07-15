@@ -432,11 +432,22 @@ def register_apis(app):
         else:
             logger.info("Blueprint 'resultado_api' ya estaba registrado, se omite.")
         
-        # Registrar API de llamadas con un nombre único
+        # Registrar API de llamadas
+        # Registrar API de reservas (POST /reserve) si la ruta aún no existe
+        if '/reserve' not in [str(rule.rule) for rule in app.url_map.iter_rules()]:
+            try:
+                from reservation_api import reserve_slot as reserve_slot_view
+                app.add_url_rule('/reserve', view_func=reserve_slot_view, methods=['POST'])
+                logger.info("Ruta '/reserve' registrada directamente desde reservation_api.reserve_slot.")
+            except ImportError as e:
+                logger.error(f"No se pudo importar reservation_api.reserve_slot: {e}")
+        else:
+            logger.info("Ruta '/reserve' ya existe, se omite.")
+
         if 'api_pearl_calls' not in registered_blueprints:
-            from api_pearl_calls import register_calls_api
-            register_calls_api(app)
-            logger.info("API de llamadas registrada correctamente")
+            from api_pearl_calls import api_pearl_calls
+            app.register_blueprint(api_pearl_calls)
+            logger.info("Blueprint 'api_pearl_calls' registrado correctamente.")
         else:
             logger.info("Blueprint 'api_pearl_calls' ya estaba registrado, se omite.")
 

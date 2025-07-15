@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 from pearl_caller import get_pearl_client, PearlAPIError
-from models import Lead, Call, Session, db
 from db import get_connection
 
 # Configurar logging
@@ -30,6 +29,40 @@ def set_override_phone(phone: Optional[str]):
     global _override_phone
     _override_phone = phone.strip() if phone else None
     logger.info(f"Override phone set to: {_override_phone}")
+
+def get_override_phone() -> Optional[str]:
+    """Returns the current override phone number."""
+    global _override_phone
+    return _override_phone
+
+def normalize_spanish_phone(phone: str) -> str:
+    """Normaliza un teléfono español añadiendo +34 si es necesario."""
+    if not phone:
+        return phone
+        
+    # Limpiar el teléfono de espacios y caracteres extra
+    clean_phone = ''.join(filter(str.isdigit, phone))
+    
+    # Si ya tiene el prefijo +34, devolverlo como está
+    if phone.startswith('+34'):
+        return phone
+    
+    # Si tiene 34 al principio (sin +), añadir el +
+    if clean_phone.startswith('34') and len(clean_phone) == 11:
+        return '+' + clean_phone
+    
+    # Si es un teléfono de 9 dígitos (formato español), añadir +34
+    if len(clean_phone) == 9:
+        return '+34' + clean_phone
+    
+    # Si tiene 8 dígitos, probablemente le falta el primer 6/7/9
+    if len(clean_phone) == 8:
+        # Asumir que es un móvil que empieza por 6
+        return '+346' + clean_phone
+    
+    # En cualquier otro caso, devolver tal como está
+    logger.warning(f"Teléfono con formato inesperado: {phone} -> {clean_phone}")
+    return phone
 
 
 class CallStatus(Enum):
@@ -85,6 +118,118 @@ class CallManager:
     def set_config(self, max_concurrent_calls: int):
         self.max_concurrent_calls = max_concurrent_calls
         logging.info(f"Max concurrent calls set to: {max_concurrent_calls}")
+
+    def set_callbacks(self, on_call_started=None, on_call_completed=None, on_call_failed=None, on_stats_updated=None):
+        """Configura callbacks para eventos del sistema de llamadas."""
+        self.on_call_started = on_call_started
+        self.on_call_completed = on_call_completed  
+        self.on_call_failed = on_call_failed
+        self.on_stats_updated = on_stats_updated
+        logger.info("Callbacks configurados para CallManager")
+
+    def start_calling(self) -> bool:
+        """Inicia el sistema de llamadas."""
+        if self.is_running:
+            logger.warning("El sistema de llamadas ya está ejecutándose")
+            return False
+            
+        try:
+            # Obtener leads seleccionados de la BD
+            conn = get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            cursor.execute("""
+                SELECT id, nombre, apellidos, telefono, telefono2
+                FROM leads 
+                WHERE selected_for_calling = TRUE
+                  AND ((telefono IS NOT NULL AND telefono != '') 
+                       OR (telefono2 IS NOT NULL AND telefono2 != ''))
+            """)
+            
+            leads = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            if not leads:
+                logger.warning("No hay leads seleccionados para llamar")
+                return False
+                
+            logger.info(f"Iniciando llamadas para {len(leads)} leads")
+            self.is_running = True
+            
+            # Procesar cada lead con teléfonos normalizados
+            for lead in leads:
+                # Determinar qué teléfono usar (priorizar telefono, luego telefono2)
+                phone_to_use = lead['telefono'] if lead['telefono'] else lead['telefono2']
+                
+                # Normalizar el teléfono añadiendo +34 si es necesario
+                normalized_phone = normalize_spanish_phone(phone_to_use)
+                
+                logger.info(f"Procesando lead {lead['id']}: {lead['nombre']} - {phone_to_use} -> {normalized_phone}")
+                
+                # Llamar callbacks si existen
+                if self.on_call_started:
+                    self.on_call_started(lead['id'], normalized_phone)
+                    
+                # Ejecutar llamada real con Pearl AI
+                outbound_id = self.pearl_client.get_default_outbound_id()
+                success, api_response = self.pearl_client.make_call(outbound_id, normalized_phone, lead)
+
+                # Actualizar estadísticas
+                if success:
+                    self.stats['completed'] += 1
+                    call_status = CallStatus.COMPLETED.value
+                else:
+                    self.stats['failed'] += 1
+                    call_status = CallStatus.FAILED.value
+
+                # Registrar intento en la BD
+                try:
+                    conn_upd = get_connection()
+                    cur_upd = conn_upd.cursor()
+                    cur_upd.execute("""
+                        UPDATE leads
+                        SET call_attempts_count = IFNULL(call_attempts_count,0) + 1,
+                            last_call_attempt = NOW(),
+                            call_status = %s
+                        WHERE id = %s
+                    """, (call_status, lead['id']))
+                    conn_upd.commit()
+                    cur_upd.close()
+                    conn_upd.close()
+                except Exception as db_err:
+                    logger.error(f"Error actualizando lead {lead['id']} en BD: {db_err}")
+
+                # Llamar callbacks según resultado
+                if success and self.on_call_completed:
+                    self.on_call_completed(lead['id'], normalized_phone, api_response)
+                elif not success and self.on_call_failed:
+                    self.on_call_failed(lead['id'], normalized_phone, api_response)
+
+                # Emitir actualización de stats si corresponde
+                if self.on_stats_updated:
+                    self.on_stats_updated(self.stats)
+            
+            logger.info("Sistema de llamadas completado")
+            self.is_running = False
+            if self.on_stats_updated:
+                self.on_stats_updated(self.stats)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error iniciando sistema de llamadas: {e}")
+            self.is_running = False
+            return False
+    
+    def stop_calling(self) -> bool:
+        """Detiene el sistema de llamadas."""
+        if not self.is_running:
+            logger.warning("El sistema de llamadas no está ejecutándose")
+            return False
+            
+        self.is_running = False
+        logger.info("Sistema de llamadas detenido")
+        return True
 
     def start(self, leads: List[Dict]):
         if self.is_running:
@@ -225,43 +370,117 @@ class CallManager:
             error_message (str, optional): Mensaje de error si aplica
         """
         try:
-            with self.app.app_context():
-                lead = Lead.query.get(lead_id)
-                if lead:
-                    lead.call_status = status
-                    lead.last_call_time = datetime.utcnow()
-                    lead.call_attempts = (lead.call_attempts or 0) + 1
+            conn = get_connection()
+            with conn.cursor() as cursor:
+                # Primero verificamos si el lead existe y obtenemos su valor de call_attempts actual
+                cursor.execute(
+                    "SELECT call_attempts FROM leads WHERE id = %s",
+                    (lead_id,)
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    # Incrementamos call_attempts en 1 o establecemos como 1 si es NULL
+                    call_attempts = 1 if result[0] is None else result[0] + 1
+                    
+                    # Actualizamos el estado del lead
+                    sql = """
+                    UPDATE leads 
+                    SET call_status = %s, 
+                        last_call_time = %s, 
+                        call_attempts = %s
+                    """
+                    
+                    params = [status, datetime.utcnow(), call_attempts]
+                    
+                    # Añadir mensaje de error si existe
                     if error_message:
-                        lead.last_call_error = error_message
-                    db.session.commit()
+                        sql += ", last_call_error = %s"
+                        params.append(error_message)
+                    
+                    sql += " WHERE id = %s"
+                    params.append(lead_id)
+                    
+                    cursor.execute(sql, params)
+                    conn.commit()
+                    
+                    # Si hay callback para notificar actualizaciones, lo llamamos
                     if self.on_status_update:
-                        self.on_status_update('lead_update', lead.to_dict())
+                        # Obtener datos actualizados para el callback
+                        cursor.execute("SELECT * FROM leads WHERE id = %s", (lead_id,))
+                        lead_data = cursor.fetchone()
+                        if lead_data:
+                            # Convertir a diccionario usando los nombres de columnas
+                            column_names = [desc[0] for desc in cursor.description]
+                            lead_dict = dict(zip(column_names, lead_data))
+                            self.on_status_update('lead_update', lead_dict)
+                            
+            conn.close()
         except Exception as e:
             logger.error(f"Error actualizando estado de lead {lead_id}: {e}")
+            # Intentar cerrar la conexión en caso de error
+            try:
+                conn.close()
+            except:
+                pass
 
     def _create_call_record(self, lead_id: int, phone_number: str) -> int:
-        with self.app.app_context():
-            new_call = Call(
-                lead_id=lead_id,
-                session_id=self.current_session_id,
-                phone_number=phone_number,
-                status='initiated'
-            )
-            db.session.add(new_call)
-            db.session.commit()
-            return new_call.id
+        try:
+            conn = get_connection()
+            with conn.cursor() as cursor:
+                # Insertar registro de llamada y obtener el ID generado
+                cursor.execute(
+                    """INSERT INTO calls (lead_id, session_id, phone_number, status, start_time)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                    (lead_id, self.current_session_id, phone_number, 'initiated', datetime.utcnow())
+                )
+                call_id = cursor.fetchone()[0]
+                conn.commit()
+                conn.close()
+                return call_id
+        except Exception as e:
+            logger.error(f"Error creando registro de llamada para lead {lead_id}: {e}")
+            try:
+                conn.close()
+            except:
+                pass
+            return -1  # Valor de error
 
     def _update_call_record(self, call_id: int, status: str, duration: Optional[int] = None, error_message: Optional[str] = None):
-        with self.app.app_context():
-            call = Call.query.get(call_id)
-            if call:
-                call.status = status
-                call.end_time = datetime.utcnow()
+        if call_id < 0:  # Omitir actualización si el ID no es válido (caso de error en _create_call_record)
+            return
+            
+        try:
+            conn = get_connection()
+            with conn.cursor() as cursor:
+                # Construir la consulta SQL con los campos a actualizar
+                sql = "UPDATE calls SET status = %s, end_time = %s"
+                params = [status, datetime.utcnow()]
+                
+                # Añadir duración si está disponible
                 if duration is not None:
-                    call.duration_seconds = duration
+                    sql += ", duration_seconds = %s"
+                    params.append(duration)
+                    
+                # Añadir mensaje de error si existe
                 if error_message:
-                    call.error_message = error_message
-                db.session.commit()
+                    sql += ", error_message = %s"
+                    params.append(error_message)
+                    
+                # Completar la consulta con la condición WHERE
+                sql += " WHERE id = %s"
+                params.append(call_id)
+                
+                # Ejecutar la actualización
+                cursor.execute(sql, params)
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error actualizando registro de llamada {call_id}: {e}")
+            try:
+                conn.close()
+            except:
+                pass
 
     def _emit_status(self):
         if self.on_status_update:

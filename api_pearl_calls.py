@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List
 
 from db import get_connection
-from call_manager import (CallManager, get_call_manager, CallStatus, set_override_phone)
+from call_manager import (CallManager, get_call_manager, CallStatus, set_override_phone, get_override_phone)
 from pearl_caller import get_pearl_client, PearlAPIError
 
 # Configurar logging
@@ -72,11 +72,13 @@ def start_calling_system():
     """
     try:
         data = request.get_json() or {}
+        logger.info(f"Petición de inicio recibida: {data}")
         
         manager = get_call_manager()
         
         # Verificar si ya está ejecutándose
         if manager.is_running:
+            logger.warning("Sistema ya en ejecución")
             return jsonify({
                 "success": False,
                 "error": "El sistema de llamadas ya está en ejecución",
@@ -88,10 +90,15 @@ def start_calling_system():
         selected_leads = data.get('selected_leads')
         override_phone = data.get('override_phone')
         
+        logger.info(f"Configuración: max_concurrent={max_concurrent}, selected_leads={selected_leads}, override_phone={override_phone}")
+        
         # Ajustar concurrencia si se especifica
         if override_phone is not None:
-            set_override_phone(override_phone)
-            logger.warning(f"Modo teléfono de prueba activo: {override_phone}")
+            # Normalizar el teléfono de prueba también
+            from call_manager import normalize_spanish_phone
+            normalized_override = normalize_spanish_phone(override_phone) if override_phone else override_phone
+            set_override_phone(normalized_override)
+            logger.warning(f"Modo teléfono de prueba activo: {override_phone} -> {normalized_override}")
         else:
             # Si no se especifica override_phone, asegurarse de limpiar
             set_override_phone(None)
@@ -127,9 +134,11 @@ def start_calling_system():
         )
         
         # Iniciar el sistema
+        logger.info("Intentando iniciar sistema de llamadas...")
         success = manager.start_calling()
         
         if success:
+            logger.info("✅ Sistema iniciado exitosamente")
             return jsonify({
                 "success": True,
                 "message": "Sistema de llamadas iniciado exitosamente",
@@ -137,6 +146,7 @@ def start_calling_system():
                 "timestamp": datetime.now().isoformat()
             })
         else:
+            logger.error("❌ No se pudo iniciar el sistema")
             return jsonify({
                 "success": False,
                 "error": "No se pudo iniciar el sistema de llamadas",
@@ -160,10 +170,12 @@ def stop_calling_system():
         JSON: Resultado de la operación
     """
     try:
+        logger.info("Petición de parada recibida")
         manager = get_call_manager()
         
         # Verificar si está ejecutándose
         if not manager.is_running:
+            logger.warning("Sistema no está en ejecución")
             return jsonify({
                 "success": False,
                 "error": "El sistema de llamadas no está en ejecución",
@@ -171,9 +183,11 @@ def stop_calling_system():
             }), 400
         
         # Detener el sistema
+        logger.info("Intentando detener sistema de llamadas...")
         success = manager.stop_calling()
         
         if success:
+            logger.info("✅ Sistema detenido exitosamente")
             return jsonify({
                 "success": True,
                 "message": "Sistema de llamadas detenido exitosamente",
@@ -181,6 +195,7 @@ def stop_calling_system():
                 "timestamp": datetime.now().isoformat()
             })
         else:
+            logger.error("❌ No se pudo detener el sistema completamente")
             return jsonify({
                 "success": False,
                 "error": "No se pudo detener el sistema de llamadas completamente",
@@ -492,6 +507,165 @@ def get_pearl_campaigns():
 
 
 
+
+@api_pearl_calls.route('/configuration', methods=['GET'])
+def get_call_configuration():
+    """
+    Obtiene la configuración actual del sistema de llamadas.
+    
+    Returns:
+        JSON: Configuración actual
+    """
+    try:
+        manager = get_call_manager()
+        override_phone = get_override_phone()
+        
+        config = {
+            "maxConcurrentCalls": getattr(manager, 'max_concurrent_calls', 3),
+            "retryAttempts": getattr(manager, 'max_retry_attempts', 3),
+            "retryDelay": getattr(manager, 'retry_delay_seconds', 30),
+            "testMode": override_phone is not None,
+            "overridePhone": override_phone
+        }
+        
+        return jsonify({
+            "success": True,
+            "configuration": config,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo configuración: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@api_pearl_calls.route('/configuration', methods=['POST'])
+def save_call_configuration():
+    """
+    Guarda la configuración del sistema de llamadas.
+    
+    Body JSON:
+        {
+            "maxConcurrentCalls": 3,
+            "retryAttempts": 3,
+            "retryDelay": 30
+        }
+    
+    Returns:
+        JSON: Resultado de la operación
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Se requiere configuración en el body"
+            }), 400
+        
+        manager = get_call_manager()
+        
+        # Actualizar configuración del manager
+        if 'maxConcurrentCalls' in data:
+            max_concurrent = int(data['maxConcurrentCalls'])
+            if 1 <= max_concurrent <= 10:  # Límite razonable
+                manager.max_concurrent_calls = max_concurrent
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "maxConcurrentCalls debe estar entre 1 y 10"
+                }), 400
+        
+        if 'retryAttempts' in data:
+            retry_attempts = int(data['retryAttempts'])
+            if 0 <= retry_attempts <= 10:
+                manager.max_retry_attempts = retry_attempts
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "retryAttempts debe estar entre 0 y 10"
+                }), 400
+        
+        if 'retryDelay' in data:
+            retry_delay = int(data['retryDelay'])
+            if 10 <= retry_delay <= 3600:  # Entre 10 segundos y 1 hora
+                manager.retry_delay_seconds = retry_delay
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "retryDelay debe estar entre 10 y 3600 segundos"
+                }), 400
+        
+        logger.info(f"Configuración actualizada: {data}")
+        
+        # Obtener configuración actualizada para respuesta
+        updated_config = {
+            "maxConcurrentCalls": manager.max_concurrent_calls,
+            "retryAttempts": getattr(manager, 'max_retry_attempts', 3),
+            "retryDelay": getattr(manager, 'retry_delay_seconds', 30)
+        }
+        
+        return jsonify({
+            "success": True,
+            "message": "Configuración guardada correctamente",
+            "configuration": updated_config,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": f"Valor inválido: {str(e)}"
+        }), 400
+    except Exception as e:
+        logger.error(f"Error guardando configuración: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@api_pearl_calls.route('/test-connection', methods=['GET'])
+def test_pearl_connection_simple():
+    """
+    Prueba la conexión con Pearl AI (endpoint simplificado).
+    
+    Returns:
+        JSON: Resultado de la prueba de conexión
+    """
+    try:
+        pearl_client = get_pearl_client()
+        
+        # Probar conexión
+        connection_ok = pearl_client.test_connection()
+        
+        if connection_ok:
+            return jsonify({
+                "success": True,
+                "pearl_connection": True,
+                "message": "Conexión con Pearl AI exitosa",
+                "default_outbound_id": pearl_client.get_default_outbound_id(),
+                "timestamp": datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "pearl_connection": False,
+                "error": "No se pudo conectar con Pearl AI",
+                "timestamp": datetime.now().isoformat()
+            }), 503
+        
+    except Exception as e:
+        logger.error(f"Error probando conexión Pearl: {e}")
+        return jsonify({
+            "success": False,
+            "pearl_connection": False,
+            "error": f"Error de conexión: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @api_pearl_calls.route('/test/connection', methods=['GET'])
 def test_pearl_connection():
