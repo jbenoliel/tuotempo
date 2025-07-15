@@ -412,21 +412,31 @@ def register_apis(app):
     Importa y registra todos los Blueprints de las APIs en la aplicación principal.
     """
     try:
-        # Registrar APIs principales
-        from api_tuotempo import tuotempo_api
-        from api_resultado_llamada import resultado_api
-
-        # Registrar los blueprints. Las rutas ya contienen el prefijo /api.
-        app.register_blueprint(tuotempo_api)
-        app.register_blueprint(resultado_api)
+        # Verificar si los blueprints ya están registrados para evitar duplicados
+        registered_blueprints = [bp.name for bp in app.blueprints.values()]
         
-        logger.info("Blueprint 'tuotempo_api' registrado correctamente.")
-        logger.info("Blueprint 'resultado_api' registrado correctamente.")
+        # Registrar APIs principales solo si no están ya registradas
+        if 'tuotempo_api' not in registered_blueprints:
+            from api_tuotempo import tuotempo_api
+            app.register_blueprint(tuotempo_api)
+            logger.info("Blueprint 'tuotempo_api' registrado correctamente.")
+        else:
+            logger.info("Blueprint 'tuotempo_api' ya estaba registrado, se omite.")
+            
+        if 'resultado_api' not in registered_blueprints:
+            from api_resultado_llamada import resultado_api
+            app.register_blueprint(resultado_api)
+            logger.info("Blueprint 'resultado_api' registrado correctamente.")
+        else:
+            logger.info("Blueprint 'resultado_api' ya estaba registrado, se omite.")
         
         # Registrar API de llamadas con un nombre único
-        from api_pearl_calls import register_calls_api
-        register_calls_api(app)
-        logger.info("API de llamadas registrada correctamente")
+        if 'api_pearl_calls' not in registered_blueprints:
+            from api_pearl_calls import register_calls_api
+            register_calls_api(app)
+            logger.info("API de llamadas registrada correctamente")
+        else:
+            logger.info("Blueprint 'api_pearl_calls' ya estaba registrado, se omite.")
 
     except ImportError as e:
         logger.error(f"Error registrando APIs: {e}")
