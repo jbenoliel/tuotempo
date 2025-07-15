@@ -117,6 +117,12 @@ def actualizar_resultado():
     # -------------------------------------------------------------
     # 3. Construcción de diccionario de actualización
     # -------------------------------------------------------------
+    # Forzar strip en status levels si existen
+    if status_level_1:
+        status_level_1 = status_level_1.strip()
+    if status_level_2:
+        status_level_2 = status_level_2.strip()
+
     update_fields = {
         'status_level_1': status_level_1,
         'status_level_2': status_level_2,
@@ -127,7 +133,7 @@ def actualizar_resultado():
         'razon_no_interes': data.get('razonNoInteres')
     }
 
-    # Si llega una nueva cita, actualizamos el campo 'cita' combinando fecha y hora
+    # Si llega una nueva cita, actualizamos los campos 'cita' (DATE) y opcionalmente 'hora_cita' (TIME)
     if data.get('nuevaCita'):
         try:
             # Intentar convertir el formato de fecha recibido (DD/MM/YYYY) a formato SQL (YYYY-MM-DD)
@@ -141,14 +147,26 @@ def actualizar_resultado():
                 # Asumir que ya viene en formato YYYY-MM-DD
                 fecha_formateada = fecha_str
             
-            # Si también viene la hora de la cita, la combinamos con la fecha
+            # Guardar la fecha en la columna 'cita'
+            update_fields['cita'] = fecha_formateada
+
+            # Si también viene la hora de la cita, la guardamos en 'hora_cita'
             if data.get('horaCita'):
                 hora_str = data.get('horaCita')
-                # Combinar fecha y hora en un solo campo DATETIME
-                update_fields['cita'] = f"{fecha_formateada} {hora_str}"
-            else:
-                # Si no hay hora, usar solo la fecha con hora 00:00:00
-                update_fields['cita'] = f"{fecha_formateada} 00:00:00"
+                # Asegurar formato HH:MM:SS
+                if len(hora_str.split(':')) == 2:
+                    hora_str += ':00'
+                update_fields['hora_cita'] = hora_str
+
+            # --- Ajustar automáticamente los status al recibir una cita ---
+            update_fields['status_level_1'] = 'Cita Agendada'
+            con_pack_val = data.get('conPack')
+            if con_pack_val is not None:
+                try:
+                    truthy = str(con_pack_val).lower() in ['1', 'true', 'yes', 'si', 'sí', 'on']
+                except Exception:
+                    truthy = False
+                update_fields['status_level_2'] = 'Con Pack' if truthy else 'Sin Pack'
         except Exception as e:
             logger.error(f"Error al procesar la fecha de cita: {e}")
             return jsonify({"error": f"Formato de fecha inválido: {data.get('nuevaCita')}. Use DD/MM/YYYY."}), 400
