@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "releaseCommand": "python db_migration_add_call_info.py && python db_migration_add_hora_cita_railway.py",
+    "releaseCommand": "python db_migration_add_call_info.py",
     "startCommand": "python start.py",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
