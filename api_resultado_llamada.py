@@ -97,6 +97,9 @@ def actualizar_resultado():
     elif buzon:
         status_level_1 = 'Volver a llamar'
         status_level_2 = 'buzón'
+    elif data.get('errorTecnico'):
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = 'Interesado. Problema técnico'
     elif volver_a_llamar_flag:
         status_level_1 = 'Volver a llamar'
         status_level_2 = data.get('razonvueltaallamar') or 'Pendiente'
