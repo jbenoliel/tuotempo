@@ -377,6 +377,46 @@ class PearlCaller:
         else:
             logger.warning(f"⚠️ Llamada fallida - Lead {lead_id}: {phone_number}")
             logger.debug(f"Error details: {json.dumps(response, indent=2)}")
+            
+    def validate_phone_number(self, phone: str) -> bool:
+        """
+        Valida si un número de teléfono tiene el formato correcto para realizar llamadas.
+        
+        Args:
+            phone (str): Número de teléfono a validar
+            
+        Returns:
+            bool: True si el teléfono es válido, False en caso contrario
+        """
+        if not phone:
+            return False
+            
+        # Eliminar espacios, guiones y otros caracteres no numéricos
+        digits = ''.join(c for c in phone if c.isdigit())
+        
+        # Verificar longitud mínima (al menos 9 dígitos para España)
+        if len(digits) < 9:
+            logger.debug(f"Teléfono inválido (muy corto): {phone}")
+            return False
+            
+        # Si tiene prefijo internacional con +, validar
+        if phone.startswith('+'):
+            # Comprobar que es un prefijo válido
+            if not (phone.startswith('+34') or phone.startswith('+1') or 
+                    phone.startswith('+44') or phone.startswith('+52')):
+                logger.debug(f"Prefijo internacional no soportado: {phone}")
+                return False
+        
+        # Reglas específicas para España
+        if len(digits) == 9 and not (digits.startswith('6') or 
+                                   digits.startswith('7') or 
+                                   digits.startswith('8') or 
+                                   digits.startswith('9')):
+            logger.debug(f"Teléfono español inválido: {phone}")
+            return False
+            
+        logger.debug(f"Teléfono validado: {phone}")
+        return True
 
 # Instancia global del cliente (singleton pattern)
 _pearl_client = None

@@ -15,8 +15,12 @@ from queue import Queue, Empty
 from dataclasses import dataclass
 from enum import Enum
 
-from pearl_client import PearlClient
+from pearl_caller import get_pearl_client, PearlAPIError
 from models import Lead, Call, Session, db
+from db import get_connection
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 # Global variable for override phone number
 _override_phone: Optional[str] = os.getenv("TEST_CALL_PHONE")
@@ -25,7 +29,7 @@ def set_override_phone(phone: Optional[str]):
     """Allows setting or clearing the override phone number."""
     global _override_phone
     _override_phone = phone.strip() if phone else None
-    logging.info(f"Override phone set to: {_override_phone}")
+    logger.info(f"Override phone set to: {_override_phone}")
 
 
 class CallStatus(Enum):
@@ -55,16 +59,18 @@ class CallManager:
                     cls._instance = super(CallManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, app=None, pearl_client: PearlClient = None, on_status_update: Optional[Callable] = None):
+    def __init__(self, app=None, pearl_client=None, on_status_update: Optional[Callable] = None):
         if not hasattr(self, '_initialized'):
             self.app = app
-            self.pearl_client = pearl_client
+            self.pearl_client = pearl_client if pearl_client else get_pearl_client()
             self.on_status_update = on_status_update
             self.call_queue = Queue()
             self.is_running = False
             self.workers: List[threading.Thread] = []
+            self.active_calls = {}
             self.max_concurrent_calls = 3
             self.current_session_id: Optional[int] = None
+            self.on_stats_updated = None
             self.stats = {
                 'total': 0,
                 'completed': 0,
@@ -74,11 +80,11 @@ class CallManager:
                 'in_progress': 0
             }
             self._initialized = True
-            logging.info("CallManager initialized")
+            logger.info("CallManager initialized")
 
     def set_config(self, max_concurrent_calls: int):
         self.max_concurrent_calls = max_concurrent_calls
-        logging.info(f"Max concurrent calls set to: {self.max_concurrent_calls}")
+        logging.info(f"Max concurrent calls set to: {max_concurrent_calls}")
 
     def start(self, leads: List[Dict]):
         if self.is_running:
@@ -105,12 +111,12 @@ class CallManager:
             worker.start()
             self.workers.append(worker)
         
-        logging.info(f"Call manager started with {len(leads)} leads and {self.max_concurrent_calls} workers.")
+        logger.info(f"Call manager started with {len(leads)} leads and {self.max_concurrent_calls} workers.")
         self._emit_status()
 
     def stop(self):
         if not self.is_running:
-            logging.warning("Call manager is not running.")
+            logger.warning("Call manager is not running.")
             return
 
         self.is_running = False
@@ -127,7 +133,7 @@ class CallManager:
 
         self.workers = []
         self.current_session_id = None
-        logging.info("Call manager stopped.")
+        logger.info("Call manager stopped.")
         self._emit_status()
 
     def get_status(self) -> Dict[str, Any]:
@@ -152,7 +158,7 @@ class CallManager:
             self.call_queue.put(task)
             return True
         else:
-            logging.warning(f"Lead {lead_data['id']} has no valid phone number. Skipping.")
+            logger.warning(f"Lead {lead_data['id']} has no valid phone number. Skipping.")
             self._update_lead_status(lead_data['id'], 'failed', error_message="Invalid phone number")
             self.stats['failed'] += 1
             return False
@@ -172,7 +178,7 @@ class CallManager:
                 # If the queue is empty, check for active calls.
                 # If none, we can stop the system.
                 if self.stats.get('in_progress', 0) == 0 and self.call_queue.empty():
-                    logging.info("All calls processed. Stopping manager.")
+                    logger.info("All calls processed. Stopping manager.")
                     self.stop()
                     break
                 continue
@@ -180,7 +186,7 @@ class CallManager:
     def _process_call(self, task: CallTask):
         lead_id = task.lead_id
         phone_number = task.phone_number
-        logging.info(f"Processing call for lead {lead_id} to {phone_number}")
+        logger.info(f"Processing call for lead {lead_id} to {phone_number}")
         self._update_lead_status(lead_id, 'in_progress')
 
         call_id = self._create_call_record(lead_id, phone_number)
@@ -202,7 +208,7 @@ class CallManager:
                 self.stats[status] = self.stats.get(status, 0) + 1
 
         except Exception as e:
-            logging.error(f"Error processing call for lead {lead_id}: {e}")
+            logger.error(f"Error processing call for lead {lead_id}: {e}")
             self._update_lead_status(lead_id, 'failed', error_message=str(e))
             self._update_call_record(call_id, 'failed', duration=0, error_message=str(e))
             self.stats['failed'] += 1
@@ -210,17 +216,28 @@ class CallManager:
             self._emit_status()
 
     def _update_lead_status(self, lead_id: int, status: str, error_message: Optional[str] = None):
-        with self.app.app_context():
-            lead = Lead.query.get(lead_id)
-            if lead:
-                lead.call_status = status
-                lead.last_call_time = datetime.utcnow()
-                lead.call_attempts = (lead.call_attempts or 0) + 1
-                if error_message:
-                    lead.last_call_error = error_message
-                db.session.commit()
-                if self.on_status_update:
-                    self.on_status_update('lead_update', lead.to_dict())
+        """
+        Actualiza el estado de un lead en la base de datos.
+        
+        Args:
+            lead_id (int): ID del lead
+            status (str): Nuevo estado
+            error_message (str, optional): Mensaje de error si aplica
+        """
+        try:
+            with self.app.app_context():
+                lead = Lead.query.get(lead_id)
+                if lead:
+                    lead.call_status = status
+                    lead.last_call_time = datetime.utcnow()
+                    lead.call_attempts = (lead.call_attempts or 0) + 1
+                    if error_message:
+                        lead.last_call_error = error_message
+                    db.session.commit()
+                    if self.on_status_update:
+                        self.on_status_update('lead_update', lead.to_dict())
+        except Exception as e:
+            logger.error(f"Error actualizando estado de lead {lead_id}: {e}")
 
     def _create_call_record(self, lead_id: int, phone_number: str) -> int:
         with self.app.app_context():
@@ -254,44 +271,10 @@ class CallManager:
                 try:
                     self.on_stats_updated(self.stats.copy())
                 except Exception as e:
-                    logging.error(f"Error en callback on_stats_updated: {e}")
+                    logger.error(f"Error en callback on_stats_updated: {e}")
 
     
-    def _update_lead_status(self, lead_id: int, status: CallStatus, error_message: str = None):
-        """
-        Actualiza el estado de un lead en la base de datos.
-        
-        Args:
-            lead_id (int): ID del lead
-            status (CallStatus): Nuevo estado
-            error_message (str, optional): Mensaje de error si aplica
-        """
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            
-            update_fields = [
-                "call_status = %s",
-                "last_call_attempt = %s",
-                "updated_at = CURRENT_TIMESTAMP"
-            ]
-            values = [status.value, datetime.now()]
-            
-            if error_message:
-                update_fields.append("call_error_message = %s")
-                values.append(error_message)
-            
-            query = f"UPDATE leads SET {', '.join(update_fields)} WHERE id = %s"
-            values.append(lead_id)
-            
-            cursor.execute(query, values)
-            conn.commit()
-            
-        except Exception as e:
-            logger.error(f"Error actualizando estado de lead {lead_id}: {e}")
-        finally:
-            if conn:
-                conn.close()
+    # Método duplicado eliminado
     
     def _update_lead_call_data(self, lead_id: int, response_data: Dict):
         """
@@ -399,11 +382,16 @@ def get_call_manager() -> CallManager:
     Obtiene una instancia singleton del gestor de llamadas.
     
     Returns:
-        CallManager: Gestor configurado
+        CallManager: Instancia del gestor de llamadas
     """
     global _call_manager
     if _call_manager is None:
-        _call_manager = CallManager()
+        from flask import current_app
+        _call_manager = CallManager(
+            app=current_app,
+            pearl_client=get_pearl_client(),
+            on_status_update=None
+        )
     return _call_manager
 
 if __name__ == "__main__":
