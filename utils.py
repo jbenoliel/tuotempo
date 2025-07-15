@@ -168,6 +168,13 @@ def exportar_datos_completos(connection):
 
         # 2. Leer ambas tablas en DataFrames de pandas
         df_leads = pd.read_sql("SELECT * FROM leads", connection)
+        if df_leads.empty:
+            # Fallback por si read_sql falla silenciosamente con mysql.connector
+            logger.warning("pd.read_sql devolvió 0 registros; usando cursor manual como fallback")
+            with connection.cursor(dictionary=True) as cur:
+                cur.execute("SELECT * FROM leads")
+                rows = cur.fetchall()
+                df_leads = pd.DataFrame(rows)
         logger.info(f"Leídos {len(df_leads)} registros de la tabla 'leads'.")
         df_calls = pd.read_sql("SELECT * FROM pearl_calls", connection)
         logger.info(f"Leídos {len(df_calls)} registros de la tabla 'pearl_calls'.")
