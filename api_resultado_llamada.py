@@ -1,26 +1,21 @@
 import mysql.connector
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
 import logging
 import os
 from dotenv import load_dotenv
 from config import settings
+import mysql.connector
 
 # Cargar variables de entorno si existe un archivo .env
 load_dotenv()
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("api_resultado_llamada.log"),
-        logging.StreamHandler()
-    ]
-)
+# El logger será configurado por la aplicación principal
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Crear un Blueprint en lugar de una app. Todas las rutas aquí definidas
+# colgarán del prefijo /api que se registra en la app principal.
+resultado_api = Blueprint('resultado_api', __name__)
 
 # Configuración de la base de datos usando settings
 DB_CONFIG = {
@@ -40,7 +35,7 @@ def get_db_connection():
         logger.error(f"Error al conectar a MySQL: {err}")
         return None
 
-@app.route('/api/status', methods=['GET'])
+@resultado_api.route('/api/status', methods=['GET'])
 def status():
     """Endpoint para verificar el estado de la API"""
     return jsonify({
@@ -49,7 +44,7 @@ def status():
         "service": "API Resultado Llamada"
     })
 
-@app.route('/api/actualizar_resultado', methods=['POST'])
+@resultado_api.route('/api/actualizar_resultado', methods=['POST'])
 def actualizar_resultado():
     """
     Actualiza el resultado y los datos de una llamada para un lead específico.
@@ -183,7 +178,7 @@ def actualizar_resultado():
             cursor.close()
             conn.close()
 
-@app.route('/api/obtener_resultados', methods=['GET'])
+@resultado_api.route('/api/obtener_resultados', methods=['GET'])
 def obtener_resultados():
     """
     Obtener contactos filtrados por resultado de llamada
@@ -226,7 +221,4 @@ def obtener_resultados():
             cursor.close()
             conn.close()
 
-if __name__ == '__main__':
-    logger.info("Iniciando API de Resultado de Llamada...")
-    port = int(os.getenv("PORT", 5001))
-    app.run(debug=True, host="0.0.0.0", port=port)
+

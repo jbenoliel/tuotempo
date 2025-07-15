@@ -9,6 +9,7 @@ import json
 import re
 import logging
 from tuotempo import Tuotempo
+from api_resultado_llamada import resultado_api
 
 
 
@@ -19,6 +20,15 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": os.getenv('FRONTEND_ORIGIN', '*')}})
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'un-secreto-muy-secreto')
+
+# Registrar el blueprint que contiene las rutas de /api/actualizar_resultado
+app.register_blueprint(resultado_api)
+
+# Configurar el logging para que use el logger de Flask cuando se ejecuta con Gunicorn
+if __name__ != '__main__':
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    app.logger.handlers = gunicorn_logger.handlers
+    app.logger.setLevel(gunicorn_logger.level)
 
 # --- Funciones de Utilidad ---
 def _norm_phone(phone: str) -> str:
@@ -232,8 +242,10 @@ def reservar():
         app.logger.exception("Excepción al llamar a Tuotempo para crear la reserva")
         return jsonify({"error": "Ocurrió un error interno en el servidor"}), 500
 
+
+
 if __name__ == '__main__':
     # Gunicorn será el servidor en producción. Esto es para compatibilidad y pruebas locales.
     # Railway asigna el puerto dinámicamente a través de la variable de entorno PORT.
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
