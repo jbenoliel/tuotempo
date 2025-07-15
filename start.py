@@ -169,18 +169,18 @@ def main():
         app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)), debug=True)
 
     else: # Servicio web principal (web, dashboard, tuotempo-apis, etc.)
-        logging.info("Iniciando la aplicación web principal (API Flask)...")
+        logging.info("Iniciando la aplicación web principal (Dashboard + API)...")
         if use_gunicorn:
             port = os.getenv('PORT', '8080')
             gunicorn_command = [
                 'gunicorn', '--bind', f"0.0.0.0:{port}",
                 '--workers', '4', '--timeout', '120',
-                '--log-level', 'info', 'api_tuotempo:app'
+                '--log-level', 'info', 'app:app'
             ]
             logging.info(f"Lanzando Gunicorn: {' '.join(gunicorn_command)}")
             os.execvp('gunicorn', gunicorn_command)
         else:
-            from api_tuotempo import app
+            from app import app
             app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)))
 
 if __name__ == "__main__":

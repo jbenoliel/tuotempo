@@ -1,5 +1,4 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 import os
 import requests
@@ -9,26 +8,9 @@ import json
 import re
 import logging
 from tuotempo import Tuotempo
-from api_resultado_llamada import resultado_api
 
-
-
-# --- Cargar variables de entorno ---
-load_dotenv()
-
-# --- Inicialización de la App Flask ---
-app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": os.getenv('FRONTEND_ORIGIN', '*')}})
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'un-secreto-muy-secreto')
-
-# Registrar el blueprint que contiene las rutas de /api/actualizar_resultado
-app.register_blueprint(resultado_api)
-
-# Configurar el logging para que use el logger de Flask cuando se ejecuta con Gunicorn
-if __name__ != '__main__':
-    gunicorn_logger = logging.getLogger('gunicorn.error')
-    app.logger.handlers = gunicorn_logger.handlers
-    app.logger.setLevel(gunicorn_logger.level)
+# Crear el Blueprint para la API de Tuotempo
+tuotempo_api = Blueprint('tuotempo_api', __name__)
 
 # --- Funciones de Utilidad ---
 def _norm_phone(phone: str) -> str:
@@ -46,7 +28,7 @@ def parse_date(date_string):
             return datetime.strptime(date_string, fmt).date()
         except (ValueError, TypeError):
             pass
-    app.logger.warning(f"No se pudo procesar la fecha: {date_string} con los formatos conocidos.")
+    current_app.logger.warning(f"No se pudo procesar la fecha: {date_string} con los formatos conocidos.")
     return None
 
 def _extract_availabilities(resp: dict) -> list:
@@ -71,7 +53,15 @@ SLOTS_CACHE_DIR = Path(tempfile.gettempdir()) / "cached_slots"
 SLOTS_CACHE_DIR.mkdir(exist_ok=True)
 
 # --- Endpoints de la API ---
-@app.route('/api/status')
+@tuotempo_api.route('/')
+def index():
+    """Punto de entrada principal que muestra el estado del servicio."""
+    return jsonify({
+        'service': 'Tuotempo & Leads API',
+        'status': 'online',
+        'message': 'Welcome! This is an API service. Please use the specific endpoints to interact.'
+    })
+@tuotempo_api.route('/api/status')
 def status():
     """Endpoint de estado para verificar que la API está viva."""
     return jsonify({
@@ -80,7 +70,7 @@ def status():
         'service': os.getenv('RAILWAY_SERVICE_NAME', 'Unknown')
     })
 
-@app.route('/api/slots', methods=['GET'])
+@tuotempo_api.route('/api/slots', methods=['GET'])
 def obtener_slots():
     env = request.args.get('env', 'PRO').upper()
     
@@ -96,7 +86,7 @@ def obtener_slots():
         else:  # PRE
             api_key = "3a5835be0f540c7591c754a2bf0758bb"
     
-    app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
+    current_app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
         
     tuotempo = Tuotempo(api_key, api_secret, instance_id)
     
@@ -120,9 +110,9 @@ def obtener_slots():
         fecha_consulta_dt = fecha_base_dt + timedelta(days=7 * offset_weeks)
         fecha_consulta_str = fecha_consulta_dt.strftime("%d-%m-%Y")
         
-        app.logger.info(f"Buscando slots para la semana del {fecha_consulta_str}")
+        current_app.logger.info(f"Buscando slots para la semana del {fecha_consulta_str}")
         res = tuotempo.get_available_slots(locations_lid=[centro_id], start_date=fecha_consulta_str, days=7)
-        app.logger.info(f"Respuesta CRUDA de Tuotempo API: {json.dumps(res, indent=2)}")
+        current_app.logger.info(f"Respuesta CRUDA de Tuotempo API: {json.dumps(res, indent=2)}")
         
         slots_return = res
         current_slots = _extract_availabilities(res)
@@ -136,7 +126,7 @@ def obtener_slots():
                 slots_list.extend(current_slots)
 
         if slots_list:
-            app.logger.info(f"Encontrados {len(slots_list)} slots. Terminando búsqueda.")
+            current_app.logger.info(f"Encontrados {len(slots_list)} slots. Terminando búsqueda.")
             break
 
     phone_norm = _norm_phone(phone)
@@ -144,14 +134,14 @@ def obtener_slots():
     try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(slots_return, f, ensure_ascii=False, indent=4)
-        app.logger.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
+        current_app.logger.info(f"Slots guardados en caché para el teléfono {phone_norm} en {cache_file}")
     except Exception as e:
-        app.logger.error(f"No se pudo escribir en el fichero de caché {cache_file}: {e}")
+        current_app.logger.error(f"No se pudo escribir en el fichero de caché {cache_file}: {e}")
 
     return jsonify({'success': True, 'slots': slots_list})
 
 
-@app.route('/api/reservar', methods=['POST'])
+@tuotempo_api.route('/api/reservar', methods=['POST'])
 def reservar():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -177,7 +167,7 @@ def reservar():
         else:  # PRE
             api_key = "3a5835be0f540c7591c754a2bf0758bb"
     
-    app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
+    current_app.logger.info(f"Usando API key: {api_key[:5]}... para entorno {env} con instance_id {instance_id}")
 
     tuotempo = Tuotempo(api_key, api_secret, instance_id)
 
@@ -202,15 +192,15 @@ def reservar():
                     request_date = parse_date(availability.get('start_date'))
 
                     if cached_date and request_date and cached_date == request_date and s.get('startTime') == availability.get('startTime'):
-                        app.logger.info(f"Slot encontrado en caché. Completando datos desde: {s}")
+                        current_app.logger.info(f"Slot encontrado en caché. Completando datos desde: {s}")
                         availability.update(s)
                         availability_completed = True
-                        app.logger.info(f"Availability completada desde cache. Datos actuales: {availability}")
+                        current_app.logger.info(f"Availability completada desde cache. Datos actuales: {availability}")
                         break                 
                 if not availability_completed:
-                    app.logger.warning(f"No se encontró un slot coincidente en la caché para {availability.get('start_date')} a las {availability.get('startTime')}")
+                    current_app.logger.warning(f"No se encontró un slot coincidente en la caché para {availability.get('start_date')} a las {availability.get('startTime')}")
             except Exception as e:
-                app.logger.error(f"Error al leer o procesar el fichero de caché {cache_path}: {e}")
+                current_app.logger.error(f"Error al leer o procesar el fichero de caché {cache_path}: {e}")
 
     missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
     if missing_fields:
@@ -236,16 +226,10 @@ def reservar():
         if res.get('result') == 'OK':
             return jsonify(res), 200
         else:
-            app.logger.error(f"Fallo en la reserva de Tuotempo: {res}")
+            current_app.logger.error(f"Fallo en la reserva de Tuotempo: {res}")
             return jsonify({"error": "No se pudo confirmar la cita", "details": res}), 502
     except Exception as e:
-        app.logger.exception("Excepción al llamar a Tuotempo para crear la reserva")
+        current_app.logger.exception("Excepción al llamar a Tuotempo para crear la reserva")
         return jsonify({"error": "Ocurrió un error interno en el servidor"}), 500
 
 
-
-if __name__ == '__main__':
-    # Gunicorn será el servidor en producción. Esto es para compatibilidad y pruebas locales.
-    # Railway asigna el puerto dinámicamente a través de la variable de entorno PORT.
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)

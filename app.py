@@ -3,6 +3,7 @@
 
 from app_dashboard import app
 import logging
+import os
 
 # Configurar logging para depuración
 logging.basicConfig(
@@ -11,41 +12,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Importar y registrar la API de resultado_llamada
+# Registrar los Blueprints de las APIs
 try:
-    from api_resultado_llamada import app as api_resultado_app
-    from api_resultado_llamada import status, actualizar_resultado, obtener_resultados
+    # Importamos la función de registro de APIs que hemos definido en blueprints.py
+    from blueprints import register_apis
     
-    # Registrar directamente las funciones de la API
-    app.add_url_rule('/api/status', 'api_status', status, methods=['GET'])
-    app.add_url_rule('/api/actualizar_resultado', 'api_actualizar_resultado', actualizar_resultado, methods=['POST'])
-    app.add_url_rule('/api/obtener_resultados', 'api_obtener_resultados', obtener_resultados, methods=['GET'])
-    
-    # Registrar también las rutas dinámicamente (para cualquier otra ruta que pueda existir)
-    for rule in api_resultado_app.url_map.iter_rules():
-        # Saltamos la ruta 'static' y las que ya hemos registrado manualmente
-        if rule.endpoint == 'static' or rule.endpoint in ['status', 'actualizar_resultado', 'obtener_resultados']:
-            continue
-            
-        # Obtener la vista (función) asociada a la ruta
-        view_func = api_resultado_app.view_functions[rule.endpoint]
-        
-        # Registrar la ruta en la app principal con un prefijo para evitar conflictos
-        app.add_url_rule(
-            rule.rule,  # La regla ya incluye el prefijo /api
-            endpoint=f"api_{rule.endpoint}",  # Prefijo para evitar conflictos de nombres
-            view_func=view_func,
-            methods=rule.methods
-        )
+    # Registrar todos los Blueprints de API (tuotempo_api y resultado_api)
+    with app.app_context():
+        register_apis(app)
     
     # Listar todas las rutas registradas para depuración
     logger.info("=== RUTAS REGISTRADAS EN LA APLICACIÓN ===")
     for rule in app.url_map.iter_rules():
         logger.info(f"Ruta: {rule.rule} - Endpoint: {rule.endpoint} - Métodos: {', '.join(rule.methods)}")
     
-    logger.info("API de resultado_llamada registrada correctamente")
+    logger.info("APIs registradas correctamente")
+    
+    # Mostrar información sobre el servicio actual en Railway
+    service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'local')
+    # Normalizar el nombre del servicio para evitar inconsistencias
+    service_name = service_name.lower().replace(' ', '-')
+    logger.info(f"Aplicación iniciada en el servicio: {service_name}")
+    
 except Exception as e:
-    logger.error(f"Error al registrar API de resultado_llamada: {e}")
+    logger.error(f"Error al registrar las APIs: {e}")
     import traceback
     logger.error(traceback.format_exc())
 

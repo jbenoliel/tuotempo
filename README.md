@@ -64,7 +64,7 @@ Los campos `status_level_1` y `status_level_2` **ya no se envían**; el backend 
 
 Ejemplo completo:
 ```bash
-curl -X POST https://actualizarllamadas-production.up.railway.app/api/actualizar_resultado \
+curl -X POST https://<TU_SERVICIO_WEB_PRINCIPAL>.up.railway.app/api/actualizar_resultado \
   -H "Content-Type: application/json" \
   -d '{
     "telefono": "600123456",

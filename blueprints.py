@@ -404,6 +404,29 @@ def admin_reset_password(user_id):
     
     return redirect(url_for('main.admin_users'))
 
+
+# --- REGISTRO DE APIS --- 
+
+def register_apis(app):
+    """
+    Importa y registra todos los Blueprints de las APIs en la aplicación principal.
+    """
+    try:
+        from api_tuotempo import tuotempo_api
+        from api_resultado_llamada import resultado_api
+
+        # Registrar los blueprints. Las rutas ya contienen el prefijo /api.
+        app.register_blueprint(tuotempo_api)
+        app.register_blueprint(resultado_api)
+        
+        logger.info("Blueprint 'tuotempo_api' registrado correctamente.")
+        logger.info("Blueprint 'resultado_api' registrado correctamente.")
+
+    except ImportError as e:
+        logger.critical(f"Error fatal: No se pudo importar un Blueprint de API: {e}")
+    except Exception as e:
+        logger.critical(f"Error inesperado al registrar los Blueprints de API: {e}")
+
 @bp.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password_with_token(token):
     user_id = verify_reset_token(token)
