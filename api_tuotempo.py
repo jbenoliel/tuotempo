@@ -172,8 +172,16 @@ def reservar():
     tuotempo = Tuotempo(api_key, api_secret, instance_id)
 
     if isinstance(availability, dict):
-        if 'activity_id' in availability: availability['activityid'] = availability.pop('activity_id')
-        if 'resource_id' in availability: availability['resourceid'] = availability.pop('resource_id')
+        # Normalizar claves de disponibilidad a formato esperado por Tuotempo (snakecase minúsculas)
+        if 'activity_id' in availability:
+            availability['activityid'] = availability.pop('activity_id')
+        if 'resource_id' in availability:
+            availability['resourceid'] = availability.pop('resource_id')
+        # También convertir camelCase de la API original
+        if 'activityId' in availability:
+            availability['activityid'] = availability.pop('activityId')
+        if 'resourceId' in availability:
+            availability['resourceid'] = availability.pop('resourceId')
 
     critical_keys = {'endTime', 'resourceid', 'activityid'}
     if critical_keys - availability.keys():

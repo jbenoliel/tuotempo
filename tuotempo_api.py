@@ -104,15 +104,18 @@ class TuoTempoAPI:
             "start_date": start_date,
             "bypass_availabilities_fallback": "true"
         }
-        # Añadir filtros de franja horaria si se solicitan
-        if time_preference:
-            pref = time_preference.upper()
-            if pref == 'MORNING':
-                params['minTime'] = '360'  # 06:00
-                params['maxTime'] = '900'  # 15:00
-            elif pref == 'AFTERNOON':
-                params['minTime'] = '900'  # 15:00
-                params['maxTime'] = '1260' # 21:00
+        # Si no se especifica preferencia, asumir MAÑANA para evitar errores 'preferenciaMT: Value must be a non-empty string'
+        if not time_preference:
+            time_preference = 'MORNING'
+
+        # Añadir filtros de franja horaria según la preferencia
+        pref = str(time_preference).upper()
+        if pref == 'MORNING':
+            params['minTime'] = '360'  # 06:00
+            params['maxTime'] = '900'  # 15:00
+        elif pref == 'AFTERNOON':
+            params['minTime'] = '900'  # 15:00
+            params['maxTime'] = '1260' # 21:00
         # Sobrescribir si se pasan min_time/max_time explícitos
         if min_time:
             params['minTime'] = str(min_time)
