@@ -191,8 +191,13 @@ def actualizar_resultado():
     # Filtrar campos que son None para no sobreescribir datos existentes con nulos en la BD
     update_data = {k: v for k, v in update_fields.items() if v is not None}
 
+    # Si no hay ningún otro dato aparte del teléfono, marcar como 'Volver a llamar - cortado'
     if not update_data:
-        return jsonify({"error": "No se proporcionaron datos para actualizar"}), 400
+        logger.info("Solo se proporcionó teléfono: marcando lead como 'Volver a llamar / cortado'.")
+        update_data = {
+            'status_level_1': 'Volver a llamar',
+            'status_level_2': 'cortado'
+        }
 
     # Construir la consulta SQL dinámicamente
     set_clause = ", ".join([f"{key} = %s" for key in update_data.keys()])
