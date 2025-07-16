@@ -138,7 +138,7 @@ def find_best_match(search_text, choices_dict, min_score=70):
 
 def main():
     # Ruta del archivo Excel
-    excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\01NP Dental_Piloto_VoiceBot_20250603_TeYame.xlsx"
+    excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\01NP Dental_Piloto_VoiceBot_202507014_TeYame.xlsx"
     
     if not os.path.exists(excel_path):
         print(f"Error: No se encuentra el archivo Excel en {excel_path}")
@@ -147,7 +147,7 @@ def main():
     # Leer el Excel
     print(f"Leyendo archivo Excel: {excel_path}")
     try:
-        df = pd.read_excel(excel_path)
+        df = pd.read_excel(excel_path, engine="openpyxl")
         print(f"Excel cargado correctamente. Filas: {len(df)}, Columnas: {list(df.columns)}")
         
         # Mostrar las primeras filas para entender la estructura

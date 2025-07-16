@@ -230,7 +230,7 @@ def get_leads_for_calling():
         # Obtener parámetros de filtro
         city = request.args.get('city')
         status = request.args.get('status')
-        priority = request.args.get('priority')
+        priority = request.args.get('priority')  # puede ser None o ''
         selected_only = request.args.get('selected_only', 'false').lower() == 'true'
         limit = int(request.args.get('limit', 100))
         offset = int(request.args.get('offset', 0))
@@ -250,9 +250,13 @@ def get_leads_for_calling():
             conditions.append("call_status = %s")
             params.append(status)
         
-        if priority:
-            conditions.append("call_priority = %s")
-            params.append(int(priority))
+        if priority not in (None, '', 'todos'):
+            try:
+                priority_int = int(priority)
+                conditions.append("call_priority = %s")
+                params.append(priority_int)
+            except ValueError:
+                logger.warning(f"Parámetro 'priority' inválido: {priority}")
         
         if selected_only:
             conditions.append("selected_for_calling = TRUE")
