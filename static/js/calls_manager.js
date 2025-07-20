@@ -455,11 +455,17 @@ class CallsManager {
         this.showLoader(this.elements.startCallsBtn, true);
         
         try {
+            // Debug detallado del modo de prueba
+            console.log('🔍 === DEBUG MODO PRUEBA ===');
+            console.log('testModeSwitch element:', this.elements.testModeSwitch);
+            console.log('overridePhoneInput element:', this.elements.overridePhoneInput);
+            
             const testModeEnabled = this.elements.testModeSwitch?.checked || false;
             const overridePhone = this.elements.overridePhoneInput?.value || '';
             
-            console.log('Modo prueba:', testModeEnabled);
-            console.log('Teléfono override:', overridePhone);
+            console.log('🧪 Modo prueba enabled:', testModeEnabled);
+            console.log('📞 Teléfono override value:', `'${overridePhone}'`);
+            console.log('📞 Override phone length:', overridePhone.length);
 
             const config = {
                 max_concurrent: this.config.maxConcurrentCalls,
@@ -467,13 +473,17 @@ class CallsManager {
                 override_phone: testModeEnabled ? overridePhone : null
             };
             
-            console.log('Configuración de llamadas:', config);
+            console.log('🔧 Configuración FINAL de llamadas:', JSON.stringify(config, null, 2));
 
             if (testModeEnabled && !overridePhone) {
                 console.error('❌ Modo prueba activo pero sin teléfono');
                 this.showToast('Por favor, introduce un número de teléfono para el modo de prueba.', 'warning');
                 this.showLoader(this.elements.startCallsBtn, false);
                 return;
+            }
+            
+            if (testModeEnabled && overridePhone) {
+                console.warn('🧪 MODO PRUEBA CONFIRMADO - Se enviará override_phone:', overridePhone);
             }
 
             console.log('📡 Enviando petición POST /api/calls/start...');
