@@ -814,6 +814,72 @@ def _mark_leads_for_calling(lead_ids: List[int], selected: bool, priority: int =
         if conn:
             conn.close()
 
+@api_pearl_calls.route('/admin/cleanup-selected', methods=['POST'])
+def cleanup_selected_leads():
+    """
+    ENDPOINT DE EMERGENCIA: Limpia todos los leads marcados para llamada
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Ver cuántos leads están marcados
+        cursor.execute("SELECT COUNT(*) AS count FROM leads WHERE selected_for_calling = 1")
+        count_before = cursor.fetchone()['count']
+        
+        if count_before == 0:
+            return jsonify({
+                "success": True, 
+                "message": "No hay leads marcados para limpiar",
+                "cleaned_count": 0
+            })
+        
+        # Obtener ejemplos antes de limpiar
+        cursor.execute("""
+            SELECT id, nombre, telefono, call_status 
+            FROM leads 
+            WHERE selected_for_calling = 1 
+            LIMIT 5
+        """)
+        examples = cursor.fetchall()
+        
+        # Limpiar todos los leads marcados
+        cursor.execute("""
+            UPDATE leads 
+            SET selected_for_calling = 0,
+                call_status = 'no_selected'
+            WHERE selected_for_calling = 1
+        """)
+        
+        cleaned_count = cursor.rowcount
+        conn.commit()
+        
+        # Verificar limpieza
+        cursor.execute("SELECT COUNT(*) AS count FROM leads WHERE selected_for_calling = 1")
+        count_after = cursor.fetchone()['count']
+        
+        logger.warning(f"🧹 LIMPIEZA DE EMERGENCIA: {cleaned_count} leads limpiados")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Limpieza completada exitosamente",
+            "leads_before": count_before,
+            "cleaned_count": cleaned_count,
+            "leads_after": count_after,
+            "examples_cleaned": [
+                f"ID:{ex['id']} {ex.get('nombre','')} {ex.get('telefono','')}" 
+                for ex in examples
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en limpieza de emergencia: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 # Función para registrar el blueprint en la app principal
 def register_calls_api(app: Flask):
     """Registra la API de llamadas en la aplicación Flask."""
