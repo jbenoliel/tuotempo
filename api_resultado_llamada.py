@@ -112,7 +112,11 @@ def actualizar_resultado():
         status_level_2 = 'Interesado. Problema técnico'
     elif volver_a_llamar_flag:
         status_level_1 = 'Volver a llamar'
-        status_level_2 = data.get('razonvueltaallamar') or 'Pendiente'
+        # Usar el mapa de códigos si está disponible, sino usar valor por defecto
+        if codigo_volver_llamar and codigo_volver_llamar in mapa_volver_llamar:
+            status_level_2 = mapa_volver_llamar[codigo_volver_llamar]
+        else:
+            status_level_2 = 'no disponible cliente'  # Valor por defecto
     elif data.get('noInteresado') or codigo_no_interes in mapa_no_interes:
         status_level_1 = 'No Interesado'
         # Tomamos razón del mapa si existe, o texto libre proporcionado
