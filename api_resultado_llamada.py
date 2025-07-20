@@ -192,8 +192,8 @@ def actualizar_resultado():
     # 4. Filtrar valores None para no sobreescribir con nulos
     # -------------------------------------------------------------
 
-    # Filtrar campos que son None para no sobreescribir datos existentes con nulos en la BD
-    update_data = {k: v for k, v in update_fields.items() if v is not None}
+    # Filtrar campos que son None o cadenas vacías para no sobreescribir datos existentes
+    update_data = {k: v for k, v in update_fields.items() if v is not None and v != ""}
 
     # Si no hay ningún otro dato aparte del teléfono, marcar como 'Volver a llamar - cortado'
     if not update_data:
