@@ -66,12 +66,12 @@ def normalize_spanish_phone(phone: str) -> str:
 
 
 class CallStatus(Enum):
-    QUEUED = "queued"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    NO_ANSWER = "no_answer"
-    BUSY = "busy"
+    QUEUED = "selected"        # Mapea a 'selected' en BD
+    IN_PROGRESS = "calling"    # Mapea a 'calling' en BD  
+    COMPLETED = "completed"    # Mapea a 'completed' en BD
+    FAILED = "error"           # Mapea a 'error' en BD
+    NO_ANSWER = "no_answer"    # Mapea a 'no_answer' en BD
+    BUSY = "busy"              # Mapea a 'busy' en BD
 
 
 @dataclass
