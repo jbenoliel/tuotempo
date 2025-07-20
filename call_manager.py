@@ -290,11 +290,24 @@ class CallManager:
         }
 
     def _add_lead_to_queue(self, lead_data: Dict) -> bool:
+        # Log detallado para verificar modo de prueba
+        logger.info(f"🔍 VERIFICACIÓN MODO PRUEBA - Lead ID: {lead_data['id']}")
+        logger.info(f"📞 Override phone configurado: {_override_phone}")
+        logger.info(f"📱 Teléfono original del lead: {lead_data.get('telefono', 'N/A')}")
+        logger.info(f"📱 Teléfono secundario del lead: {lead_data.get('telefono2', 'N/A')}")
+        
         phone = _override_phone if _override_phone else lead_data.get('telefono', '').strip()
+        logger.info(f"🎯 Teléfono seleccionado (1ra pasada): {phone}")
+        
         if not self.pearl_client.validate_phone_number(phone):
+            logger.info(f"❌ Teléfono inválido, probando teléfono2...")
             phone = _override_phone if _override_phone else lead_data.get('telefono2', '').strip()
+            logger.info(f"🎯 Teléfono seleccionado (2da pasada): {phone}")
 
         if self.pearl_client.validate_phone_number(phone):
+            logger.info(f"✅ Teléfono FINAL válido: {phone}")
+            if _override_phone:
+                logger.warning(f"🧪 MODO PRUEBA ACTIVO - Llamando a {phone} en lugar del teléfono real del lead")
             task = CallTask(
                 lead_id=lead_data['id'],
                 phone_number=phone,

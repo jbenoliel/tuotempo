@@ -184,8 +184,12 @@ class PearlCaller:
                 "callData": call_data_payload
             }
             
-            logger.info(f"Iniciando llamada a {phone_number} con outbound {outbound_id}")
-            logger.debug(f"Payload: {json.dumps(call_payload, indent=2)}")
+            logger.info(f"🚀 INICIANDO LLAMADA A PEARL AI")
+            logger.info(f"📞 Número de teléfono: {phone_number}")
+            logger.info(f"🏥 Lead: {lead_data.get('nombre', 'N/A')} {lead_data.get('apellidos', 'N/A')}")
+            logger.info(f"🆔 Outbound ID: {outbound_id}")
+            logger.info(f"🌐 URL de Pearl: {self.api_url}/Outbound/{outbound_id}/Call")
+            logger.debug(f"📦 Payload completo: {json.dumps(call_payload, indent=2)}")
             
             url = f"{self.api_url}/Outbound/{outbound_id}/Call"
             response = requests.post(url, headers=self.headers, json=call_payload, timeout=30)

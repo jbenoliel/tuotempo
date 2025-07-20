@@ -90,18 +90,30 @@ def start_calling_system():
         selected_leads = data.get('selected_leads')
         override_phone = data.get('override_phone')
         
-        logger.info(f"Configuración: max_concurrent={max_concurrent}, selected_leads={selected_leads}, override_phone={override_phone}")
+        logger.info(f"🔧 CONFIGURACIÓN RECIBIDA:")
+        logger.info(f"   - max_concurrent: {max_concurrent}")
+        logger.info(f"   - selected_leads: {selected_leads}")
+        logger.info(f"   - override_phone: {override_phone}")
         
         # Ajustar concurrencia si se especifica
         if override_phone is not None:
+            logger.warning(f"🧪 ACTIVANDO MODO PRUEBA...")
+            logger.info(f"📞 Teléfono de prueba recibido: '{override_phone}'")
             # Normalizar el teléfono de prueba también
             from call_manager import normalize_spanish_phone
             normalized_override = normalize_spanish_phone(override_phone) if override_phone else override_phone
             set_override_phone(normalized_override)
-            logger.warning(f"Modo teléfono de prueba activo: {override_phone} -> {normalized_override}")
+            logger.warning(f"🧪 MODO PRUEBA CONFIGURADO: {override_phone} -> {normalized_override}")
+            from call_manager import get_override_phone
+            verification = get_override_phone()
+            logger.info(f"✅ VERIFICACIÓN - Override phone global: {verification}")
         else:
+            logger.info(f"🔄 Limpiando modo prueba (override_phone es None)")
             # Si no se especifica override_phone, asegurarse de limpiar
             set_override_phone(None)
+            from call_manager import get_override_phone
+            verification = get_override_phone()
+            logger.info(f"✅ VERIFICACIÓN - Override phone limpiado: {verification}")
 
         if max_concurrent != manager.max_concurrent_calls:
             manager.max_concurrent_calls = max_concurrent
