@@ -502,9 +502,17 @@ def calls_manager():
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Obtener todos los leads para mostrar en la tabla
-        cursor.execute("SELECT * FROM leads ORDER BY id DESC")
+        # Obtener solo una muestra de leads para la carga inicial (paginación)
+        limit = 50  # Cargar solo los primeros 50 leads
+        cursor.execute("SELECT * FROM leads ORDER BY id DESC LIMIT %s", (limit,))
         calls = cursor.fetchall()
+        
+        # Obtener valores únicos para los filtros
+        cursor.execute("SELECT DISTINCT status_level_1 FROM leads WHERE status_level_1 IS NOT NULL AND status_level_1 != '' ORDER BY status_level_1")
+        estados1 = [row['status_level_1'] for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT DISTINCT status_level_2 FROM leads WHERE status_level_2 IS NOT NULL AND status_level_2 != '' ORDER BY status_level_2")
+        estados2 = [row['status_level_2'] for row in cursor.fetchall()]
         
         # Obtener estadísticas rápidas para el dashboard
         cursor.execute("SELECT call_status, COUNT(*) as count FROM leads GROUP BY call_status")
@@ -517,18 +525,25 @@ def calls_manager():
             'completed': status_counts.get('completed', 0),
             'error': status_counts.get('error', 0)
         }
+        
+        # Añadir los filtros a los datos que se pasan al template
+        filter_data = {
+            'estados1': estados1,
+            'estados2': estados2
+        }
 
     except Exception as e:
         logger.error(f"Error al obtener los datos para el gestor de llamadas: {e}")
         flash('No se pudieron cargar los datos de las llamadas. Revise los logs.', 'danger')
         calls = []
         stats = {}
+        filter_data = {'estados1': [], 'estados2': []}
     finally:
         if 'conn' in locals() and conn.is_connected():
             cursor.close()
             conn.close()
             
-    return render_template('calls_manager.html', calls=calls, stats=stats)
+    return render_template('calls_manager.html', calls=calls, stats=stats, filter_data=filter_data)
 
 # --- REGISTRO DE APIS ---
 

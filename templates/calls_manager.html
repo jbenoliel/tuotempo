@@ -161,12 +161,18 @@
                                 <label for="estado1Filter" class="form-label">Estado 1</label>
                                 <select id="estado1Filter" class="form-select form-select-sm">
                                     <option value="">Todos</option>
+                                    {% for estado in filter_data.estados1 %}
+                                    <option value="{{ estado }}">{{ estado }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-2">
                                 <label for="estado2Filter" class="form-label">Estado 2</label>
                                 <select id="estado2Filter" class="form-select form-select-sm">
                                     <option value="">Todos</option>
+                                    {% for estado in filter_data.estados2 %}
+                                    <option value="{{ estado }}">{{ estado }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-2">

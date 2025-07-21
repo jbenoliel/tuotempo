@@ -445,10 +445,22 @@ class CallsManager {
                     case 'get_all_leads':
                         try {
                             console.log('🚀 Cargando leads desde API...');
+                            
+                            // Construir parámetros de query con filtros
+                            const params = new URLSearchParams();
+                            if (this.state.filters.estado1) params.append('estado1', this.state.filters.estado1);
+                            if (this.state.filters.estado2) params.append('estado2', this.state.filters.estado2);
+                            if (this.state.filters.status) params.append('status', this.state.filters.status);
+                            if (this.state.filters.priority) params.append('priority', this.state.filters.priority);
+                            if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
+                            
+                            const queryString = params.toString();
+                            const endpoint = queryString ? `/leads?${queryString}` : '/leads';
+                            
                             // Usar caché para reducir solicitudes al servidor
-                            const resp = await this.apiCall('GET', '/leads', null, true);
+                            const resp = await this.apiCall('GET', endpoint, null, true);
                             const leads = resp.leads || [];
-                            console.log('📊 API devuelve', leads.length, 'leads');
+                            console.log('📊 API devuelve', leads.length, 'leads con filtros:', this.state.filters);
                             this.handleWebSocketMessage({ type: 'all_leads', data: leads });
                         } catch (error) {
                             console.error('❌ Error cargando leads:', error);
@@ -880,19 +892,20 @@ class CallsManager {
     applyFilters() {
         console.log('🔍 Aplicando filtros...');
         
-        // Leer valores de los filtros
-        this.state.filters.city = this.elements.cityFilter?.value || '';
+        // Leer valores de los filtros incluyendo estado1 y estado2
+        this.state.filters.estado1 = this.elements.estado1Filter?.value || '';
+        this.state.filters.estado2 = this.elements.estado2Filter?.value || '';
         this.state.filters.status = this.elements.statusFilter?.value || '';
         this.state.filters.priority = this.elements.priorityFilter?.value || '';
-        this.state.filters.selected = this.elements.selectedFilter?.checked || false;
+        this.state.filters.selected = this.elements.selectedFilter?.value || '';
         
         console.log('Filtros aplicados:', this.state.filters);
         
         // Resetear a la primera página
         this.state.currentPage = 1;
         
-        // Re-renderizar tabla
-        this.renderTable();
+        // Recargar datos con filtros desde el servidor
+        this.sendMessage('get_all_leads');
     }
 
     toggleLeadSelection(leadId, isSelected) {
@@ -1282,23 +1295,6 @@ class CallsManager {
 
     // Método apiCall duplicado - REMOVIDO (usar el de arriba)
 
-    applyFilters() {
-        // Update filters state from UI elements
-        this.state.filters.estado1 = this.elements.estado1Filter?.value || '';
-        this.state.filters.estado2 = this.elements.estado2Filter?.value || '';
-        this.state.filters.status = this.elements.statusFilter?.value || '';
-        this.state.filters.priority = this.elements.priorityFilter?.value || '';
-        this.state.filters.selected = this.elements.selectedFilter?.value || '';
-        
-        // Reset to first page when applying filters
-        this.state.currentPage = 1;
-        
-        // Re-render table with filters applied
-        this.renderTable();
-        
-        console.log('🔍 Filtros aplicados:', this.state.filters);
-    }
-
     clearFilters() {
         // Reset all filter values
         this.state.filters = {
@@ -1319,8 +1315,8 @@ class CallsManager {
         // Reset to first page
         this.state.currentPage = 1;
         
-        // Re-render table
-        this.renderTable();
+        // Recargar datos desde el servidor sin filtros
+        this.sendMessage('get_all_leads');
         
         console.log('🧹 Filtros limpiados');
     }
