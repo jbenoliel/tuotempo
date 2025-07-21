@@ -237,6 +237,8 @@ def get_leads_for_calling():
         - city: Filtrar por ciudad
         - status: Filtrar por estado de llamada
         - priority: Filtrar por prioridad
+        - estado1: Filtrar por status_level_1 (estado)
+        - estado2: Filtrar por status_level_2 (subestado)
         - selected_only: true/false - Solo leads seleccionados
         - limit: Número máximo de resultados (default: 100)
         - offset: Offset para paginación (default: 0)
@@ -249,6 +251,8 @@ def get_leads_for_calling():
         city = request.args.get('city')
         status = request.args.get('status')
         priority = request.args.get('priority')  # puede ser None o ''
+        estado1 = request.args.get('estado1')
+        estado2 = request.args.get('estado2')
         selected_only = request.args.get('selected_only', 'false').lower() == 'true'
         limit = int(request.args.get('limit', 100))
         offset = int(request.args.get('offset', 0))
@@ -276,6 +280,14 @@ def get_leads_for_calling():
             except ValueError:
                 logger.warning(f"Parámetro 'priority' inválido: {priority}")
         
+        if estado1 and estado1 != '':
+            conditions.append("status_level_1 = %s")
+            params.append(estado1)
+        
+        if estado2 and estado2 != '':
+            conditions.append("status_level_2 = %s")
+            params.append(estado2)
+        
         if selected_only:
             conditions.append("selected_for_calling = TRUE")
         
@@ -292,8 +304,8 @@ def get_leads_for_calling():
                 last_call_attempt, 
                 call_attempts_count, 
                 call_error_message, 
-                last_call_attempt, 
-                call_attempts_count, 
+                status_level_1, 
+                status_level_2,
                 updated_at
             FROM leads 
             WHERE {where_clause}
