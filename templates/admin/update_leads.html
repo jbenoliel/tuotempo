@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% block title %}Actualizar Leads{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Título -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-edit me-2"></i>Actualizar Leads
+                        </h4>
+                        <a href="{{ url_for('main.admin_tools') }}" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i>Volver
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Búsqueda de Leads -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-search me-2"></i>Buscar Lead
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" 
+                                       id="searchInput" 
+                                       class="form-control" 
+                                       placeholder="Buscar por teléfono, nombre o apellido...">
+                                <button class="btn btn-primary" 
+                                        type="button" 
+                                        id="searchBtn">
+                                    Buscar
+                                </button>
+                            </div>
+                            <small class="text-muted">Introduce al menos 2 caracteres para buscar</small>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-outline-secondary" 
+                                    type="button" 
+                                    id="clearBtn">
+                                <i class="fas fa-times me-1"></i>Limpiar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados de Búsqueda -->
+    <div class="row mb-4" id="searchResults" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Resultados de Búsqueda
+                        <span id="resultCount" class="badge bg-secondary ms-2">0</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Ciudad</th>
+                                    <th>Estado 1</th>
+                                    <th>Estado 2</th>
+                                    <th>Llamadas</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTableBody">
+                                <!-- Resultados dinámicos -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Actualización -->
+    <div class="row" id="updateForm" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>Actualizar Lead
+                        <span id="leadName" class="text-muted ms-2"></span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="updateLeadForm">
+                        <input type="hidden" id="leadId" name="leadId">
+                        
+                        <div class="row">
+                            <!-- Información Básica -->
+                            <div class="col-md-6">
+                                <h6 class="border-bottom pb-2 mb-3">
+                                    <i class="fas fa-user me-2"></i>Información Básica
+                                </h6>
+                                
+                                <div class="mb-3">
+                                    <label for="telefono" class="form-label">Teléfono *</label>
+                                    <input type="text" class="form-control" id="telefono" name="telefono" required readonly>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="buzon" class="form-label">Buzón de Voz</label>
+                                    <select class="form-select" id="buzon" name="buzon">
+                                        <option value="">No especificado</option>
+                                        <option value="true">Sí - Cayó en buzón</option>
+                                        <option value="false">No - Contestó</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="volverALlamar" class="form-label">¿Volver a llamar?</label>
+                                    <select class="form-select" id="volverALlamar" name="volverALlamar">
+                                        <option value="">No especificado</option>
+                                        <option value="true">Sí - Volver a llamar</option>
+                                        <option value="false">No - No volver a llamar</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Códigos y Estados -->
+                            <div class="col-md-6">
+                                <h6 class="border-bottom pb-2 mb-3">
+                                    <i class="fas fa-tags me-2"></i>Códigos y Estados
+                                </h6>
+
+                                <div class="mb-3">
+                                    <label for="codigoNoInteres" class="form-label">Código No Interés</label>
+                                    <select class="form-select" id="codigoNoInteres" name="codigoNoInteres">
+                                        <option value="">No especificado</option>
+                                        <option value="no disponibilidad">No disponibilidad cliente</option>
+                                        <option value="descontento">Descontento con Adeslas</option>
+                                        <option value="bajaProxima">Próxima baja</option>
+                                        <option value="otros">No da motivos</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="codigoVolverLlamar" class="form-label">Código Volver a Llamar</label>
+                                    <select class="form-select" id="codigoVolverLlamar" name="codigoVolverLlamar">
+                                        <option value="">No especificado</option>
+                                        <option value="buzon">Buzón</option>
+                                        <option value="interrupcion">No disponible cliente</option>
+                                        <option value="proble_tecnico">Interesado. Problema técnico</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="fechaCita" class="form-label">Fecha de Cita</label>
+                                    <input type="date" class="form-control" id="fechaCita" name="fechaCita">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="horaCita" class="form-label">Hora de Cita</label>
+                                    <input type="time" class="form-control" id="horaCita" name="horaCita">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" id="cancelBtn">
+                                        <i class="fas fa-times me-1"></i>Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i>Actualizar Lead
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container para Notificaciones -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Actualización de Leads</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastBody">
+            <!-- Mensaje dinámico -->
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+class LeadUpdater {
+    constructor() {
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        document.getElementById('searchBtn').addEventListener('click', () => this.searchLeads());
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.searchLeads();
+        });
+        document.getElementById('clearBtn').addEventListener('click', () => this.clearSearch());
+        document.getElementById('cancelBtn').addEventListener('click', () => this.hideUpdateForm());
+        document.getElementById('updateLeadForm').addEventListener('submit', (e) => this.updateLead(e));
+    }
+
+    async searchLeads() {
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        
+        if (searchTerm.length < 2) {
+            this.showToast('Introduce al menos 2 caracteres para buscar', 'warning');
+            return;
+        }
+
+        try {
+            this.showLoading(true);
+            const response = await fetch(`/api/search-leads?q=${encodeURIComponent(searchTerm)}&limit=20`);
+            const data = await response.json();
+
+            if (response.ok) {
+                this.displayResults(data.leads, data.message);
+            } else {
+                this.showToast(data.error || 'Error en la búsqueda', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            this.showToast('Error de conexión', 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    displayResults(leads, message) {
+        const resultsDiv = document.getElementById('searchResults');
+        const tableBody = document.getElementById('resultsTableBody');
+        const countBadge = document.getElementById('resultCount');
+
+        countBadge.textContent = leads.length;
+        tableBody.innerHTML = '';
+
+        if (leads.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        <i class="fas fa-search fs-3"></i>
+                        <p class="mt-2 mb-0">No se encontraron leads</p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            leads.forEach(lead => {
+                const row = `
+                    <tr>
+                        <td>${this.escapeHtml(lead.nombre || '')} ${this.escapeHtml(lead.apellidos || '')}</td>
+                        <td>
+                            <span class="text-primary">${this.escapeHtml(lead.telefono || lead.telefono2 || 'N/A')}</span>
+                        </td>
+                        <td>${this.escapeHtml(lead.ciudad || 'N/A')}</td>
+                        <td>
+                            <span class="badge bg-info">${this.escapeHtml(lead.status_level_1 || 'N/A')}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">${this.escapeHtml(lead.status_level_2 || 'N/A')}</span>
+                        </td>
+                        <td>${lead.call_attempts_count || 0}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" 
+                                    onclick="leadUpdater.selectLead(${lead.id})">
+                                <i class="fas fa-edit me-1"></i>Editar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        resultsDiv.style.display = 'block';
+        resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        
+        if (message) {
+            this.showToast(message, 'info');
+        }
+    }
+
+    async selectLead(leadId) {
+        try {
+            // Buscar los datos del lead seleccionado
+            const response = await fetch(`/api/search-leads?q=${leadId}&limit=1`);
+            const data = await response.json();
+            
+            if (data.leads && data.leads.length > 0) {
+                const lead = data.leads[0];
+                this.showUpdateForm(lead);
+            } else {
+                this.showToast('Error al cargar los datos del lead', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            this.showToast('Error al cargar los datos del lead', 'error');
+        }
+    }
+
+    showUpdateForm(lead) {
+        document.getElementById('leadId').value = lead.id;
+        document.getElementById('leadName').textContent = `${lead.nombre || ''} ${lead.apellidos || ''}`.trim();
+        document.getElementById('telefono').value = lead.telefono || lead.telefono2 || '';
+        
+        document.getElementById('updateForm').style.display = 'block';
+        document.getElementById('updateForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    hideUpdateForm() {
+        document.getElementById('updateForm').style.display = 'none';
+        document.getElementById('updateLeadForm').reset();
+    }
+
+    async updateLead(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const data = {
+            telefono: formData.get('telefono')
+        };
+
+        // Añadir campos opcionales solo si tienen valor
+        ['buzon', 'volverALlamar', 'codigoNoInteres', 'codigoVolverLlamar', 'fechaCita', 'horaCita']
+            .forEach(field => {
+                const value = formData.get(field);
+                if (value && value !== '') {
+                    if (field === 'buzon' || field === 'volverALlamar') {
+                        data[field] = value === 'true';
+                    } else if (field === 'fechaCita' && formData.get('horaCita')) {
+                        data[field] = `${value} ${formData.get('horaCita')}`;
+                    } else if (field !== 'horaCita') {
+                        data[field] = value;
+                    }
+                }
+            });
+
+        try {
+            this.showLoading(true);
+            const response = await fetch('/api/actualizar_resultado', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                this.showToast('Lead actualizado exitosamente', 'success');
+                this.hideUpdateForm();
+                // Refrescar resultados
+                if (document.getElementById('searchResults').style.display !== 'none') {
+                    this.searchLeads();
+                }
+            } else {
+                this.showToast(result.error || 'Error al actualizar el lead', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            this.showToast('Error de conexión al actualizar', 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    clearSearch() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchResults').style.display = 'none';
+        this.hideUpdateForm();
+    }
+
+    showLoading(show) {
+        const searchBtn = document.getElementById('searchBtn');
+        if (show) {
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+        } else {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = 'Buscar';
+        }
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const toastBody = document.getElementById('toastBody');
+        
+        // Configurar color según el tipo
+        toast.className = `toast ${type === 'error' ? 'bg-danger text-white' : type === 'success' ? 'bg-success text-white' : type === 'warning' ? 'bg-warning' : 'bg-info text-white'}`;
+        toastBody.textContent = message;
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// Inicializar cuando cargue la página
+document.addEventListener('DOMContentLoaded', () => {
+    window.leadUpdater = new LeadUpdater();
+});
+</script>
+{% endblock %}

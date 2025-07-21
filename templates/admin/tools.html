@@ -54,6 +54,24 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Segunda fila de herramientas -->
+            <div class="row g-4 mt-2">
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-edit fa-3x text-warning"></i>
+                            </div>
+                            <h5 class="card-title">Actualizar Leads</h5>
+                            <p class="card-text">Busca y actualiza información de leads usando la API de resultado de llamadas.</p>
+                            <a href="{{ url_for('main.update_leads') }}" class="btn btn-warning">
+                                <i class="fas fa-search me-1"></i> Actualizar Leads
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -545,6 +545,69 @@ def calls_manager():
             
     return render_template('calls_manager.html', calls=calls, stats=stats, filter_data=filter_data)
 
+@bp.route('/admin/update-leads')
+@login_required
+def update_leads():
+    """Página de administración para actualizar leads."""
+    return render_template('admin/update_leads.html')
+
+@bp.route('/api/search-leads', methods=['GET'])
+@login_required
+def search_leads():
+    """API para buscar leads por teléfono, nombre o apellido."""
+    search_term = request.args.get('q', '').strip()
+    limit = int(request.args.get('limit', 10))
+    
+    if not search_term or len(search_term) < 2:
+        return jsonify({'leads': [], 'message': 'Término de búsqueda muy corto'})
+    
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Buscar por teléfono (telefono o telefono2), nombre, apellidos o ID
+        query = """
+            SELECT id, nombre, apellidos, telefono, telefono2, email, ciudad,
+                   status_level_1, status_level_2, call_status, call_priority,
+                   last_call_attempt, call_attempts_count, updated_at
+            FROM leads 
+            WHERE (telefono LIKE %s OR telefono2 LIKE %s 
+                   OR nombre LIKE %s OR apellidos LIKE %s OR id = %s)
+            ORDER BY updated_at DESC
+            LIMIT %s
+        """
+        
+        search_pattern = f'%{search_term}%'
+        # Intentar convertir a ID numérico, usar 0 si no es un número
+        try:
+            search_id = int(search_term)
+        except ValueError:
+            search_id = 0
+            
+        cursor.execute(query, (search_pattern, search_pattern, search_pattern, search_pattern, search_id, limit))
+        leads = cursor.fetchall()
+        
+        # Formatear fechas para JSON
+        for lead in leads:
+            if lead.get('last_call_attempt'):
+                lead['last_call_attempt'] = lead['last_call_attempt'].strftime('%Y-%m-%d %H:%M:%S')
+            if lead.get('updated_at'):
+                lead['updated_at'] = lead['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        return jsonify({
+            'leads': leads,
+            'count': len(leads),
+            'message': f'Encontrados {len(leads)} leads'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error buscando leads: {e}")
+        return jsonify({'error': 'Error en la búsqueda', 'leads': []}), 500
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 # --- REGISTRO DE APIS ---
 
 # Esta función ha sido combinada con la función register_apis anterior
