@@ -447,16 +447,27 @@ class CallsManager {
     }
 
     updateSystemStatus(data) {
+        // Extraer el estado de ejecución del sistema desde la estructura correcta
+        // Verificar si tenemos la estructura completa o solo el estado
+        const statusData = data.system_status && data.system_status.call_manager 
+            ? data.system_status.call_manager 
+            : data;
+            
+        // Verificar si el campo is_running existe
+        const isRunning = statusData && typeof statusData.is_running === 'boolean' 
+            ? statusData.is_running 
+            : false;
+            
         const wasRunning = this.state.isSystemRunning;
-        this.state.isSystemRunning = data.is_running;
+        this.state.isSystemRunning = isRunning;
         
-        this.elements.systemStatus.textContent = data.is_running ? 'Activo' : 'Detenido';
-        this.elements.systemStatus.className = `badge fs-6 ${data.is_running ? 'bg-success' : 'bg-danger'}`;
-        this.elements.startCallsBtn.disabled = data.is_running;
-        this.elements.stopCallsBtn.disabled = !data.is_running;
+        this.elements.systemStatus.textContent = isRunning ? 'Activo' : 'Detenido';
+        this.elements.systemStatus.className = `badge fs-6 ${isRunning ? 'bg-success' : 'bg-danger'}`;
+        this.elements.startCallsBtn.disabled = isRunning;
+        this.elements.stopCallsBtn.disabled = !isRunning;
 
         // Clear loading state when system stops
-        if (wasRunning && !data.is_running) {
+        if (wasRunning && !isRunning) {
             this.showLoader(this.elements.startCallsBtn, false);
             this.showLoader(this.elements.stopCallsBtn, false);
             
