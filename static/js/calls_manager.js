@@ -17,6 +17,7 @@ class CallsManager {
             maxRetries: 5,
             retryDelay: 5000, // 5 segundos
             isLoading: false,
+            isInitialized: false,
             filters: {
                 estado1: '',
                 estado2: '',
@@ -31,6 +32,11 @@ class CallsManager {
     }
 
     init() {
+        if (this.state.isInitialized) {
+            console.warn('⚠️ CallsManager ya está inicializado');
+            return;
+        }
+        
         console.log('🚀 Inicializando CallsManager...');
         
         // Asegurar que los métodos utilitarios existen
@@ -91,13 +97,17 @@ class CallsManager {
         this.cacheElements();
         this.bindEvents();
         this.connectWebSocket();
+        
+        // Solo cargar datos iniciales una vez
         this.loadInitialData();
-        this.loadFilters();
         
         // Cargar configuración al final
         this.loadConfiguration().catch(error => {
             console.warn('Error cargando configuración:', error);
         });
+        
+        // Marcar como inicializado
+        this.state.isInitialized = true;
         
         console.log('✅ CallsManager inicializado correctamente');
     }
@@ -416,6 +426,11 @@ class CallsManager {
     }
 
     async loadInitialData() {
+        if (this.state.isLoading) {
+            console.warn('⚠️ Ya se están cargando datos iniciales');
+            return;
+        }
+        
         this.setLoading(true);
         try {
             await this.sendMessage('get_all_leads');
@@ -848,14 +863,19 @@ class CallsManager {
 
     async sendMessage(type, data = {}) {
         // Since WebSocket is disabled, use HTTP API calls instead
+        console.log(`📡 sendMessage: ${type}`);
+        
         try {
             switch (type) {
                 case 'get_all_leads':
                     const response = await this.apiCall('GET', '/leads');
                     if (response.success && response.data) {
                         this.state.leads = this.normalizeLeadsData(response.data);
-                        this.updateFilters();
-                        this.renderTable();
+                        // Solo actualizar filtros y tabla si no están ya inicializados
+                        if (this.elements.leadsTableBody) {
+                            this.updateFilters();
+                            this.renderTable();
+                        }
                     }
                     break;
                 case 'get_status':
@@ -1298,55 +1318,40 @@ class CallsManager {
                     this.elements.pearlConnectionStatus.innerHTML = 
                         '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Conectado</span>';
                 }
-                console.log('✅ Conexión exitosa');
             } else {
-                const errorMsg = response ? response.error : 'Error desconocido';
-                this.showToast('Error de conexión: ' + errorMsg, 'error');
+                this.showToast('Error de conexión con Pearl API', 'error');
                 if (this.elements.pearlConnectionStatus) {
                     this.elements.pearlConnectionStatus.innerHTML = 
                         '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Error</span>';
                 }
-                console.error('❌ Error de conexión:', errorMsg);
             }
         } catch (error) {
-            console.error('❌ Error al probar conexión:', error);
+            console.error('❌ Error probando conexión:', error);
             this.showToast('Error al probar conexión: ' + error.message, 'error');
             if (this.elements.pearlConnectionStatus) {
                 this.elements.pearlConnectionStatus.innerHTML = 
-                    '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Sin conexión</span>';
+                    '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Error</span>';
             }
         } finally {
             this.showLoader(button, false);
         }
     }
+}
 
-    // Método para debugging - TEMPORAL
-    debugApiEndpoints() {
-        console.log('🔍 === DEBUG: Probando endpoints ===');
-        console.log('Base URL:', window.location.origin);
-        
-        const endpoints = ['/status', '/leads', '/configuration', '/test-connection'];
-        
-        endpoints.forEach(async (endpoint) => {
-            try {
-                const url = `/api/calls${endpoint}`;
-                console.log(`🔍 Probando: ${url}`);
-                const response = await fetch(url, { method: 'GET' });
-                console.log(`${endpoint}: ${response.status} ${response.statusText}`);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log(`${endpoint} data:`, data);
-                }
-            } catch (error) {
-                console.error(`${endpoint}: Error -`, error.message);
-            }
-        });
-    }
+// Instancia global del CallsManager
+window.CallsManager = new CallsManager();
 
-    destroy() {
-        this.stopAutoRefresh();
-        console.log('📴 CallsManager destruido');
+// Prevenir múltiples inicializaciones
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!window.CallsManager.state.isInitialized) {
+            window.CallsManager.init();
+        }
+    });
+} else {
+    // Si el DOM ya está cargado
+    if (!window.CallsManager.state.isInitialized) {
+        window.CallsManager.init();
     }
 }
 
