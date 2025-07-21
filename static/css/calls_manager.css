@@ -3,15 +3,36 @@ Estilos personalizados para el Gestor de Llamadas Automáticas
 TuoTempo - Sistema de llamadas con Pearl AI
 */
 
-/* Variables CSS personalizadas */
+/* Variables CSS personalizadas - Paleta Corporativa */
 :root {
-    --primary-color: #0d6efd;
-    --success-color: #198754;
-    --warning-color: #ffc107;
-    --danger-color: #dc3545;
-    --info-color: #0dcaf0;
-    --dark-color: #212529;
-    --light-color: #f8f9fa;
+    /* Verdes */
+    --verde-1: #C5E0B4;
+    --verde-2: #92D050;
+    
+    /* Azules */
+    --azul-1: #35C0F1;
+    --azul-2: #DAE3F3;
+    --azul-3: #C0D2E8;
+    --azul-4: #B5E0F4;
+    --azul-5: #37ADE2;
+    
+    /* Grises */
+    --gris-1: #F6F6F6;
+    --gris-2: #E8E8E8;
+    --gris-3: #646762;
+    --gris-4: #7C7C7C;
+    
+    /* Asignación de variables funcionales */
+    --primary-color: var(--azul-5);
+    --secondary-color: var(--gris-3);
+    --success-color: var(--verde-2);
+    --info-color: var(--azul-1);
+    --warning-color: var(--verde-1);
+    --danger-color: #dc3545; /* Mantener rojo para errores */
+    --dark-color: var(--gris-3);
+    --light-color: var(--gris-1);
+    
+    /* Otras variables de estilo */
     --border-radius: 0.375rem;
     --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     --transition: all 0.15s ease-in-out;
@@ -19,7 +40,8 @@ TuoTempo - Sistema de llamadas con Pearl AI
 
 /* Estilos generales */
 body {
-    background-color: #f8f9fa;
+    background-color: var(--gris-1);
+    color: var(--gris-3);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -35,7 +57,7 @@ body {
 }
 
 .navbar-nav .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--azul-4);
     border-radius: var(--border-radius);
 }
 
@@ -82,14 +104,14 @@ body {
 }
 
 .btn-success {
-    background: linear-gradient(45deg, #198754, #20c997);
+    background: linear-gradient(45deg, var(--verde-2), var(--verde-1));
     border: none;
 }
 
 .btn-success:hover {
-    background: linear-gradient(45deg, #157347, #1aa179);
+    background: linear-gradient(45deg, var(--verde-1), var(--verde-2));
     transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(25, 135, 84, 0.3);
+    box-shadow: 0 0.5rem 1rem rgba(146, 208, 80, 0.3);
 }
 
 .btn-danger {
@@ -182,7 +204,7 @@ body {
 }
 
 .badge.bg-success {
-    background: linear-gradient(45deg, #198754, #20c997) !important;
+    background: linear-gradient(45deg, var(--verde-2), var(--verde-1)) !important;
     animation: pulse-success 2s infinite;
 }
 
@@ -268,22 +290,22 @@ body {
 
 /* Tabla de leads */
 .table {
-    font-size: 0.9rem;
+font-size: 0.9rem;
 }
 
 .table thead th {
-    background-color: var(--dark-color);
-    color: white;
-    font-weight: 600;
-    border: none;
-    vertical-align: middle;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+background-color: var(--azul-3);
+color: var(--gris-3);
+font-weight: 600;
+padding: 12px;
+text-transform: uppercase;
+font-size: 0.8rem;
+letter-spacing: 0.5px;
+z-index: 10;
 }
 
 .table tbody tr {
-    transition: var(--transition);
+transition: var(--transition);
 }
 
 .table tbody tr:hover {
@@ -386,7 +408,7 @@ body {
 
 .modal-header {
     border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-    background: linear-gradient(45deg, var(--primary-color), #6610f2);
+    background: linear-gradient(45deg, var(--azul-5), var(--azul-1));
     color: white;
     border-radius: var(--border-radius) var(--border-radius) 0 0;
 }

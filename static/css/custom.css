@@ -1,21 +1,40 @@
 /* Estilos personalizados para Segurcaixa Dashboard */
 
-/* Colores personalizados */
+/* Colores personalizados - Paleta Corporativa */
 :root {
-  --primary-color: #0056b3;
-  --secondary-color: #6c757d;
-  --success-color: #28a745;
-  --info-color: #17a2b8;
-  --warning-color: #ffc107;
-  --danger-color: #dc3545;
-  --light-color: #f8f9fa;
-  --dark-color: #343a40;
+  /* Verdes */
+  --verde-1: #C5E0B4;
+  --verde-2: #92D050;
+  
+  /* Azules */
+  --azul-1: #35C0F1;
+  --azul-2: #DAE3F3;
+  --azul-3: #C0D2E8;
+  --azul-4: #B5E0F4;
+  --azul-5: #37ADE2;
+  
+  /* Grises */
+  --gris-1: #F6F6F6;
+  --gris-2: #E8E8E8;
+  --gris-3: #646762;
+  --gris-4: #7C7C7C;
+  
+  /* Asignación de variables funcionales */
+  --primary-color: var(--azul-5);
+  --secondary-color: var(--gris-3);
+  --success-color: var(--verde-2);
+  --info-color: var(--azul-1);
+  --warning-color: var(--verde-1);
+  --danger-color: #dc3545; /* Mantener rojo para errores */
+  --light-color: var(--gris-1);
+  --dark-color: var(--gris-3);
 }
 
 /* Estilos generales */
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f5f5;
+  background-color: var(--gris-1);
+  color: var(--gris-3);
 }
 
 .navbar-brand {
@@ -31,9 +50,10 @@ body {
 }
 
 .card-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+  background-color: var(--azul-2);
+  border-bottom: 1px solid var(--azul-3);
   padding: 12px 20px;
+  color: var(--gris-3);
 }
 
 .card-title {
@@ -43,8 +63,9 @@ body {
 
 /* Tablas */
 .table th {
-  background-color: #f8f9fa;
+  background-color: var(--azul-2);
   font-weight: 600;
+  color: var(--gris-3);
 }
 
 /* Botones */
@@ -54,13 +75,23 @@ body {
 }
 
 .btn-primary {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
+  background-color: var(--azul-5);
+  border-color: var(--azul-5);
 }
 
 .btn-primary:hover {
-  background-color: #004494;
-  border-color: #004494;
+  background-color: var(--azul-1);
+  border-color: var(--azul-1);
+}
+
+.btn-success {
+  background-color: var(--verde-2);
+  border-color: var(--verde-2);
+}
+
+.btn-success:hover {
+  background-color: var(--verde-1);
+  border-color: var(--verde-1);
 }
 
 /* Badges */
@@ -87,10 +118,11 @@ body {
 
 /* Footer */
 .footer {
-  background-color: #f8f9fa;
-  border-top: 1px solid #dee2e6;
+  background-color: var(--azul-2);
+  border-top: 1px solid var(--azul-3);
   padding: 15px 0;
   margin-top: 30px;
+  color: var(--gris-3);
 }
 
 /* Responsive */
