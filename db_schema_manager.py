@@ -11,13 +11,7 @@ import sys
 import logging
 from db import get_connection, get_database_name
 
-# Configuración del logging para que sea visible en los logs de Railway/Docker
-logging.basicConfig(
-    level=logging.DEBUG,  # Nivel DEBUG para máxima verbosidad
-    format='%(asctime)s,%(msecs)03d - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    stream=sys.stdout  # Enviar logs a la salida estándar
-)
+# Usar el logger existente sin reconfigurar
 logger = logging.getLogger(__name__)
 
 def parse_sql_schema():

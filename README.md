@@ -13,10 +13,11 @@ Este proyecto es una aplicación web basada en Flask para la gestión de contact
 ## URLs de las APIs desplegadas
 
 ### API de Resultado de Llamadas
-- **URL Base**: https://actualizarllamadas-production.up.railway.app
+- **URL Base Principal**: https://tuotempo-apis-production.up.railway.app
+- **URL Base Alternativa**: https://actualizarllamadas.up.railway.app
 - **Endpoints**:
   - `GET /api/status` - Verifica el estado de la API
-  - `POST /api/actualizar_resultado` - Actualiza el resultado de una llamada
+  - `POST /api/actualizar_resultado` - Actualiza el resultado de una llamada (disponible en ambas URLs base)
 
 ### API de TuoTempo (pendiente de desplegar)
 - **URL Base**: [Pendiente de despliegue]
@@ -34,12 +35,16 @@ Este proyecto es una aplicación web basada en Flask para la gestión de contact
 ### Endpoint: POST /api/actualizar_resultado
 Servicio para actualizar el estado de un lead después de una llamada.
 
+**URLs disponibles**
+- `https://tuotempo-apis-production.up.railway.app/api/actualizar_resultado`
+- `https://actualizarllamadas.up.railway.app/api/actualizar_resultado`
+
 **Parámetros JSON**  
 Los campos `status_level_1` y `status_level_2` **ya no se envían**; el backend los calcula automáticamente a partir de las reglas de negocio.
 
 | Campo | Tipo | Obligatorio | Descripción |
-|-------|------|-------------|-------------|
-| `telefono` | string | Sí | Número de teléfono del lead. |
+|-------|------|-------------|-----------|
+| `telefono` | string | Sí | Número de teléfono del lead **sin prefijo internacional** (ejemplo: "600123456" y no "+34600123456"). El teléfono debe existir en la base de datos. |
 | `nuevaCita` | string `YYYY-MM-DD HH:MM` | No | Si se informa, la llamada se marca como **Éxito / Cita programada**. |
 | `buzon` | boolean | No | `true` si la llamada cae en buzón ⇒ **Volver a llamar / buzón**. |
 | `volverALlamar` | boolean | No | `true` para indicar que se debe volver a llamar. |
@@ -51,6 +56,16 @@ Los campos `status_level_1` y `status_level_2` **ya no se envían**; el backend 
 | `razonNoInteres` | string | No | Motivo textual de no interés. |
 | `codigoNoInteres` | string | No | Código corto para no interés (`no disponibilidad`, `descontento`, `bajaProxima`, `otros`). |
 | `codigoVolverLlamar` | string | No | Código corto para rellamada (`buzon`, `interrupcion`, `proble_tecnico`). |
+
+**Posibles respuestas de error**
+
+| Código | Descripción |
+|--------|-------------|
+| 400 | Error en la petición. Posibles mensajes: |
+|  | • "Se requiere el número de teléfono" - No se ha enviado el campo `telefono` o no tiene el formato correcto |
+|  | • "No se encontró ningún lead con el teléfono XXXXXXXXX" - El número no existe en la base de datos |
+| 404 | No se encontró el endpoint (verificar URL) |
+| 500 | Error de base de datos.
 
 *Debe enviarse al menos un campo opcional (además de `telefono`) para que la petición sea procesada.*
 

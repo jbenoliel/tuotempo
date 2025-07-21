@@ -157,16 +157,22 @@
                     <div class="card-body">
                         <!-- Filtros -->
                         <div class="row mb-3 stats-row">
-                            <div class="col-md-3">
-                                <label for="cityFilter" class="form-label">Ciudad</label>
-                                <select class="form-select" id="cityFilter">
-                                    <option value="">Todas las ciudades</option>
+                            <div class="col-md-2">
+                                <label for="estado1Filter" class="form-label">Estado 1</label>
+                                <select id="estado1Filter" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
-                                <label for="statusFilter" class="form-label">Estado</label>
-                                <select class="form-select" id="statusFilter">
-                                    <option value="">Todos los estados</option>
+                            <div class="col-md-2">
+                                <label for="estado2Filter" class="form-label">Estado 2</label>
+                                <select id="estado2Filter" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="statusFilter" class="form-label">Estado Llamada</label>
+                                <select id="statusFilter" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
                                     <option value="no_selected">No Seleccionado</option>
                                     <option value="selected">Seleccionado</option>
                                     <option value="calling">Llamando</option>
@@ -176,25 +182,27 @@
                                     <option value="no_answer">Sin Respuesta</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="priorityFilter" class="form-label">Prioridad</label>
-                                <select class="form-select" id="priorityFilter">
-                                    <option value="">Todas las prioridades</option>
+                                <select id="priorityFilter" class="form-select form-select-sm">
+                                    <option value="">Todas</option>
                                     <option value="1">Alta (1)</option>
-                                    <option value="2">Media-Alta (2)</option>
                                     <option value="3">Normal (3)</option>
-                                    <option value="4">Media-Baja (4)</option>
                                     <option value="5">Baja (5)</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="selectedFilter" class="form-label">Selección</label>
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="selectedFilter">
-                                    <label class="form-check-label" for="selectedFilter">
-                                        Solo seleccionados
-                                    </label>
-                                </div>
+                                <select id="selectedFilter" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    <option value="true">Solo Seleccionados</option>
+                                    <option value="false">Solo No Seleccionados</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm mt-4">
+                                    <i class="bi bi-x-circle"></i> Limpiar
+                                </button>
                             </div>
                         </div>
 
@@ -208,9 +216,9 @@
                                         </th>
                                         <th>Nombre</th>
                                         <th>Teléfono</th>
-                                        <th>Ciudad</th>
-                                        <th>Clínica</th>
-                                        <th>Estado</th>
+                                        <th>Estado 1</th>
+                                        <th>Estado 2</th>
+                                        <th>Estado Llamada</th>
                                         <th>Prioridad</th>
                                         <th>Intentos</th>
                                         <th>Última Llamada</th>
@@ -226,8 +234,8 @@
                                             </td>
                                             <td>{{ call.nombre_lead or 'N/A' }}</td>
                                             <td>{{ call.telefono or 'N/A' }}</td>
-                                            <td>{{ call.ciudad or 'N/A' }}</td>
-                                            <td>{{ call.nombre_clinica or 'N/A' }}</td>
+                                            <td>{{ call.status_level_1 or 'N/A' }}</td>
+                                            <td>{{ call.status_level_2 or 'N/A' }}</td>
                                             <td>
                                                 <span class="badge 
                                                     {% if call.call_status == 'completed' %} bg-success

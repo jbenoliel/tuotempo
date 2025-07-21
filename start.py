@@ -60,21 +60,17 @@ def run_migrations():
         # Importar aquí para evitar dependencias circulares si el gestor usa logging
         from db_schema_manager import run_intelligent_migration
         
-        # Obtener el nombre del servicio de Railway y normalizarlo
-        service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'local').lower().replace(' ', '-')
-
-        # Lista de servicios que SÍ deben ejecutar la migración.
-        # --- IMPORTANTE: Pon aquí el nombre EXACTO y NORMALIZADO de tu servicio web principal ---
-        # Por ejemplo, si tu servicio principal en Railway se llama "Tuotempo WEB", pon 'tuotempo-web'.
-        MIGRATION_SERVICES = ['web'] # Se asume que 'web' es el servicio principal. Ajústalo si es necesario.
-
-        # Comprobar si el servicio actual debe ejecutar la migración
-        should_run_migration = any(mig_service in service_name for mig_service in MIGRATION_SERVICES)
-
+        # Usar variable específica para controlar migración (más robusto que nombres de servicio)
+        run_migration = os.environ.get('RUN_MIGRATION', 'true').lower() == 'true'
+        service_name = os.environ.get('RAILWAY_SERVICE_NAME', 'local')
+        
+        # En local siempre ejecutar migración, en Railway usar variable RUN_MIGRATION
         if os.environ.get('RAILWAY_SERVICE_NAME') is None:
-            # Si no estamos en Railway (ej. local), siempre ejecutar la migración
             logging.info("Entorno local detectado. Se ejecutará la migración.")
             should_run_migration = True
+        else:
+            should_run_migration = run_migration
+            logging.info(f"Entorno Railway detectado. RUN_MIGRATION={run_migration}")
 
         if should_run_migration:
             logging.info(f"El servicio '{service_name}' SÍ está configurado para ejecutar la migración.")
@@ -113,8 +109,9 @@ def run_migrations():
         logging.critical(f"FATAL: Ocurrió un error catastrófico durante la migración: {e}", exc_info=True)
     
     if not success:
-        logging.critical("--- 💥 La migración de la base de datos falló. El servicio no puede arrancar. ---")
-        sys.exit(1) # Detener el proceso para evitar que la app corra en un estado inconsistente
+        logging.error("--- ⚠️ La migración de la base de datos falló. Continuando con el arranque pero puede haber problemas. ---")
+        logging.warning("RECOMENDACIÓN: Revisa los logs de migración y considera ejecutar las migraciones manualmente.")
+        # No usar sys.exit(1) para permitir que el servicio arranque y pueda diagnosticarse
 
 def verify_deployment():
     """Verifica la integridad del despliegue."""

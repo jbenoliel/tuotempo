@@ -18,10 +18,11 @@ class CallsManager {
             retryDelay: 5000, // 5 segundos
             isLoading: false,
             filters: {
-                city: '',
+                estado1: '',
+                estado2: '',
                 status: '',
                 priority: '',
-                selected: false
+                selected: ''
             }
         };
         this.config = {
@@ -36,27 +37,51 @@ class CallsManager {
         if (!this.setLoading) this.setLoading = (flag) => { this.state.isLoading = flag; };
         if (!this.showToast) this.showToast = (msg, type='info') => {
             console.log(`📢 ${type.toUpperCase()}: ${msg}`);
-            // this.showNotification(msg, type);
+            this.showNotification(msg, type);
+        };
+        
+        // Función para normalizar datos de leads
+        if (!this.normalizeLeadsData) this.normalizeLeadsData = (leads) => {
+            return leads.map(lead => {
+                return {
+                    ...lead,
+                    selected_for_calling: lead.selected_for_calling || false,
+                    call_status: lead.call_status || 'no_selected',
+                    call_priority: lead.call_priority || 3,
+                    call_attempts_count: lead.call_attempts_count || 0,
+                    status_level_1: lead.status_level_1 || '',
+                    status_level_2: lead.status_level_2 || ''
+                };
+            });
         };
         
         // Métodos de filtros mínimos
         if (!this.getFilteredLeads) this.getFilteredLeads = () => {
             return this.state.leads.filter(l => {
                 const f = this.state.filters;
-                if (f.city && l.ciudad !== f.city) return false;
+                if (f.estado1 && l.status_level_1 !== f.estado1) return false;
+                if (f.estado2 && l.status_level_2 !== f.estado2) return false;
                 if (f.status && l.call_status !== f.status) return false;
                 if (f.priority && String(l.call_priority) !== String(f.priority)) return false;
-                if (f.selected && !l.selected_for_calling) return false;
+                if (f.selected === 'true' && !l.selected_for_calling) return false;
+                if (f.selected === 'false' && l.selected_for_calling) return false;
                 return true;
             });
         };
         
         if (!this.updateFilters) this.updateFilters = () => {
             // Rellenar combos con valores únicos
-            const cities = [...new Set(this.state.leads.map(l => l.ciudad).filter(Boolean))].sort();
-            if (this.elements.cityFilter) {
-                this.elements.cityFilter.innerHTML = '<option value="">Todas</option>' + 
-                    cities.map(c=>`<option value="${c}">${c}</option>`).join('');
+            const estados1 = [...new Set(this.state.leads.map(l => l.status_level_1).filter(Boolean))].sort();
+            const estados2 = [...new Set(this.state.leads.map(l => l.status_level_2).filter(Boolean))].sort();
+            
+            if (this.elements.estado1Filter) {
+                this.elements.estado1Filter.innerHTML = '<option value="">Todos</option>' + 
+                    estados1.map(e=>`<option value="${e}">${e}</option>`).join('');
+            }
+            
+            if (this.elements.estado2Filter) {
+                this.elements.estado2Filter.innerHTML = '<option value="">Todos</option>' + 
+                    estados2.map(e=>`<option value="${e}">${e}</option>`).join('');
             }
         };
         
@@ -69,7 +94,7 @@ class CallsManager {
         this.loadInitialData();
         this.loadFilters();
         
-        // Cargar configuración al final (método ahora existe)
+        // Cargar configuración al final
         this.loadConfiguration().catch(error => {
             console.warn('Error cargando configuración:', error);
         });
@@ -93,10 +118,12 @@ class CallsManager {
             resetLeadsBtn: document.getElementById('resetLeadsBtn'),
             toastContainer: document.getElementById('toastContainer'),
             // Filtros
-            cityFilter: document.getElementById('cityFilter'),
+            estado1Filter: document.getElementById('estado1Filter'),
+            estado2Filter: document.getElementById('estado2Filter'),
             statusFilter: document.getElementById('statusFilter'),
             priorityFilter: document.getElementById('priorityFilter'),
             selectedFilter: document.getElementById('selectedFilter'),
+            clearFiltersBtn: document.getElementById('clearFiltersBtn'),
             // Modales
             configModal: document.getElementById('configModal'),
             maxConcurrentCalls: document.getElementById('maxConcurrentCalls'),
@@ -125,10 +152,12 @@ class CallsManager {
         this.elements.startCallsBtn?.addEventListener('click', () => this.startCalling());
         this.elements.stopCallsBtn?.addEventListener('click', () => this.stopCalling());
         this.elements.refreshBtn?.addEventListener('click', () => this.loadInitialData());
-        this.elements.cityFilter?.addEventListener('change', () => this.applyFilters());
+        this.elements.estado1Filter?.addEventListener('change', () => this.applyFilters());
+        this.elements.estado2Filter?.addEventListener('change', () => this.applyFilters());
         this.elements.statusFilter?.addEventListener('change', () => this.applyFilters());
         this.elements.priorityFilter?.addEventListener('change', () => this.applyFilters());
         this.elements.selectedFilter?.addEventListener('change', () => this.applyFilters());
+        this.elements.clearFiltersBtn?.addEventListener('click', () => this.clearFilters());
         this.elements.selectAllBtn?.addEventListener('click', () => this.selectAllLeads(true));
         this.elements.deselectAllBtn?.addEventListener('click', () => this.selectAllLeads(false));
         this.elements.resetLeadsBtn?.addEventListener('click', () => this.resetLeads());
@@ -403,11 +432,24 @@ class CallsManager {
     }
 
     updateSystemStatus(data) {
+        const wasRunning = this.state.isSystemRunning;
         this.state.isSystemRunning = data.is_running;
+        
         this.elements.systemStatus.textContent = data.is_running ? 'Activo' : 'Detenido';
         this.elements.systemStatus.className = `badge fs-6 ${data.is_running ? 'bg-success' : 'bg-danger'}`;
         this.elements.startCallsBtn.disabled = data.is_running;
         this.elements.stopCallsBtn.disabled = !data.is_running;
+
+        // Clear loading state when system stops
+        if (wasRunning && !data.is_running) {
+            this.showLoader(this.elements.startCallsBtn, false);
+            this.showLoader(this.elements.stopCallsBtn, false);
+            
+            // Deselect all leads when calls complete
+            this.deselectAllLeads();
+            
+            console.log('✅ Sistema detenido - leads deseleccionados y loading limpiado');
+        }
 
         if (data.stats) {
             this.updateStats(data.stats);
@@ -574,8 +616,8 @@ class CallsManager {
             <td><input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''}></td>
             <td>${lead.nombre_lead || 'N/A'}</td>
             <td>${lead.telefono || 'N/A'}</td>
-            <td>${lead.ciudad || 'N/A'}</td>
-            <td>${lead.nombre_clinica || 'N/A'}</td>
+            <td>${lead.status_level_1 || 'N/A'}</td>
+            <td>${lead.status_level_2 || 'N/A'}</td>
             <td><span class="badge ${statusClass}">${callStatus}</span></td>
             <td>${lead.call_priority || 3}</td>
             <td>${lead.call_attempts_count || 0}</td>
@@ -743,6 +785,187 @@ class CallsManager {
         }
     }
 
+    getSelectedLeadIds() {
+        // Get IDs of leads that are currently selected for calling
+        return this.state.leads
+            .filter(lead => lead.selected_for_calling)
+            .map(lead => lead.id);
+    }
+
+    getSelectedCount() {
+        // Count leads that are selected for calling
+        return this.state.leads.filter(lead => lead.selected_for_calling).length;
+    }
+
+    selectAllLeads(select) {
+        // Select or deselect all visible leads
+        const filteredLeads = this.getFilteredLeads();
+        const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
+        
+        paginatedLeads.forEach(lead => {
+            lead.selected_for_calling = select;
+            lead.selected = select; // For compatibility
+        });
+        
+        // Update the UI
+        this.renderTable();
+        
+        console.log(`📎 ${select ? 'Seleccionados' : 'Deseleccionados'} ${paginatedLeads.length} leads visibles`);
+    }
+
+    deselectAllLeads() {
+        // Deselect all leads in the state
+        this.state.leads.forEach(lead => {
+            lead.selected_for_calling = false;
+            lead.selected = false; // For compatibility
+        });
+        
+        // Update the UI
+        this.renderTable();
+        
+        console.log('🚫 Todos los leads deseleccionados');
+    }
+
+    showLoader(element, show) {
+        if (!element) return;
+        
+        if (show) {
+            // Store original text and show loading
+            if (!element.dataset.originalText) {
+                element.dataset.originalText = element.innerHTML;
+            }
+            element.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Cargando...';
+            element.disabled = true;
+        } else {
+            // Restore original text and enable
+            if (element.dataset.originalText) {
+                element.innerHTML = element.dataset.originalText;
+                delete element.dataset.originalText;
+            }
+            element.disabled = false;
+        }
+    }
+
+    async sendMessage(type, data = {}) {
+        // Since WebSocket is disabled, use HTTP API calls instead
+        try {
+            switch (type) {
+                case 'get_all_leads':
+                    const response = await this.apiCall('GET', '/leads');
+                    if (response.success && response.data) {
+                        this.state.leads = this.normalizeLeadsData(response.data);
+                        this.updateFilters();
+                        this.renderTable();
+                    }
+                    break;
+                case 'get_status':
+                    const statusResponse = await this.apiCall('GET', '/status');
+                    if (statusResponse.success) {
+                        this.updateSystemStatus(statusResponse.data);
+                    }
+                    break;
+                case 'mark_lead':
+                    await this.apiCall('POST', '/mark_lead', data);
+                    break;
+                case 'mark_leads':
+                    await this.apiCall('POST', '/mark_leads', data);
+                    break;
+                default:
+                    console.warn('Tipo de mensaje no reconocido:', type);
+            }
+        } catch (error) {
+            console.error('Error en sendMessage:', error);
+        }
+    }
+
+    resetLeads() {
+        // Reset all leads to default state
+        this.state.leads.forEach(lead => {
+            lead.selected_for_calling = false;
+            lead.selected = false;
+            lead.call_status = 'no_selected';
+        });
+        
+        this.renderTable();
+        this.showNotification('Leads reiniciados', 'info');
+        console.log('🔄 Leads reiniciados');
+    }
+
+    showLeadDetails(leadId) {
+        const lead = this.state.leads.find(l => l.id == leadId);
+        if (!lead) {
+            this.showNotification('Lead no encontrado', 'error');
+            return;
+        }
+        
+        // Create details content
+        const detailsHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Información Personal</h6>
+                    <p><strong>Nombre:</strong> ${lead.nombre_lead || 'N/A'}</p>
+                    <p><strong>Teléfono:</strong> ${lead.telefono || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${lead.email || 'N/A'}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Estados</h6>
+                    <p><strong>Estado 1:</strong> ${lead.status_level_1 || 'N/A'}</p>
+                    <p><strong>Estado 2:</strong> ${lead.status_level_2 || 'N/A'}</p>
+                    <p><strong>Estado Llamada:</strong> ${lead.call_status || 'N/A'}</p>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6>Información de Llamadas</h6>
+                    <p><strong>Prioridad:</strong> ${lead.call_priority || 3}</p>
+                    <p><strong>Intentos:</strong> ${lead.call_attempts_count || 0}</p>
+                    <p><strong>Última Llamada:</strong> ${lead.last_call_attempt ? new Date(lead.last_call_attempt).toLocaleString('es-ES') : 'Nunca'}</p>
+                </div>
+            </div>
+        `;
+        
+        // Update modal content
+        if (this.elements.leadDetailsContent) {
+            this.elements.leadDetailsContent.innerHTML = detailsHtml;
+        }
+        
+        // Show modal
+        if (this.elements.leadDetailsModal) {
+            const modal = new bootstrap.Modal(this.elements.leadDetailsModal);
+            modal.show();
+        }
+    }
+
+    async loadConfiguration() {
+        try {
+            const response = await this.apiCall('GET', '/config');
+            if (response.success && response.data) {
+                this.config = { ...this.config, ...response.data };
+                console.log('⚙️ Configuración cargada:', this.config);
+            }
+        } catch (error) {
+            console.warn('Error cargando configuración:', error);
+        }
+    }
+
+    async saveConfiguration() {
+        try {
+            const config = {
+                maxConcurrentCalls: parseInt(this.elements.maxConcurrentCalls?.value) || 3
+            };
+            
+            const response = await this.apiCall('POST', '/config', config);
+            if (response.success) {
+                this.config = { ...this.config, ...config };
+                this.showNotification('Configuración guardada', 'success');
+                console.log('⚙️ Configuración guardada:', config);
+            }
+        } catch (error) {
+            this.showNotification('Error guardando configuración', 'error');
+            console.error('Error guardando configuración:', error);
+        }
+    }
+
     paginate(items, page, perPage) {
         const start = (page - 1) * perPage;
         const end = start + perPage;
@@ -777,9 +1000,10 @@ class CallsManager {
         // Calcular información de paginación
         const start = (this.state.currentPage - 1) * this.state.itemsPerPage + 1;
         const end = Math.min(start + this.state.itemsPerPage - 1, totalFiltered);
+        const selectedCount = this.getSelectedCount();
         
-        this.elements.leadsInfo.textContent = `Mostrando ${start}-${end} de ${totalFiltered} leads`;
-        console.log(`📊 Info actualizada: ${start}-${end} de ${totalFiltered}`);
+        this.elements.leadsInfo.textContent = `Mostrando ${start}-${end} de ${totalFiltered} leads | ${selectedCount} seleccionados`;
+        console.log(`📊 Info actualizada: ${start}-${end} de ${totalFiltered}, ${selectedCount} seleccionados`);
     }
 
     updatePagination() {
@@ -871,6 +1095,49 @@ class CallsManager {
     }
 
     // Método apiCall duplicado - REMOVIDO (usar el de arriba)
+
+    applyFilters() {
+        // Update filters state from UI elements
+        this.state.filters.estado1 = this.elements.estado1Filter?.value || '';
+        this.state.filters.estado2 = this.elements.estado2Filter?.value || '';
+        this.state.filters.status = this.elements.statusFilter?.value || '';
+        this.state.filters.priority = this.elements.priorityFilter?.value || '';
+        this.state.filters.selected = this.elements.selectedFilter?.value || '';
+        
+        // Reset to first page when applying filters
+        this.state.currentPage = 1;
+        
+        // Re-render table with filters applied
+        this.renderTable();
+        
+        console.log('🔍 Filtros aplicados:', this.state.filters);
+    }
+
+    clearFilters() {
+        // Reset all filter values
+        this.state.filters = {
+            estado1: '',
+            estado2: '',
+            status: '',
+            priority: '',
+            selected: ''
+        };
+        
+        // Reset UI elements
+        if (this.elements.estado1Filter) this.elements.estado1Filter.value = '';
+        if (this.elements.estado2Filter) this.elements.estado2Filter.value = '';
+        if (this.elements.statusFilter) this.elements.statusFilter.value = '';
+        if (this.elements.priorityFilter) this.elements.priorityFilter.value = '';
+        if (this.elements.selectedFilter) this.elements.selectedFilter.value = '';
+        
+        // Reset to first page
+        this.state.currentPage = 1;
+        
+        // Re-render table
+        this.renderTable();
+        
+        console.log('🧹 Filtros limpiados');
+    }
 
     showNotification(message, type = 'info') {
         const toastContainer = document.getElementById('toastContainer');
