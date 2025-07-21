@@ -184,19 +184,33 @@ class CallManager:
             
             # Procesar cada lead con teléfonos normalizados
             for lead in leads:
-                # Determinar qué teléfono usar (priorizar telefono, luego telefono2)
-                phone_to_use = lead['telefono'] if lead['telefono'] else lead['telefono2']
+                # VERIFICACIÓN MODO PRUEBA - LOGS DETALLADOS
+                logger.info(f"🔍 VERIFICACIÓN MODO PRUEBA - Lead ID: {lead['id']}")
+                logger.info(f"📞 Override phone configurado: {_override_phone}")
+                logger.info(f"📱 Teléfono original del lead: {lead.get('telefono', 'N/A')}")
+                logger.info(f"📱 Teléfono secundario del lead: {lead.get('telefono2', 'N/A')}")
+                
+                # Determinar qué teléfono usar - APLICAR OVERRIDE
+                if _override_phone:
+                    phone_to_use = _override_phone
+                    logger.warning(f"🧪 MODO PRUEBA ACTIVO - Usando teléfono override: {phone_to_use}")
+                else:
+                    phone_to_use = lead['telefono'] if lead['telefono'] else lead['telefono2']
+                    logger.info(f"📞 Usando teléfono normal del lead: {phone_to_use}")
                 
                 # Normalizar el teléfono añadiendo +34 si es necesario
                 normalized_phone = normalize_spanish_phone(phone_to_use)
                 
-                logger.info(f"Procesando lead {lead['id']}: {lead['nombre']} - {phone_to_use} -> {normalized_phone}")
+                logger.info(f"🎯 Teléfono FINAL normalizado: {normalized_phone}")
+                logger.info(f"✅ Procesando lead {lead['id']}: {lead.get('nombre', 'N/A')} - {phone_to_use} -> {normalized_phone}")
                 
                 # Llamar callbacks si existen
                 if self.on_call_started:
                     self.on_call_started(lead['id'], normalized_phone)
                     
                 # Ejecutar llamada real con Pearl AI
+                logger.info(f"🚀 INICIANDO LLAMADA A PEARL AI")
+                logger.info(f"📞 Número final enviado a Pearl: {normalized_phone}")
                 outbound_id = self.pearl_client.get_default_outbound_id()
                 success, api_response = self.pearl_client.make_call(outbound_id, normalized_phone, lead)
 
