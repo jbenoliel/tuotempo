@@ -119,11 +119,12 @@ def start_calling_system():
             manager.max_concurrent_calls = max_concurrent
             logger.info(f"Concurrencia ajustada a {max_concurrent} llamadas simultáneas")
         
-        # Si se especifican leads específicos, añadirlos a la cola
+        # Ya no necesitamos marcar leads en la BD cuando usamos IDs específicos
+        # CallManager ahora trabajará directamente con la lista de IDs
         if selected_leads:
-            # Primero marcar los leads como seleccionados
-            _mark_leads_for_calling(selected_leads, True)
-            logger.info(f"Marcados {len(selected_leads)} leads específicos para llamar")
+            logger.info(f"📋 Se procesarán {len(selected_leads)} leads específicos: {selected_leads}")
+        else:
+            logger.info("📋 Se procesarán todos los leads marcados como selected_for_calling=TRUE")
         
         # Configurar callbacks para eventos en tiempo real
         def on_call_started(lead_id, phone_number):
@@ -147,7 +148,12 @@ def start_calling_system():
         
         # Iniciar el sistema
         logger.info("Intentando iniciar sistema de llamadas...")
-        success = manager.start_calling()
+        if selected_leads:
+            logger.info(f"🎯 Iniciando con leads específicos: {selected_leads}")
+            success = manager.start_calling(specific_lead_ids=selected_leads)
+        else:
+            logger.info("📋 Iniciando con todos los leads marcados")
+            success = manager.start_calling()
         
         if success:
             logger.info("✅ Sistema iniciado exitosamente")

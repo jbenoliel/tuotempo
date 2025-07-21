@@ -127,8 +127,13 @@ class CallManager:
         self.on_stats_updated = on_stats_updated
         logger.info("Callbacks configurados para CallManager")
 
-    def start_calling(self) -> bool:
-        """Inicia el sistema de llamadas."""
+    def start_calling(self, specific_lead_ids: List[int] = None) -> bool:
+        """
+        Inicia el sistema de llamadas.
+        
+        Args:
+            specific_lead_ids: Lista de IDs específicos para llamar. Si es None, usa todos los marcados.
+        """
         if self.is_running:
             logger.warning("El sistema de llamadas ya está ejecutándose")
             return False
@@ -138,23 +143,43 @@ class CallManager:
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
             
-            cursor.execute("""
-                SELECT id, nombre, apellidos, telefono, telefono2
-                FROM leads 
-                WHERE selected_for_calling = TRUE
-                  AND ((telefono IS NOT NULL AND telefono != '') 
-                       OR (telefono2 IS NOT NULL AND telefono2 != ''))
-            """)
+            if specific_lead_ids:
+                # Llamar solo a leads específicos
+                placeholders = ','.join(['%s'] * len(specific_lead_ids))
+                query = f"""
+                    SELECT id, nombre, apellidos, telefono, telefono2
+                    FROM leads 
+                    WHERE id IN ({placeholders})
+                      AND ((telefono IS NOT NULL AND telefono != '') 
+                           OR (telefono2 IS NOT NULL AND telefono2 != ''))
+                """
+                cursor.execute(query, specific_lead_ids)
+                logger.info(f"🎯 Usando leads específicos: {specific_lead_ids}")
+            else:
+                # Fallback al comportamiento anterior (todos los marcados)
+                cursor.execute("""
+                    SELECT id, nombre, apellidos, telefono, telefono2
+                    FROM leads 
+                    WHERE selected_for_calling = TRUE
+                      AND ((telefono IS NOT NULL AND telefono != '') 
+                           OR (telefono2 IS NOT NULL AND telefono2 != ''))
+                """)
+                logger.info("📋 Usando todos los leads marcados como selected_for_calling=TRUE")
             
             leads = cursor.fetchall()
             cursor.close()
             conn.close()
             
             if not leads:
-                logger.warning("No hay leads seleccionados para llamar")
+                if specific_lead_ids:
+                    logger.warning(f"No se encontraron leads válidos en la lista específica: {specific_lead_ids}")
+                else:
+                    logger.warning("No hay leads seleccionados para llamar")
                 return False
                 
-            logger.info(f"Iniciando llamadas para {len(leads)} leads")
+            logger.info(f"✅ Iniciando llamadas para {len(leads)} leads")
+            if specific_lead_ids:
+                logger.info(f"📞 IDs específicos encontrados: {[lead['id'] for lead in leads]}")
             self.is_running = True
             
             # Procesar cada lead con teléfonos normalizados
