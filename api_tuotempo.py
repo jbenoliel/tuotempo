@@ -182,6 +182,12 @@ def reservar():
             availability['activityid'] = availability.pop('activityId')
         if 'resourceId' in availability:
             availability['resourceid'] = availability.pop('resourceId')
+            
+        # Si activityid está vacío, usar el valor por defecto
+        if 'activityid' not in availability or not availability['activityid']:
+            default_activity_id = os.getenv('TUOTEMPO_ACTIVITY_ID', 'sc159232371eb9c1')
+            current_app.logger.info(f"activityId vacío o no presente. Usando valor por defecto: {default_activity_id}")
+            availability['activityid'] = default_activity_id
 
     critical_keys = {'endTime', 'resourceid', 'activityid'}
     if critical_keys - availability.keys():

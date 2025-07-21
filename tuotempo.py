@@ -61,7 +61,8 @@ class Tuotempo:
             return self.client.get_available_slots(
                 activity_id=activity_id, 
                 area_id=area_id, 
-                start_date=start_date
+                start_date=start_date,
+                time_preference='MORNING'  # Valor por defecto para evitar error de preferenciaMT vacía
             )
         except Exception as e:
             logging.error(f"Error al obtener slots: {e}")

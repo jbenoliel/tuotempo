@@ -365,9 +365,53 @@ class MapeadorInteligente:
                 # Convertir fecha de YYYYMMDD a YYYY-MM-DD
                 if len(fecha) == 8:
                     fecha_formateada = f"{fecha[:4]}-{fecha[4:6]}-{fecha[6:8]}"
-                    payload["nuevaCita"] = f"{fecha_formateada} {hora}"
                 else:
-                    payload["nuevaCita"] = f"{fecha} {hora}"
+                    # Intentar normalizar otros formatos de fecha
+                    try:
+                        # Eliminar cualquier carácter no numérico excepto guiones y espacios
+                        fecha_limpia = re.sub(r'[^0-9\-\s]', '', fecha)
+                        
+                        # Intentar detectar diferentes patrones
+                        if re.match(r'^\d{4}\s+\d{2}[:\-]\d{2}$', fecha_limpia):  # '2025 07-31' o '2025 07:31'
+                            año = fecha_limpia[:4]
+                            resto = fecha_limpia[5:].replace(':', '-')
+                            mes_dia = resto.split('-')
+                            if len(mes_dia) == 2:
+                                fecha_formateada = f"{año}-{mes_dia[0]}-{mes_dia[1]}"
+                            else:
+                                # Si no podemos parsear, usar formato ISO
+                                fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                                logger.warning(f"Formato de fecha no reconocido: {fecha}, usando fecha actual")
+                        elif re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{4}$', fecha_limpia):  # 'DD/MM/YYYY' o 'DD-MM-YYYY'
+                            partes = re.split(r'[/-]', fecha_limpia)
+                            fecha_formateada = f"{partes[2]}-{partes[1]}-{partes[0]}"
+                        elif re.match(r'^\d{4}[/-]\d{1,2}[/-]\d{1,2}$', fecha_limpia):  # 'YYYY/MM/DD' o 'YYYY-MM-DD'
+                            # Ya está en formato correcto, solo asegurar que tenga guiones
+                            partes = re.split(r'[/-]', fecha_limpia)
+                            fecha_formateada = f"{partes[0]}-{partes[1]}-{partes[2]}"
+                        else:
+                            # Si no podemos parsear, usar formato ISO
+                            fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                            logger.warning(f"Formato de fecha no reconocido: {fecha}, usando fecha actual")
+                    except Exception as e:
+                        fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                        logger.error(f"Error procesando fecha '{fecha}': {e}. Usando fecha actual.")
+                
+                # Normalizar formato de hora
+                hora_limpia = hora.strip()
+                if not re.match(r'^\d{1,2}:\d{2}$', hora_limpia):
+                    # Si la hora no está en formato HH:MM, intentar normalizarla
+                    try:
+                        hora_limpia = re.sub(r'[^0-9:]', '', hora_limpia)
+                        if re.match(r'^\d{1,2}\d{2}$', hora_limpia):  # '1430'
+                            hora_limpia = f"{hora_limpia[:-2]}:{hora_limpia[-2:]}"
+                        elif not ':' in hora_limpia:
+                            hora_limpia = f"{hora_limpia}:00"
+                    except:
+                        hora_limpia = "12:00"  # Hora por defecto
+                        logger.warning(f"Formato de hora no reconocido: {hora}, usando 12:00")
+                
+                payload["nuevaCita"] = f"{fecha_formateada} {hora_limpia}"
             else:
                 # Sin fecha válida, tratar como volver a llamar
                 payload["volverALlamar"] = True
@@ -383,9 +427,53 @@ class MapeadorInteligente:
                 # Convertir fecha de YYYYMMDD a YYYY-MM-DD
                 if len(fecha) == 8:
                     fecha_formateada = f"{fecha[:4]}-{fecha[4:6]}-{fecha[6:8]}"
-                    payload["nuevaCita"] = f"{fecha_formateada} {hora}"
                 else:
-                    payload["nuevaCita"] = f"{fecha} {hora}"
+                    # Intentar normalizar otros formatos de fecha
+                    try:
+                        # Eliminar cualquier carácter no numérico excepto guiones y espacios
+                        fecha_limpia = re.sub(r'[^0-9\-\s]', '', fecha)
+                        
+                        # Intentar detectar diferentes patrones
+                        if re.match(r'^\d{4}\s+\d{2}[:\-]\d{2}$', fecha_limpia):  # '2025 07-31' o '2025 07:31'
+                            año = fecha_limpia[:4]
+                            resto = fecha_limpia[5:].replace(':', '-')
+                            mes_dia = resto.split('-')
+                            if len(mes_dia) == 2:
+                                fecha_formateada = f"{año}-{mes_dia[0]}-{mes_dia[1]}"
+                            else:
+                                # Si no podemos parsear, usar formato ISO
+                                fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                                logger.warning(f"Formato de fecha no reconocido: {fecha}, usando fecha actual")
+                        elif re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{4}$', fecha_limpia):  # 'DD/MM/YYYY' o 'DD-MM-YYYY'
+                            partes = re.split(r'[/-]', fecha_limpia)
+                            fecha_formateada = f"{partes[2]}-{partes[1]}-{partes[0]}"
+                        elif re.match(r'^\d{4}[/-]\d{1,2}[/-]\d{1,2}$', fecha_limpia):  # 'YYYY/MM/DD' o 'YYYY-MM-DD'
+                            # Ya está en formato correcto, solo asegurar que tenga guiones
+                            partes = re.split(r'[/-]', fecha_limpia)
+                            fecha_formateada = f"{partes[0]}-{partes[1]}-{partes[2]}"
+                        else:
+                            # Si no podemos parsear, usar formato ISO
+                            fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                            logger.warning(f"Formato de fecha no reconocido: {fecha}, usando fecha actual")
+                    except Exception as e:
+                        fecha_formateada = datetime.now().strftime('%Y-%m-%d')
+                        logger.error(f"Error procesando fecha '{fecha}': {e}. Usando fecha actual.")
+                
+                # Normalizar formato de hora
+                hora_limpia = hora.strip()
+                if not re.match(r'^\d{1,2}:\d{2}$', hora_limpia):
+                    # Si la hora no está en formato HH:MM, intentar normalizarla
+                    try:
+                        hora_limpia = re.sub(r'[^0-9:]', '', hora_limpia)
+                        if re.match(r'^\d{1,2}\d{2}$', hora_limpia):  # '1430'
+                            hora_limpia = f"{hora_limpia[:-2]}:{hora_limpia[-2:]}"
+                        elif not ':' in hora_limpia:
+                            hora_limpia = f"{hora_limpia}:00"
+                    except:
+                        hora_limpia = "12:00"  # Hora por defecto
+                        logger.warning(f"Formato de hora no reconocido: {hora}, usando 12:00")
+                
+                payload["nuevaCita"] = f"{fecha_formateada} {hora_limpia}"
             else:
                 # Sin fecha válida, tratar como volver a llamar
                 payload["volverALlamar"] = True
