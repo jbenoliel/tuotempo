@@ -24,7 +24,11 @@ class CallsManager {
                 status: '',
                 priority: '',
                 selected: ''
-            }
+            },
+            // Sistema de caché para reducir solicitudes redundantes
+            apiCache: {},
+            cacheTimeout: 5000, // 5 segundos de validez para la caché
+            pendingRequests: {} // Para evitar solicitudes duplicadas
         };
         this.config = {
             maxConcurrentCalls: 3
@@ -38,6 +42,14 @@ class CallsManager {
         }
         
         console.log('🚀 Inicializando CallsManager...');
+        
+        // Agregar propiedades para control de frecuencia de actualizaciones
+        this.state.lastStatusUpdate = 0;
+        this.state.statusUpdateInterval = 3000; // 3 segundos mínimo entre actualizaciones
+        
+        // Aplicar throttling a getStatus para reducir consumo de recursos
+        const originalGetStatus = this.getStatus.bind(this);
+        this.getStatus = this.throttle(originalGetStatus, this.state.statusUpdateInterval);
         
         // Asegurar que los métodos utilitarios existen
         if (!this.setLoading) this.setLoading = (flag) => { this.state.isLoading = flag; };
@@ -182,8 +194,10 @@ class CallsManager {
         }
     }
 
-    async apiCall(method, endpoint, body = null) {
-        // SOLUCIÓN AL PROBLEMA: Construir URL correctamente
+
+    
+    async apiCall(method, endpoint, body = null, useCache = false) {
+        // Construir URL correctamente
         const baseUrl = '/api/calls';
         let url;
         
@@ -193,23 +207,45 @@ class CallsManager {
             url = `${baseUrl}/${endpoint}`;
         }
         
+        // Sistema de caché para GET requests
+        const cacheKey = `${method}:${url}:${body ? JSON.stringify(body) : ''}`;
+        if (method === 'GET' && useCache && this.state.apiCache[cacheKey]) {
+            const cachedData = this.state.apiCache[cacheKey];
+            if (Date.now() - cachedData.timestamp < this.state.cacheTimeout) {
+                console.log(`💾 Usando datos en caché para ${url}`);
+                return cachedData.data;
+            } else {
+                // Eliminar caché expirada
+                delete this.state.apiCache[cacheKey];
+            }
+        }
+        
+        // Reducir la verbosidad del logging para mejorar rendimiento
         console.log(`🌐 API Call: ${method} ${url}`);
         
         const options = {
             method,
             headers: {
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                // Añadir un encabezado para evitar caché del navegador
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            },
+            // Añadir un timeout para evitar solicitudes colgadas
+            signal: AbortSignal.timeout(10000) // 10 segundos de timeout
         };
         
         if (body) {
             options.body = JSON.stringify(body);
-            console.log('📤 Body:', body);
+            // Reducir verbosidad del logging
+            if (method === 'POST') {
+                console.log('📤 Enviando datos...');
+            }
         }
 
         try {
             const response = await fetch(url, options);
-            console.log(`📡 Response: ${response.status} ${response.statusText}`);
+            console.log(`📡 Response: ${response.status}`);
             
             if (!response.ok) {
                 let errorData;
@@ -223,9 +259,26 @@ class CallsManager {
                 throw new Error(errorData.error || `Error ${response.status}`);
             }
             
-            const result = await response.json();
-            console.log('📥 Result:', result);
-            return result;
+            // Optimizar el manejo de la respuesta JSON
+            try {
+                const result = await response.json();
+                // Reducir verbosidad del logging
+                console.log('📥 Result recibido');
+                
+                // Guardar en caché si es una solicitud GET
+                if (method === 'GET' && useCache) {
+                    const cacheKey = `${method}:${url}:${body ? JSON.stringify(body) : ''}`;
+                    this.state.apiCache[cacheKey] = {
+                        data: result,
+                        timestamp: Date.now()
+                    };
+                }
+                
+                return result;
+            } catch (jsonError) {
+                console.warn('Error al procesar JSON de respuesta:', jsonError);
+                return { success: true, data: {} }; // Devolver un objeto por defecto para evitar errores
+            }
             
         } catch (error) {
             console.error(`❌ API call failed: ${method} ${url}`, error);
@@ -369,62 +422,105 @@ class CallsManager {
     }
 
     async sendMessage(type, payload = {}) {
+        // Prevenir solicitudes duplicadas
+        const requestKey = `${type}:${JSON.stringify(payload)}`;
+        
+        // Si ya hay una solicitud pendiente del mismo tipo, devolver esa promesa
+        if (this.state.pendingRequests[requestKey]) {
+            console.log(`⏳ Ignorando solicitud duplicada: ${type}`);
+            return this.state.pendingRequests[requestKey];
+        }
+        
         // Si WebSocket está disponible, úsalo
         if (this.state.socket && this.state.socket.readyState === WebSocket.OPEN) {
             this.state.socket.send(JSON.stringify({ type, ...payload }));
-            return;
+            return Promise.resolve();
         }
-        // Fallback a peticiones HTTP para los mensajes básicos
-        switch (type) {
-            case 'get_all_leads': {
-                try {
-                    console.log('🚀 Cargando leads desde API...');
-                    const resp = await this.apiCall('GET', '/leads');
-                    const leads = resp.leads || [];
-                    console.log('📊 API devuelve', leads.length, 'leads');
-                    this.handleWebSocketMessage({ type: 'all_leads', data: leads });
-                } catch (error) {
-                    console.error('❌ Error cargando leads:', error);
-                    this.showToast('Error cargando leads: ' + error.message, 'error');
+        
+        // Crear una promesa para esta solicitud
+        const requestPromise = (async () => {
+            try {
+                // Fallback a peticiones HTTP para los mensajes básicos
+                switch (type) {
+                    case 'get_all_leads':
+                        try {
+                            console.log('🚀 Cargando leads desde API...');
+                            // Usar caché para reducir solicitudes al servidor
+                            const resp = await this.apiCall('GET', '/leads', null, true);
+                            const leads = resp.leads || [];
+                            console.log('📊 API devuelve', leads.length, 'leads');
+                            this.handleWebSocketMessage({ type: 'all_leads', data: leads });
+                        } catch (error) {
+                            console.error('❌ Error cargando leads:', error);
+                            this.showToast('Error cargando leads: ' + error.message, 'error');
+                        }
+                        break;
+                        
+                    case 'get_status':
+                        try {
+                            // Usar caché para reducir solicitudes al servidor
+                            const data = await this.apiCall('GET', '/status', null, true);
+                            this.handleWebSocketMessage({ type: 'initial_status', data });
+                        } catch (_) {}
+                        break;
+                        
+                    case 'mark_lead':
+                        // payload: { lead_id, selected }
+                        try {
+                            await this.apiCall('POST', '/leads/select', {
+                                lead_ids: [payload.lead_id],
+                                selected: payload.selected
+                            });
+                        } catch (error) {
+                            console.error('❌ Error marcando lead:', error);
+                        }
+                        break;
+                        
+                    case 'mark_leads':
+                        // payload: { lead_ids, selected }
+                        try {
+                            await this.apiCall('POST', '/leads/select', {
+                                lead_ids: payload.lead_ids,
+                                selected: payload.selected
+                            });
+                        } catch (error) {
+                            console.error('❌ Error marcando leads:', error);
+                        }
+                        break;
+                        
+                    default:
+                        console.warn(`Mensaje ${type} ignorado en modo fallback.`);
                 }
-                break;
+            } finally {
+                // Limpiar la solicitud pendiente cuando termine
+                delete this.state.pendingRequests[requestKey];
             }
-            case 'get_status': {
-                try {
-                    const data = await this.apiCall('GET', '/status');
-                    this.handleWebSocketMessage({ type: 'initial_status', data });
-                } catch (_) {}
-                break;
-            }
-            case 'mark_lead': {
-                // payload: { lead_id, selected }
-                try {
-                    await this.apiCall('POST', '/leads/select', {
-                        lead_ids: [payload.lead_id],
-                        selected: payload.selected
-                    });
-                } catch (error) {
-                    console.error('❌ Error marcando lead:', error);
-                }
-                break;
-            }
-            case 'mark_leads': {
-                // payload: { lead_ids, selected }
-                try {
-                    await this.apiCall('POST', '/leads/select', {
-                        lead_ids: payload.lead_ids,
-                        selected: payload.selected
-                    });
-                } catch (error) {
-                    console.error('❌ Error marcando leads:', error);
-                }
-                break;
-            }
-            default:
-                console.warn(`Mensaje ${type} ignorado en modo fallback.`);
-        }
+        })();
+        
+        // Registrar esta solicitud como pendiente
+        this.state.pendingRequests[requestKey] = requestPromise;
+        
+        return requestPromise;
     }
 
+    // Control de frecuencia de actualizaciones
+    throttle(func, delay) {
+        let lastCall = 0;
+        return function(...args) {
+            const now = Date.now();
+            if (now - lastCall >= delay) {
+                lastCall = now;
+                return func.apply(this, args);
+            }
+            return Promise.resolve(); // Devolver promesa vacía si se ignora la llamada
+        };
+    }
+    
+    // Método para obtener el estado del sistema
+    async getStatus() {
+        return this.sendMessage('get_status');
+    }
+    
     async loadInitialData() {
         if (this.state.isLoading) {
             console.warn('⚠️ Ya se están cargando datos iniciales');
@@ -432,11 +528,17 @@ class CallsManager {
         }
         
         this.setLoading(true);
+        
         try {
-            await this.sendMessage('get_all_leads');
+            // Cargar datos de forma optimizada para reducir consumo de recursos
             await this.getStatus();
+            
+            // Solo cargar leads si la página sigue activa
+            if (document.visibilityState === 'visible') {
+                await this.sendMessage('get_all_leads');
+            }
         } catch (error) {
-            this.showToast('Error al cargar datos iniciales.', 'error');
+            console.error('Error al cargar datos iniciales:', error);
         } finally {
             this.setLoading(false);
         }
@@ -445,27 +547,57 @@ class CallsManager {
     async getStatus() {
         await this.sendMessage('get_status');
     }
-
+    
+    /**
+     * Actualiza el estado del sistema basado en los datos recibidos
+     * @param {Object} data - Datos de estado del sistema
+     */
     updateSystemStatus(data) {
-        // Extraer el estado de ejecución del sistema desde la estructura correcta
-        // Verificar si tenemos la estructura completa o solo el estado
-        const statusData = data.system_status && data.system_status.call_manager 
-            ? data.system_status.call_manager 
-            : data;
-            
-        // Verificar si el campo is_running existe
-        const isRunning = statusData && typeof statusData.is_running === 'boolean' 
-            ? statusData.is_running 
-            : false;
-            
+        // Verificar que data es un objeto válido
+        if (!data || typeof data !== 'object') {
+            console.error('Error: datos de estado inválidos', data);
+            return;
+        }
+
+        // Extraer el estado de ejecución del sistema desde cualquier estructura posible
+        let isRunning = false;
+        
+        // Intentar diferentes estructuras de datos posibles
+        if (data.system_status && data.system_status.call_manager && typeof data.system_status.call_manager.is_running === 'boolean') {
+            // Estructura completa: data.system_status.call_manager.is_running
+            isRunning = data.system_status.call_manager.is_running;
+            console.log('✅ Estado del sistema obtenido de system_status.call_manager.is_running:', isRunning);
+        } else if (data.call_manager && typeof data.call_manager.is_running === 'boolean') {
+            // Estructura alternativa: data.call_manager.is_running
+            isRunning = data.call_manager.is_running;
+            console.log('✅ Estado del sistema obtenido de call_manager.is_running:', isRunning);
+        } else if (typeof data.is_running === 'boolean') {
+            // Estructura simple: data.is_running
+            isRunning = data.is_running;
+            console.log('✅ Estado del sistema obtenido de is_running:', isRunning);
+        } else if (data.data && typeof data.data.is_running === 'boolean') {
+            // Estructura con wrapper: data.data.is_running
+            isRunning = data.data.is_running;
+            console.log('✅ Estado del sistema obtenido de data.is_running:', isRunning);
+        } else {
+            console.warn('⚠️ No se pudo determinar el estado del sistema, asumiendo detenido');
+        }
+        
+        // Guardar el estado anterior para comparaciones
         const wasRunning = this.state.isSystemRunning;
         this.state.isSystemRunning = isRunning;
         
-        this.elements.systemStatus.textContent = isRunning ? 'Activo' : 'Detenido';
-        this.elements.systemStatus.className = `badge fs-6 ${isRunning ? 'bg-success' : 'bg-danger'}`;
-        this.elements.startCallsBtn.disabled = isRunning;
-        this.elements.stopCallsBtn.disabled = !isRunning;
-
+        // Actualizar UI según el estado
+        if (this.elements.systemStatus) {
+            this.elements.systemStatus.innerHTML = isRunning ? 
+                '<span class="badge bg-success"><i class="bi bi-play-circle"></i> En ejecución</span>' : 
+                '<span class="badge bg-secondary"><i class="bi bi-stop-circle"></i> Detenido</span>';
+        }
+        
+        // Actualizar botones según el estado
+        if (this.elements.startCallsBtn) this.elements.startCallsBtn.disabled = isRunning;
+        if (this.elements.stopCallsBtn) this.elements.stopCallsBtn.disabled = !isRunning;
+        
         // Clear loading state when system stops
         if (wasRunning && !isRunning) {
             this.showLoader(this.elements.startCallsBtn, false);
@@ -488,6 +620,7 @@ class CallsManager {
             this.elements.progressSection.style.display = 'none';
         }
     }
+
 
     updateStats(stats) {
         this.elements.totalCallsCount.textContent = stats.total || 0;
@@ -876,11 +1009,25 @@ class CallsManager {
         // Since WebSocket is disabled, use HTTP API calls instead
         console.log(`📡 sendMessage: ${type}`);
         
+        // Evitar múltiples llamadas simultáneas del mismo tipo
+        if (this.state.pendingRequests && this.state.pendingRequests[type]) {
+            console.warn(`⚠️ Ya hay una solicitud pendiente de tipo ${type}, ignorando...`);
+            return;
+        }
+        
+        // Inicializar el registro de solicitudes pendientes si no existe
+        if (!this.state.pendingRequests) {
+            this.state.pendingRequests = {};
+        }
+        
+        // Marcar esta solicitud como pendiente
+        this.state.pendingRequests[type] = true;
+        
         try {
             switch (type) {
                 case 'get_all_leads':
                     const response = await this.apiCall('GET', '/leads');
-                    if (response.success && response.data) {
+                    if (response && response.success && response.data) {
                         this.state.leads = this.normalizeLeadsData(response.data);
                         // Solo actualizar filtros y tabla si no están ya inicializados
                         if (this.elements.leadsTableBody) {
@@ -891,8 +1038,11 @@ class CallsManager {
                     break;
                 case 'get_status':
                     const statusResponse = await this.apiCall('GET', '/status');
-                    if (statusResponse.success) {
-                        this.updateSystemStatus(statusResponse.data);
+                    if (statusResponse && statusResponse.success) {
+                        this.updateSystemStatus(statusResponse.data || {});
+                    } else {
+                        // Si la respuesta no es exitosa, usar un objeto vacío para evitar errores
+                        this.updateSystemStatus({});
                     }
                     break;
                 case 'mark_lead':
@@ -906,6 +1056,11 @@ class CallsManager {
             }
         } catch (error) {
             console.error('Error en sendMessage:', error);
+        } finally {
+            // Limpiar el registro de solicitud pendiente
+            if (this.state.pendingRequests) {
+                this.state.pendingRequests[type] = false;
+            }
         }
     }
 
@@ -1352,7 +1507,7 @@ class CallsManager {
 // Instancia global del CallsManager
 window.CallsManager = new CallsManager();
 
-// Prevenir múltiples inicializaciones
+// Inicialización cuando el DOM esté listo
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.CallsManager.state.isInitialized) {
@@ -1366,11 +1521,9 @@ if (document.readyState === 'loading') {
     }
 }
 
-// Instancia global y auto-inicialización
-window.CallsManager = new CallsManager();
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => window.CallsManager.init());
-} else {
-    window.CallsManager.init();
-}
-window.addEventListener('beforeunload', () => window.CallsManager.destroy());
+// Limpiar recursos al cerrar la página
+window.addEventListener('beforeunload', () => {
+    if (window.CallsManager && typeof window.CallsManager.destroy === 'function') {
+        window.CallsManager.destroy();
+    }
+});
