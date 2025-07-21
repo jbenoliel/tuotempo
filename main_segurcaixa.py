@@ -204,7 +204,7 @@ def process_and_extract_json_fields(file_path):
             nombre_base = os.path.basename(file_path)
             if "_procesar" in nombre_base:
                 # Si es un archivo temporal, usar el nombre original
-                nombre_base = "julio 18_grabaciones.xlsx"
+                nombre_base = "julio 21_grabaciones.xlsx"
             else:
                 # Si no es temporal, usar el nombre base con el sufijo
                 nombre_base = nombre_base.replace(".xlsx", "_grabaciones.xlsx")
@@ -236,9 +236,9 @@ def process_and_extract_json_fields(file_path):
 def limpiar_archivos_temporales():
     """Elimina archivos temporales de ejecuciones anteriores."""
     archivos_temp = [
-        os.path.join(os.getcwd(), "SegurcaixaCalls_julio18_procesar.xlsx"),
-        os.path.join(os.getcwd(), "SegurcaixaCalls_julio18_procesar_grabaciones.xlsx"),
-        os.path.join(os.getcwd(), "SegurcaixaCalls_julio18_procesar_grabaciones_campos_json.xlsx")
+        os.path.join(os.getcwd(), "SegurcaixaCalls_julio21_procesar.xlsx"),
+        os.path.join(os.getcwd(), "SegurcaixaCalls_julio21_procesar_grabaciones.xlsx"),
+        os.path.join(os.getcwd(), "SegurcaixaCalls_julio21_procesar_grabaciones_campos_json.xlsx")
     ]
     
     for archivo in archivos_temp:
@@ -258,8 +258,8 @@ if __name__ == "__main__":
     limpiar_archivos_temporales()
     
     # Ruta del archivo original en Dropbox
-    original_file_path = "C:\\Users\\jbeno\\Dropbox\\TEYAME\\Prueba Segurcaixa\\julio 18.xlsx"
-    local_file_path = os.path.join(os.getcwd(), "SegurcaixaCalls_julio18_procesar.xlsx")
+    original_file_path = "C:\\Users\\jbeno\\Dropbox\\TEYAME\\Prueba Segurcaixa\\llamadas julio 21.xlsx"
+    local_file_path = os.path.join(os.getcwd(), "SegurcaixaCalls_julio21_procesar.xlsx")
     excel_file = None
 
     if os.path.exists(original_file_path):
@@ -311,8 +311,8 @@ if __name__ == "__main__":
             print(f"PROCESAMIENTO COMPLETADO EN {duracion:.2f} SEGUNDOS")
             print("=" * 50)
             print(f"\nArchivo original: {original_file_path}")
-            print(f"Archivo con grabaciones: {os.path.join(os.getcwd(), 'SegurcaixaCalls_julio18_procesar_grabaciones.xlsx')}")
-            print(f"Archivo final con campos JSON: {os.path.join(os.getcwd(), 'SegurcaixaCalls_julio18_procesar_grabaciones_campos_json.xlsx')}")
+            print(f"Archivo con grabaciones: {os.path.join(os.getcwd(), 'SegurcaixaCalls_julio21_procesar_grabaciones.xlsx')}")
+            print(f"Archivo final con campos JSON: {os.path.join(os.getcwd(), 'SegurcaixaCalls_julio21_procesar_grabaciones_campos_json.xlsx')}")
             print("\nEl archivo final también se ha guardado en Dropbox.")
             print("=" * 50)
         except Exception as e:
