@@ -147,7 +147,8 @@ def actualizar_resultado():
         'hora_rellamada': data.get('horaRellamada'),
         'error_tecnico': data.get('errorTecnico'),
         'razon_vuelta_a_llamar': data.get('razonvueltaallamar'),
-        'razon_no_interes': data.get('razonNoInteres')
+        'razon_no_interes': data.get('razonNoInteres'),
+        'manual_management': data.get('gestionManual')
     }
 
     # Si llega una nueva cita, actualizamos los campos 'cita' (DATE) y opcionalmente 'hora_cita' (TIME)

@@ -834,18 +834,30 @@ class CallsManager {
         // Crear el nombre completo
         const nombreCompleto = `${lead.nombre || ''} ${lead.apellidos || ''}`.trim() || 'N/A';
         
+        // Determinar colores para badges usando colores corporativos
+        let statusBadgeStyle = 'background-color: #646762; color: white;'; // Gris corporativo por defecto
+        if (lead.call_status === 'completed') statusBadgeStyle = 'background-color: #92D050; color: white;'; // Verde corporativo
+        else if (['in_progress', 'calling', 'selected'].includes(lead.call_status)) statusBadgeStyle = 'background-color: #ffc107; color: #333;'; // Warning
+        else if (['error', 'failed', 'busy', 'no_answer'].includes(lead.call_status)) statusBadgeStyle = 'background-color: #dc3545; color: white;'; // Danger
+        
+        // Badge para gestión manual
+        const isManual = lead.manual_management;
+        const manualBadgeStyle = isManual ? 'background-color: #ffc107; color: #333;' : 'background-color: #646762; color: white;';
+        const manualBadgeText = isManual ? 'Manual' : 'Automático';
+        
         row.innerHTML = `
             <td><input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''}></td>
-            <td>${nombreCompleto}</td>
-            <td>${lead.telefono || lead.telefono2 || 'N/A'}</td>
-            <td><span class="badge bg-info text-white">${lead.status_level_1 || 'N/A'}</span></td>
-            <td><span class="badge bg-secondary">${lead.status_level_2 || 'N/A'}</span></td>
-            <td><span class="badge ${statusClass}">${callStatus}</span></td>
-            <td>${lead.call_priority || 3}</td>
-            <td>${lead.call_attempts_count || 0}</td>
-            <td>${lastCallTime}</td>
+            <td style="color: #333; font-weight: 500;">${nombreCompleto}</td>
+            <td style="color: #35C0F1; font-weight: 500;">${lead.telefono || lead.telefono2 || 'N/A'}</td>
+            <td><span class="badge" style="background-color: #35C0F1; color: white;">${lead.status_level_1 || 'N/A'}</span></td>
+            <td><span class="badge" style="background-color: #646762; color: white;">${lead.status_level_2 || 'N/A'}</span></td>
+            <td><span class="badge" style="${statusBadgeStyle}">${callStatus}</span></td>
+            <td><span class="badge" style="${manualBadgeStyle}">${manualBadgeText}</span></td>
+            <td style="color: #333;">${lead.call_priority || 3}</td>
+            <td style="color: #333;">${lead.call_attempts_count || 0}</td>
+            <td style="color: #333;">${lastCallTime}</td>
             <td>
-                <button class="btn btn-sm btn-outline-info" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')">
+                <button class="btn btn-sm" style="border: 1px solid #35C0F1; color: #35C0F1;" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')">
                     <i class="bi bi-eye"></i>
                 </button>
             </td>
@@ -936,33 +948,30 @@ class CallsManager {
             return;
         }
         
-        // Confirmar la acción
-        this.showConfirm(
-            'Seleccionar por Estado',
-            `¿Seleccionar todos los ${matchingLeads.length} leads que tienen ${statusField} = "${statusValue}"?`
-        ).then(confirmed => {
-            if (confirmed) {
-                const leadIds = [];
-                
-                // Actualizar estado local
-                matchingLeads.forEach(lead => {
-                    lead.selected_for_calling = true;
-                    lead.selected = true;
-                    leadIds.push(lead.id);
-                });
-                
-                // Enviar al servidor
-                if (leadIds.length > 0) {
-                    this.sendMessage('mark_leads', { lead_ids: leadIds, selected: true });
-                }
-                
-                // Re-renderizar tabla
-                this.renderTable();
-                
-                this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
-                console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
+        // Confirmar la acción directamente
+        const confirmed = confirm(`¿Seleccionar todos los ${matchingLeads.length} leads que tienen ${statusField} = "${statusValue}"?`);
+        
+        if (confirmed) {
+            const leadIds = [];
+            
+            // Actualizar estado local
+            matchingLeads.forEach(lead => {
+                lead.selected_for_calling = true;
+                lead.selected = true;
+                leadIds.push(lead.id);
+            });
+            
+            // Enviar al servidor
+            if (leadIds.length > 0) {
+                this.sendMessage('mark_leads', { lead_ids: leadIds, selected: true });
             }
-        });
+            
+            // Re-renderizar tabla
+            this.renderTable();
+            
+            this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
+            console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
+        }
     }
 
     showStatusSelectionModal() {
@@ -1023,33 +1032,68 @@ class CallsManager {
             return;
         }
         
-        // Confirmar la acción
-        this.showConfirm(
-            'Deseleccionar por Estado',
-            `¿Deseleccionar todos los ${matchingLeads.length} leads seleccionados que tienen ${statusField} = "${statusValue}"?`
-        ).then(confirmed => {
-            if (confirmed) {
-                const leadIds = [];
-                
-                // Actualizar estado local
-                matchingLeads.forEach(lead => {
-                    lead.selected_for_calling = false;
-                    lead.selected = false;
-                    leadIds.push(lead.id);
-                });
-                
-                // Enviar al servidor
-                if (leadIds.length > 0) {
-                    this.sendMessage('mark_leads', { lead_ids: leadIds, selected: false });
-                }
-                
-                // Re-renderizar tabla
-                this.renderTable();
-                
-                this.showToast(`✅ Deseleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
-                console.log(`✅ Deseleccionados ${leadIds.length} leads por estado:`, leadIds);
+        // Confirmar la acción directamente
+        const confirmed = confirm(`¿Deseleccionar todos los ${matchingLeads.length} leads seleccionados que tienen ${statusField} = "${statusValue}"?`);
+        
+        if (confirmed) {
+            const leadIds = [];
+            
+            // Actualizar estado local
+            matchingLeads.forEach(lead => {
+                lead.selected_for_calling = false;
+                lead.selected = false;
+                leadIds.push(lead.id);
+            });
+            
+            // Enviar al servidor
+            if (leadIds.length > 0) {
+                this.sendMessage('mark_leads', { lead_ids: leadIds, selected: false });
             }
-        });
+            
+            // Re-renderizar tabla
+            this.renderTable();
+            
+            this.showToast(`✅ Deseleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
+            console.log(`✅ Deseleccionados ${leadIds.length} leads por estado:`, leadIds);
+        }
+    }
+
+    setManualManagement(isManual) {
+        console.log(`🔧 Configurando gestión manual = ${isManual}`);
+        
+        // Obtener leads seleccionados en la tabla actual
+        const selectedCheckboxes = document.querySelectorAll('.lead-checkbox:checked');
+        const selectedLeadIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.dataset.leadId));
+        
+        if (selectedLeadIds.length === 0) {
+            this.showToast('Selecciona al menos un lead para cambiar su gestión', 'warning');
+            return;
+        }
+        
+        // Confirmar la acción
+        const actionText = isManual ? 'gestión manual' : 'gestión automática';
+        const confirmed = confirm(`¿Cambiar ${selectedLeadIds.length} leads a ${actionText}?`);
+        
+        if (confirmed) {
+            // Actualizar estado local
+            selectedLeadIds.forEach(leadId => {
+                const lead = this.state.leads.find(l => l.id === leadId);
+                if (lead) {
+                    lead.manual_management = isManual;
+                }
+            });
+            
+            // Enviar al servidor
+            this.apiCall('POST', '/api/calls/leads/manual-management', {
+                lead_ids: selectedLeadIds,
+                manual_management: isManual
+            }).then(() => {
+                this.showToast(`✅ Actualizados ${selectedLeadIds.length} leads a ${actionText}`, 'success');
+                this.renderTable();
+            }).catch(error => {
+                this.showToast(`Error actualizando gestión: ${error.message}`, 'error');
+            });
+        }
     }
 
     resetLeads() {

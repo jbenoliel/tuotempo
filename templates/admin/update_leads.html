@@ -82,6 +82,7 @@
                                     <th>Ciudad</th>
                                     <th>Estado 1</th>
                                     <th>Estado 2</th>
+                                    <th>Gestión</th>
                                     <th>Llamadas</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -138,6 +139,16 @@
                                         <option value="true">Sí - Volver a llamar</option>
                                         <option value="false">No - No volver a llamar</option>
                                     </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="gestionManual" class="form-label">Tipo de Gestión</label>
+                                    <select class="form-select" id="gestionManual" name="gestionManual">
+                                        <option value="">No cambiar</option>
+                                        <option value="false">🤖 Automática - Plataforma gestiona llamadas</option>
+                                        <option value="true">👤 Manual - Gestión manual exclusiva</option>
+                                    </select>
+                                    <div class="form-text">La gestión manual excluye el lead de llamadas automáticas</div>
                                 </div>
                             </div>
 
@@ -267,7 +278,7 @@ class LeadUpdater {
         if (leads.length === 0) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-4 text-muted">
+                    <td colspan="8" class="text-center py-4 text-muted">
                         <i class="fas fa-search fs-3"></i>
                         <p class="mt-2 mb-0">No se encontraron leads</p>
                     </td>
@@ -283,10 +294,15 @@ class LeadUpdater {
                         </td>
                         <td>${this.escapeHtml(lead.ciudad || 'N/A')}</td>
                         <td>
-                            <span class="badge bg-info">${this.escapeHtml(lead.status_level_1 || 'N/A')}</span>
+                            <span class="badge" style="background-color: #35C0F1; color: white;">${this.escapeHtml(lead.status_level_1 || 'N/A')}</span>
                         </td>
                         <td>
-                            <span class="badge bg-secondary">${this.escapeHtml(lead.status_level_2 || 'N/A')}</span>
+                            <span class="badge" style="background-color: #646762; color: white;">${this.escapeHtml(lead.status_level_2 || 'N/A')}</span>
+                        </td>
+                        <td>
+                            <span class="badge" style="${lead.manual_management ? 'background-color: #ffc107; color: #333;' : 'background-color: #646762; color: white;'}">
+                                ${lead.manual_management ? 'Manual' : 'Automático'}
+                            </span>
                         </td>
                         <td>${lead.call_attempts_count || 0}</td>
                         <td>
@@ -332,6 +348,16 @@ class LeadUpdater {
         document.getElementById('leadName').textContent = `${lead.nombre || ''} ${lead.apellidos || ''}`.trim();
         document.getElementById('telefono').value = lead.telefono || lead.telefono2 || '';
         
+        // Preseleccionar el estado de gestión manual actual
+        const gestionSelect = document.getElementById('gestionManual');
+        if (lead.manual_management === true) {
+            gestionSelect.value = 'true';
+        } else if (lead.manual_management === false) {
+            gestionSelect.value = 'false';
+        } else {
+            gestionSelect.value = '';
+        }
+        
         document.getElementById('updateForm').style.display = 'block';
         document.getElementById('updateForm').scrollIntoView({ behavior: 'smooth' });
     }
@@ -350,11 +376,11 @@ class LeadUpdater {
         };
 
         // Añadir campos opcionales solo si tienen valor
-        ['buzon', 'volverALlamar', 'codigoNoInteres', 'codigoVolverLlamar', 'fechaCita', 'horaCita']
+        ['buzon', 'volverALlamar', 'gestionManual', 'codigoNoInteres', 'codigoVolverLlamar', 'fechaCita', 'horaCita']
             .forEach(field => {
                 const value = formData.get(field);
                 if (value && value !== '') {
-                    if (field === 'buzon' || field === 'volverALlamar') {
+                    if (field === 'buzon' || field === 'volverALlamar' || field === 'gestionManual') {
                         data[field] = value === 'true';
                     } else if (field === 'fechaCita') {
                         // Convertir fecha de YYYY-MM-DD a DD/MM/YYYY que espera la API

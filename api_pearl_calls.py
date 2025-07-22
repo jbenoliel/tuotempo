@@ -264,6 +264,9 @@ def get_leads_for_calling():
         # Filtro base: al menos un teléfono válido (telefono o telefono2)
         conditions.append("((telefono IS NOT NULL AND telefono != '') OR (telefono2 IS NOT NULL AND telefono2 != ''))")
         
+        # Filtro: excluir leads gestionados manualmente
+        conditions.append("(manual_management IS NULL OR manual_management = FALSE)")
+        
         if city:
             conditions.append("ciudad LIKE %s")
             params.append(f"%{city}%")
@@ -306,6 +309,7 @@ def get_leads_for_calling():
                 call_error_message, 
                 status_level_1, 
                 status_level_2,
+                manual_management,
                 updated_at
             FROM leads 
             WHERE {where_clause}
@@ -414,6 +418,74 @@ def select_leads_for_calling():
         
     except Exception as e:
         logger.error(f"Error seleccionando leads: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@api_pearl_calls.route('/leads/manual-management', methods=['POST'])
+def toggle_manual_management():
+    """
+    Cambia el estado de gestión manual de uno o varios leads.
+    
+    Body JSON:
+        {
+            "lead_ids": [1, 2, 3],  // IDs de los leads
+            "manual_management": true  // true = gestión manual, false = gestión automática
+        }
+    
+    Returns:
+        JSON: Resultado de la operación
+    """
+    try:
+        data = request.get_json() or {}
+        
+        lead_ids = data.get('lead_ids')
+        manual_management = data.get('manual_management')
+        
+        if not isinstance(lead_ids, list) or not lead_ids:
+            return jsonify({
+                "success": False,
+                "error": "lead_ids debe ser una lista no vacía"
+            }), 400
+        
+        if manual_management is None:
+            return jsonify({
+                "success": False,
+                "error": "manual_management es requerido (true/false)"
+            }), 400
+        
+        # Actualizar base de datos
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Preparar query
+        placeholders = ','.join(['%s'] * len(lead_ids))
+        query = f"""
+            UPDATE leads 
+            SET manual_management = %s, updated_at = NOW()
+            WHERE id IN ({placeholders})
+        """
+        
+        params = [manual_management] + lead_ids
+        cursor.execute(query, params)
+        
+        updated_count = cursor.rowcount
+        conn.commit()
+        
+        logger.info(f"Actualizados {updated_count} leads - gestión manual: {manual_management}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Actualizados {updated_count} leads",
+            "updated_count": updated_count,
+            "manual_management": manual_management,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error actualizando gestión manual: {e}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -756,6 +828,7 @@ def _get_leads_summary() -> Dict:
                 SUM(CASE WHEN selected_for_calling = TRUE THEN 1 ELSE 0 END) as selected_count
             FROM leads 
             WHERE telefono IS NOT NULL AND telefono != ''
+              AND (manual_management IS NULL OR manual_management = FALSE)
             GROUP BY call_status
             ORDER BY call_status
         """
@@ -768,7 +841,8 @@ def _get_leads_summary() -> Dict:
             SELECT 
                 COUNT(*) as total_leads,
                 SUM(CASE WHEN selected_for_calling = TRUE THEN 1 ELSE 0 END) as total_selected,
-                SUM(CASE WHEN telefono IS NOT NULL AND telefono != '' THEN 1 ELSE 0 END) as leads_with_phone
+                SUM(CASE WHEN telefono IS NOT NULL AND telefono != '' THEN 1 ELSE 0 END) as leads_with_phone,
+                SUM(CASE WHEN manual_management = TRUE THEN 1 ELSE 0 END) as manually_managed
             FROM leads
         """)
         totals = cursor.fetchone()

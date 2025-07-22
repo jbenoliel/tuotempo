@@ -150,8 +150,9 @@ class CallManager:
                     SELECT id, nombre, apellidos, telefono, telefono2
                     FROM leads 
                     WHERE id IN ({placeholders})
+                      AND (manual_management IS NULL OR manual_management = FALSE)
                       AND ((telefono IS NOT NULL AND telefono != '') 
-                           OR (telefono2 IS NOT NULL AND telefono2 != ''))
+                           OR (telefono2 IS NOT NULL and telefono2 != ''))
                 """
                 cursor.execute(query, specific_lead_ids)
                 logger.info(f"🎯 Usando leads específicos: {specific_lead_ids}")
@@ -161,6 +162,7 @@ class CallManager:
                     SELECT id, nombre, apellidos, telefono, telefono2
                     FROM leads 
                     WHERE selected_for_calling = TRUE
+                      AND (manual_management IS NULL OR manual_management = FALSE)
                       AND ((telefono IS NOT NULL AND telefono != '') 
                            OR (telefono2 IS NOT NULL AND telefono2 != ''))
                 """)

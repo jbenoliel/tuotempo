@@ -183,6 +183,19 @@
                                         </a></li>
                                     </ul>
                                 </div>
+                                <div class="btn-group me-2" role="group">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="manualManagementDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-person-gear"></i> Gestión Manual
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="manualManagementDropdown">
+                                        <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(true)">
+                                            <i class="bi bi-person-fill-check"></i> Marcar como Manual
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(false)">
+                                            <i class="bi bi-robot"></i> Marcar como Automático
+                                        </a></li>
+                                    </ul>
+                                </div>
                                 <button class="btn btn-outline-info btn-sm" id="resetLeadsBtn">
                                     <i class="bi bi-arrow-clockwise"></i> Reiniciar Estados
                                 </button>
@@ -249,42 +262,48 @@
 
                         <!-- Tabla de Leads -->
                         <div class="table-responsive">
-                            <table class="table table-hover table-striped">
-                                <thead class="table-dark">
+                            <table class="table table-hover">
+                                <thead style="background: linear-gradient(135deg, var(--corporate-gray-3) 0%, var(--corporate-gray-4) 100%); color: white;">
                                     <tr>
-                                        <th width="50">
+                                        <th width="50" style="color: white;">
                                             <input type="checkbox" id="masterCheckbox" class="form-check-input">
                                         </th>
-                                        <th>Nombre</th>
-                                        <th>Teléfono</th>
-                                        <th>Estado 1</th>
-                                        <th>Estado 2</th>
-                                        <th>Estado Llamada</th>
-                                        <th>Prioridad</th>
-                                        <th>Intentos</th>
-                                        <th>Última Llamada</th>
-                                        <th>Acciones</th>
+                                        <th style="color: white;">Nombre</th>
+                                        <th style="color: white;">Teléfono</th>
+                                        <th style="color: white;">Estado 1</th>
+                                        <th style="color: white;">Estado 2</th>
+                                        <th style="color: white;">Estado Llamada</th>
+                                        <th style="color: white;">Gestión Manual</th>
+                                        <th style="color: white;">Prioridad</th>
+                                        <th style="color: white;">Intentos</th>
+                                        <th style="color: white;">Última Llamada</th>
+                                        <th style="color: white;">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody id="leadsTableBody">
+                                <tbody id="leadsTableBody" style="background-color: white; color: #333;">
                                     {% if calls %}
                                         {% for call in calls %}
                                         <tr>
                                             <td>
                                                 <input type="checkbox" class="form-check-input" data-lead-id="{{ call.id }}">
                                             </td>
-                                            <td>{{ call.nombre_lead or 'N/A' }}</td>
+                                            <td>{{ (call.nombre or '') + ' ' + (call.apellidos or '') }}</td>
                                             <td>{{ call.telefono or 'N/A' }}</td>
                                             <td>{{ call.status_level_1 or 'N/A' }}</td>
                                             <td>{{ call.status_level_2 or 'N/A' }}</td>
                                             <td>
                                                 <span class="badge 
-                                                    {% if call.call_status == 'completed' %} bg-success
-                                                    {% elif call.call_status == 'in_progress' %} bg-warning text-dark
-                                                    {% elif call.call_status == 'error' %} bg-danger
-                                                    {% else %} bg-secondary
+                                                    {% if call.call_status == 'completed' %}" style="background-color: #92D050; color: white;
+                                                    {% elif call.call_status == 'in_progress' %}" style="background-color: #ffc107; color: #333;
+                                                    {% elif call.call_status == 'error' %}" style="background-color: #dc3545; color: white;
+                                                    {% else %}" style="background-color: #646762; color: white;
                                                     {% endif %}">
                                                     {{ (call.call_status or 'pending') | replace('_', ' ') | capitalize }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge {% if call.manual_management %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                                    {% if call.manual_management %}Manual{% else %}Automático{% endif %}
                                                 </span>
                                             </td>
                                             <td>{{ call.prioridad or 'N/A' }}</td>
@@ -299,7 +318,7 @@
                                         {% endfor %}
                                     {% else %}
                                         <tr>
-                                            <td colspan="10" class="text-center py-4">
+                                            <td colspan="11" class="text-center py-4">
                                                 <i class="bi bi-info-circle-fill fs-3 text-muted"></i>
                                                 <p class="mt-2 mb-0">No hay llamadas para mostrar.</p>
                                                 <small class="text-muted">Puedes cargar nuevos leads desde la sección 'Recargar Datos'.</small>

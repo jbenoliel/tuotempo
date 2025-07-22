@@ -569,7 +569,7 @@ def search_leads():
         query = """
             SELECT id, nombre, apellidos, telefono, telefono2, email, ciudad,
                    status_level_1, status_level_2, call_status, call_priority,
-                   last_call_attempt, call_attempts_count, updated_at
+                   last_call_attempt, call_attempts_count, manual_management, updated_at
             FROM leads 
             WHERE (telefono LIKE %s OR telefono2 LIKE %s 
                    OR nombre LIKE %s OR apellidos LIKE %s OR id = %s)

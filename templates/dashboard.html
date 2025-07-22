@@ -6,34 +6,34 @@
 <!-- Fila 1: Métricas principales -->
 <div class="row text-center g-3">
   <div class="col-6 col-md-3">
-    <div class="card h-100" style="background: linear-gradient(135deg, var(--corporate-blue-1) 0%, var(--corporate-blue-5) 100%); color: white;">
+    <div class="card h-100" style="background: #35C0F1; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">Total leads</h6>
-        <h2 class="mb-0">{{ stats.total_leads }}</h2>
+        <h6 class="mb-1" style="color: white;">Total leads</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ stats.total_leads }}</h2>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="card h-100" style="background: linear-gradient(135deg, var(--corporate-green-2) 0%, var(--corporate-green-1) 100%); color: white;">
+    <div class="card h-100" style="background: #92D050; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">Leads contactados</h6>
-        <h2 class="mb-0">{{ stats.contactados }}</h2>
+        <h6 class="mb-1" style="color: white;">Leads contactados</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ stats.contactados }}</h2>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="card h-100" style="background: linear-gradient(135deg, var(--corporate-gray-3) 0%, var(--corporate-gray-4) 100%); color: white;">
+    <div class="card h-100" style="background: #646762; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">Tasa contacto</h6>
-        <h2 class="mb-0">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h2>
+        <h6 class="mb-1" style="color: white;">Tasa contacto</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h2>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="card h-100" style="background: linear-gradient(135deg, var(--corporate-blue-3) 0%, var(--corporate-blue-4) 100%); color: var(--corporate-gray-3);">
+    <div class="card h-100" style="background: #37ADE2; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">% Citas / Contactados</h6>
-        <h2 class="mb-0">{{ stats.citas_contactados_rate }}</h2>
+        <h6 class="mb-1" style="color: white;">% Citas / Contactados</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ stats.citas_contactados_rate }}</h2>
       </div>
     </div>
   </div>
@@ -44,26 +44,26 @@
 <!-- Fila 2: Métricas secundarias -->
 <div class="row text-center g-3 mt-2">
   <div class="col-6 col-md-4">
-    <div class="card h-100" style="background: var(--corporate-blue-4); color: var(--corporate-gray-3);">
+    <div class="card h-100" style="background: #35C0F1; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">Citas agendadas</h6>
-        <h2 class="mb-0">{{ stats.estados.cita_con_pack + stats.estados.cita_sin_pack }}</h2>
+        <h6 class="mb-1" style="color: white;">Citas agendadas</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ stats.estados.cita_con_pack + stats.estados.cita_sin_pack }}</h2>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-4">
-    <div class="card h-100" style="background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%); color: var(--corporate-gray-3);">
+    <div class="card h-100" style="background: #ffc107; color: #333;">
       <div class="card-body p-3">
-        <h6 class="mb-1">Volver a llamar</h6>
-        <h2 class="mb-0">{{ stats.estados.volver_llamar }}</h2>
+        <h6 class="mb-1" style="color: #333;">Volver a llamar</h6>
+        <h2 class="mb-0" style="color: #333; font-weight: bold;">{{ stats.estados.volver_llamar }}</h2>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-4">
-    <div class="card h-100" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white;">
+    <div class="card h-100" style="background: #dc3545; color: white;">
       <div class="card-body p-3">
-        <h6 class="mb-1">No interesados</h6>
-        <h2 class="mb-0">{{ stats.estados.no_interesado }}</h2>
+        <h6 class="mb-1" style="color: white;">No interesados</h6>
+        <h2 class="mb-0" style="color: white; font-weight: bold;">{{ stats.estados.no_interesado }}</h2>
       </div>
     </div>
   </div>
