@@ -60,17 +60,23 @@ class CallsManager {
         
         // Función para normalizar datos de leads
         if (!this.normalizeLeadsData) this.normalizeLeadsData = (leads) => {
-            return leads.map(lead => {
+            console.log('🔄 Normalizando', leads.length, 'leads...');
+            const normalized = leads.map(lead => {
                 return {
                     ...lead,
-                    selected_for_calling: lead.selected_for_calling || false,
+                    selected_for_calling: Boolean(lead.selected_for_calling),
                     call_status: lead.call_status || 'no_selected',
                     call_priority: lead.call_priority || 3,
                     call_attempts_count: lead.call_attempts_count || 0,
                     status_level_1: lead.status_level_1 || '',
-                    status_level_2: lead.status_level_2 || ''
+                    status_level_2: lead.status_level_2 || '',
+                    // Añadir campos de compatibilidad
+                    selected: Boolean(lead.selected_for_calling),
+                    nombre_lead: `${lead.nombre || ''} ${lead.apellidos || ''}`.trim()
                 };
             });
+            console.log('✅ Leads normalizados, seleccionados:', normalized.filter(l => l.selected_for_calling).length);
+            return normalized;
         };
         
         // Métodos de filtros mínimos
@@ -101,6 +107,48 @@ class CallsManager {
                 this.elements.estado2Filter.innerHTML = '<option value="">Todos</option>' + 
                     estados2.map(e=>`<option value="${e}">${e}</option>`).join('');
             }
+            
+            // Actualizar dropdown de selección por estado
+            this.updateStatusDropdown(estados1);
+        };
+        
+        if (!this.updateStatusDropdown) this.updateStatusDropdown = (estados1) => {
+            const dropdown = document.querySelector('#selectByStatusDropdown + .dropdown-menu');
+            if (!dropdown) return;
+            
+            // Actualizar dinámicamente las opciones del dropdown
+            const statusOptions = estados1.map(estado => {
+                let icon = 'bi-circle';
+                if (estado.includes('Volver')) icon = 'bi-telephone';
+                else if (estado.includes('No Interesado')) icon = 'bi-x-circle';
+                else if (estado.includes('Éxito')) icon = 'bi-check-circle';
+                else if (estado.includes('Cita')) icon = 'bi-calendar-check';
+                
+                return `<li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', '${estado}')">
+                    <i class="bi ${icon}"></i> ${estado}
+                </a></li>`;
+            }).join('');
+            
+            dropdown.innerHTML = `
+                <li><h6 class="dropdown-header">Estado 1 (Principal)</h6></li>
+                ${statusOptions}
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Estado Llamada</h6></li>
+                <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'no_selected')">
+                    <i class="bi bi-circle"></i> Sin llamar
+                </a></li>
+                <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'completed')">
+                    <i class="bi bi-check-circle-fill"></i> Completadas
+                </a></li>
+                <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'error')">
+                    <i class="bi bi-exclamation-circle"></i> Con Error
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Acciones</h6></li>
+                <li><a class="dropdown-item" href="#" onclick="callsManager.showStatusSelectionModal()">
+                    <i class="bi bi-gear"></i> Selección Avanzada
+                </a></li>
+            `;
         };
         
         if (!this.loadFilters) this.loadFilters = () => this.updateFilters();
@@ -455,7 +503,7 @@ class CallsManager {
                             if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
                             
                             const queryString = params.toString();
-                            const endpoint = queryString ? `/leads?${queryString}` : '/leads';
+                            const endpoint = queryString ? `/api/leads?${queryString}` : '/api/leads';
                             
                             // Usar caché para reducir solicitudes al servidor
                             const resp = await this.apiCall('GET', endpoint, null, true);
@@ -479,7 +527,7 @@ class CallsManager {
                     case 'mark_lead':
                         // payload: { lead_id, selected }
                         try {
-                            await this.apiCall('POST', '/leads/select', {
+                            await this.apiCall('POST', '/api/leads/select', {
                                 lead_ids: [payload.lead_id],
                                 selected: payload.selected
                             });
@@ -491,7 +539,7 @@ class CallsManager {
                     case 'mark_leads':
                         // payload: { lead_ids, selected }
                         try {
-                            await this.apiCall('POST', '/leads/select', {
+                            await this.apiCall('POST', '/api/leads/select', {
                                 lead_ids: payload.lead_ids,
                                 selected: payload.selected
                             });
@@ -783,18 +831,21 @@ class CallsManager {
         const lastCallTime = lead.last_call_time ? new Date(lead.last_call_time).toLocaleString('es-ES') : 'Nunca';
         const callStatus = (lead.call_status || 'pendiente').replace('_', ' ');
 
+        // Crear el nombre completo
+        const nombreCompleto = `${lead.nombre || ''} ${lead.apellidos || ''}`.trim() || 'N/A';
+        
         row.innerHTML = `
             <td><input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''}></td>
-            <td>${lead.nombre_lead || 'N/A'}</td>
-            <td>${lead.telefono || 'N/A'}</td>
-            <td>${lead.status_level_1 || 'N/A'}</td>
-            <td>${lead.status_level_2 || 'N/A'}</td>
+            <td>${nombreCompleto}</td>
+            <td>${lead.telefono || lead.telefono2 || 'N/A'}</td>
+            <td><span class="badge bg-info text-white">${lead.status_level_1 || 'N/A'}</span></td>
+            <td><span class="badge bg-secondary">${lead.status_level_2 || 'N/A'}</span></td>
             <td><span class="badge ${statusClass}">${callStatus}</span></td>
             <td>${lead.call_priority || 3}</td>
             <td>${lead.call_attempts_count || 0}</td>
             <td>${lastCallTime}</td>
             <td>
-                <button class="btn btn-sm btn-outline-info" title="Ver Detalles" onclick="window.CallsManager.showLeadDetails('${lead.id}')">
+                <button class="btn btn-sm btn-outline-info" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')">
                     <i class="bi bi-eye"></i>
                 </button>
             </td>
@@ -838,6 +889,10 @@ class CallsManager {
         return selectedIds;
     }
 
+    getSelectedCount() {
+        return this.state.leads.filter(lead => lead.selected_for_calling).length;
+    }
+
     selectAllLeads(selected) {
         console.log(`📊 ${selected ? 'Seleccionando' : 'Deseleccionando'} todos los leads visibles...`);
         
@@ -866,6 +921,135 @@ class CallsManager {
         this.renderTable();
         
         console.log(`✅ ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+    }
+
+    selectByStatus(statusField, statusValue) {
+        console.log(`🎯 Seleccionando leads por ${statusField} = "${statusValue}"`);
+        
+        // Filtrar leads que coincidan con el estado especificado
+        const matchingLeads = this.state.leads.filter(lead => {
+            return lead[statusField] === statusValue;
+        });
+        
+        if (matchingLeads.length === 0) {
+            this.showToast(`No se encontraron leads con ${statusField} = "${statusValue}"`, 'warning');
+            return;
+        }
+        
+        // Confirmar la acción
+        this.showConfirm(
+            'Seleccionar por Estado',
+            `¿Seleccionar todos los ${matchingLeads.length} leads que tienen ${statusField} = "${statusValue}"?`
+        ).then(confirmed => {
+            if (confirmed) {
+                const leadIds = [];
+                
+                // Actualizar estado local
+                matchingLeads.forEach(lead => {
+                    lead.selected_for_calling = true;
+                    lead.selected = true;
+                    leadIds.push(lead.id);
+                });
+                
+                // Enviar al servidor
+                if (leadIds.length > 0) {
+                    this.sendMessage('mark_leads', { lead_ids: leadIds, selected: true });
+                }
+                
+                // Re-renderizar tabla
+                this.renderTable();
+                
+                this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
+                console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
+            }
+        });
+    }
+
+    showStatusSelectionModal() {
+        // Obtener estados únicos
+        const estados1 = [...new Set(this.state.leads.map(l => l.status_level_1).filter(Boolean))].sort();
+        const callStatuses = [...new Set(this.state.leads.map(l => l.call_status).filter(Boolean))].sort();
+        
+        // Crear conteo por estado
+        const status1Counts = {};
+        const callStatusCounts = {};
+        
+        this.state.leads.forEach(lead => {
+            if (lead.status_level_1) {
+                status1Counts[lead.status_level_1] = (status1Counts[lead.status_level_1] || 0) + 1;
+            }
+            if (lead.call_status) {
+                callStatusCounts[lead.call_status] = (callStatusCounts[lead.call_status] || 0) + 1;
+            }
+        });
+        
+        let modalContent = '<div class="row"><div class="col-12">';
+        modalContent += '<h6>Seleccionar/Deseleccionar por Estado:</h6>';
+        modalContent += '<div class="list-group mb-3">';
+        
+        // Estados 1
+        estados1.forEach(estado => {
+            const count = status1Counts[estado] || 0;
+            modalContent += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><strong>${estado}</strong> (${count} leads)</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success" onclick="callsManager.selectByStatus('status_level_1', '${estado}')">Seleccionar</button>
+                        <button class="btn btn-outline-warning" onclick="callsManager.deselectByStatus('status_level_1', '${estado}')">Deseleccionar</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        modalContent += '</div></div></div>';
+        
+        // Mostrar modal simple con prompt
+        const result = confirm(`Estados disponibles:\n\n${estados1.map(e => `• ${e}: ${status1Counts[e] || 0} leads`).join('\n')}\n\n¿Continuar con selección avanzada?`);
+        if (result) {
+            this.showToast('Usa el menú "Seleccionar por Estado" para elegir estados específicos', 'info');
+        }
+    }
+
+    deselectByStatus(statusField, statusValue) {
+        console.log(`🎯 Deseleccionando leads por ${statusField} = "${statusValue}"`);
+        
+        // Filtrar leads que coincidan con el estado especificado y estén seleccionados
+        const matchingLeads = this.state.leads.filter(lead => {
+            return lead[statusField] === statusValue && lead.selected_for_calling;
+        });
+        
+        if (matchingLeads.length === 0) {
+            this.showToast(`No se encontraron leads seleccionados con ${statusField} = "${statusValue}"`, 'warning');
+            return;
+        }
+        
+        // Confirmar la acción
+        this.showConfirm(
+            'Deseleccionar por Estado',
+            `¿Deseleccionar todos los ${matchingLeads.length} leads seleccionados que tienen ${statusField} = "${statusValue}"?`
+        ).then(confirmed => {
+            if (confirmed) {
+                const leadIds = [];
+                
+                // Actualizar estado local
+                matchingLeads.forEach(lead => {
+                    lead.selected_for_calling = false;
+                    lead.selected = false;
+                    leadIds.push(lead.id);
+                });
+                
+                // Enviar al servidor
+                if (leadIds.length > 0) {
+                    this.sendMessage('mark_leads', { lead_ids: leadIds, selected: false });
+                }
+                
+                // Re-renderizar tabla
+                this.renderTable();
+                
+                this.showToast(`✅ Deseleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
+                console.log(`✅ Deseleccionados ${leadIds.length} leads por estado:`, leadIds);
+            }
+        });
     }
 
     resetLeads() {
@@ -1059,10 +1243,16 @@ class CallsManager {
                     }
                     break;
                 case 'mark_lead':
-                    await this.apiCall('POST', '/mark_lead', data);
+                    await this.apiCall('POST', '/api/leads/select', {
+                        lead_ids: [data.lead_id],
+                        selected: data.selected
+                    });
                     break;
                 case 'mark_leads':
-                    await this.apiCall('POST', '/mark_leads', data);
+                    await this.apiCall('POST', '/api/leads/select', {
+                        lead_ids: data.lead_ids,
+                        selected: data.selected
+                    });
                     break;
                 default:
                     console.warn('Tipo de mensaje no reconocido:', type);
