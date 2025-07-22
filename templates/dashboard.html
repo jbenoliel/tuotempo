@@ -205,6 +205,96 @@ body { margin: 0; padding: 0; }
     {{ stats | default({}) | tojson | safe }}
 </script>
 
+<!-- FORCE DASHBOARD COLORS WITH JAVASCRIPT -->
+<script>
+console.log('🎨 FORZANDO COLORES DEL DASHBOARD...');
+
+function forceDashboardColors() {
+    // Definir colores corporativos
+    const colors = {
+        blue: '#35C0F1',
+        green: '#92D050', 
+        gray: '#646762',
+        lightBlue: '#37ADE2',
+        yellow: '#ffc107',
+        red: '#dc3545'
+    };
+    
+    // Seleccionar todas las tarjetas del dashboard
+    const cards = document.querySelectorAll('.card');
+    
+    cards.forEach((card, index) => {
+        const cardBody = card.querySelector('.card-body');
+        if (!cardBody) return;
+        
+        // Aplicar colores según la posición/índice
+        let bgColor, textColor;
+        
+        switch(index) {
+            case 0: // Total leads
+                bgColor = colors.blue;
+                textColor = 'white';
+                break;
+            case 1: // Leads contactados  
+                bgColor = colors.green;
+                textColor = 'white';
+                break;
+            case 2: // Tasa contacto
+                bgColor = colors.gray;
+                textColor = 'white';
+                break;
+            case 3: // % Citas / Contactados
+                bgColor = colors.lightBlue;
+                textColor = 'white';
+                break;
+            case 4: // Citas agendadas
+                bgColor = colors.blue;
+                textColor = 'white';
+                break;
+            case 5: // Volver a llamar
+                bgColor = colors.yellow;
+                textColor = '#333';
+                break;
+            case 6: // No interesados
+                bgColor = colors.red;
+                textColor = 'white';
+                break;
+            default:
+                bgColor = colors.blue;
+                textColor = 'white';
+        }
+        
+        // Aplicar estilos directamente
+        card.style.setProperty('background-color', bgColor, 'important');
+        card.style.setProperty('color', textColor, 'important');
+        card.style.setProperty('border', 'none', 'important');
+        
+        // Aplicar a todos los elementos hijos también
+        const allElements = card.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.style.setProperty('color', textColor, 'important');
+            if (textColor === 'white') {
+                el.style.setProperty('text-shadow', '1px 1px 2px rgba(0,0,0,0.3)', 'important');
+            }
+        });
+        
+        console.log(`✅ Tarjeta ${index}: ${bgColor} con texto ${textColor}`);
+    });
+    
+    console.log('🎨 COLORES APLICADOS EXITOSAMENTE');
+}
+
+// Ejecutar inmediatamente
+forceDashboardColors();
+
+// Ejecutar de nuevo después de que se cargue completamente
+document.addEventListener('DOMContentLoaded', forceDashboardColors);
+
+// Ejecutar una vez más por seguridad
+setTimeout(forceDashboardColors, 100);
+setTimeout(forceDashboardColors, 500);
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
