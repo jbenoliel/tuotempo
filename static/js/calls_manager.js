@@ -202,11 +202,14 @@ class CallsManager {
             pearlConnectionStatus: document.getElementById('pearlConnectionStatus'),
             leadDetailsModal: document.getElementById('leadDetailsModal'),
             leadDetailsContent: document.getElementById('leadDetailsContent'),
-            // Contadores
+            // Contadores del dashboard de llamadas
             totalCallsCount: document.getElementById('totalCallsCount'),
             successCallsCount: document.getElementById('successCallsCount'),
             failedCallsCount: document.getElementById('failedCallsCount'),
             activeCallsCount: document.getElementById('activeCallsCount'),
+            // Contadores de leads en la tabla
+            totalLeadsCount: document.getElementById('totalLeadsCount'),
+            selectedLeadsCount: document.getElementById('selectedLeadsCount'),
             // Progreso
             progressSection: document.getElementById('progressSection'),
             progressBar: document.getElementById('progressBar'),
@@ -798,9 +801,10 @@ class CallsManager {
         if (paginatedLeads.length === 0) {
             this.elements.leadsTableBody.innerHTML = `
                 <tr>
-                    <td colspan="10" class="text-center py-4">
+                    <td colspan="11" class="text-center py-4">
                         <i class="bi bi-info-circle-fill fs-3 text-muted"></i>
                         <p class="mt-2 mb-0">No hay leads que coincidan con los filtros.</p>
+                        <small class="text-muted">Ajusta los filtros para ver más leads</small>
                     </td>
                 </tr>`;
         } else {
@@ -809,9 +813,14 @@ class CallsManager {
                 this.elements.leadsTableBody.appendChild(row);
             });
         }
+        
         this.renderPagination(filteredLeads.length);
         this.updateLeadsInfo(filteredLeads.length);
         this.updateMasterCheckbox();
+        
+        // Forzar actualización de contadores después de renderizar
+        const selectedCount = this.getSelectedCount();
+        this.updateLeadsCounters(filteredLeads.length, selectedCount);
         
         console.log('✅ Tabla renderizada correctamente');
     }
@@ -821,7 +830,17 @@ class CallsManager {
         
         const row = document.createElement('tr');
         row.dataset.leadId = lead.id;
-        row.className = lead.selected_for_calling ? 'table-primary' : '';
+        
+        // Hacer más visible la selección con estilos más marcados
+        if (lead.selected_for_calling) {
+            row.className = 'table-primary';
+            row.style.backgroundColor = '#B5E0F4'; // Azul corporativo suave
+            row.style.borderLeft = '4px solid #35C0F1'; // Borde azul corporativo
+        } else {
+            row.className = '';
+            row.style.backgroundColor = '';
+            row.style.borderLeft = '';
+        }
 
         let statusClass = 'bg-secondary';
         if (lead.call_status === 'completed') statusClass = 'bg-success';
@@ -846,8 +865,13 @@ class CallsManager {
         const manualBadgeText = isManual ? 'Manual' : 'Automático';
         
         row.innerHTML = `
-            <td><input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''}></td>
-            <td style="color: #333; font-weight: 500;">${nombreCompleto}</td>
+            <td>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''} style="${lead.selected_for_calling ? 'border-color: #35C0F1; background-color: #35C0F1; box-shadow: 0 0 0 0.25rem rgba(53, 192, 241, 0.25);' : ''}">
+                    ${lead.selected_for_calling ? '<i class="bi bi-check-circle-fill text-primary" style="position: absolute; margin-left: 1.5rem; margin-top: -1.2rem; font-size: 0.8rem;"></i>' : ''}
+                </div>
+            </td>
+            <td style="color: #333; font-weight: ${lead.selected_for_calling ? '600' : '500'};">${nombreCompleto}</td>
             <td style="color: #35C0F1; font-weight: 500;">${lead.telefono || lead.telefono2 || 'N/A'}</td>
             <td><span class="badge" style="background-color: #35C0F1; color: white;">${lead.status_level_1 || 'N/A'}</span></td>
             <td><span class="badge" style="background-color: #646762; color: white;">${lead.status_level_2 || 'N/A'}</span></td>
@@ -948,13 +972,22 @@ class CallsManager {
             return;
         }
         
-        // Confirmar la acción directamente
-        const confirmed = confirm(`¿Seleccionar todos los ${matchingLeads.length} leads que tienen ${statusField} = "${statusValue}"?`);
+        // Contar cuántos ya están seleccionados
+        const alreadySelected = matchingLeads.filter(lead => lead.selected_for_calling).length;
+        const notSelected = matchingLeads.length - alreadySelected;
+        
+        // Mensaje más informativo
+        let message = `Encontrados ${matchingLeads.length} leads con ${statusField} = "${statusValue}":\n\n`;
+        message += `• ${alreadySelected} ya seleccionados\n`;
+        message += `• ${notSelected} sin seleccionar\n\n`;
+        message += `¿Seleccionar TODOS los ${matchingLeads.length} leads?`;
+        
+        const confirmed = confirm(message);
         
         if (confirmed) {
             const leadIds = [];
             
-            // Actualizar estado local
+            // Actualizar estado local - seleccionar todos independientemente de su estado previo
             matchingLeads.forEach(lead => {
                 lead.selected_for_calling = true;
                 lead.selected = true;
@@ -969,7 +1002,7 @@ class CallsManager {
             // Re-renderizar tabla
             this.renderTable();
             
-            this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}"`, 'success');
+            this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}" (${notSelected} nuevos)`, 'success');
             console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
         }
     }
@@ -1431,12 +1464,48 @@ class CallsManager {
         if (!this.elements.leadsInfo) return;
         
         // Calcular información de paginación
-        const start = (this.state.currentPage - 1) * this.state.itemsPerPage + 1;
+        const start = totalFiltered > 0 ? (this.state.currentPage - 1) * this.state.itemsPerPage + 1 : 0;
         const end = Math.min(start + this.state.itemsPerPage - 1, totalFiltered);
         const selectedCount = this.getSelectedCount();
+        const filteredSelectedCount = this.getFilteredLeads().filter(lead => lead.selected_for_calling).length;
         
-        this.elements.leadsInfo.textContent = `Mostrando ${start}-${end} de ${totalFiltered} leads | ${selectedCount} seleccionados`;
-        console.log(`📊 Info actualizada: ${start}-${end} de ${totalFiltered}, ${selectedCount} seleccionados`);
+        // Información más detallada y visible
+        const info = totalFiltered > 0 
+            ? `Mostrando ${start}-${end} de ${totalFiltered} leads | ${filteredSelectedCount} seleccionados de los filtrados | ${selectedCount} total seleccionados`
+            : `Sin leads que mostrar | ${selectedCount} total seleccionados`;
+            
+        this.elements.leadsInfo.textContent = info;
+        
+        // Actualizar los contadores de leads en los badges del header
+        this.updateLeadsCounters(totalFiltered, selectedCount);
+        
+        console.log(`📊 Info actualizada: ${info}`);
+    }
+
+    updateLeadsCounters(totalFiltered, selectedCount) {
+        // Actualizar contador de total de leads mostrados
+        if (this.elements.totalLeadsCount) {
+            this.elements.totalLeadsCount.textContent = totalFiltered || 0;
+        }
+        
+        // Actualizar contador de leads seleccionados
+        if (this.elements.selectedLeadsCount) {
+            this.elements.selectedLeadsCount.textContent = selectedCount || 0;
+            
+            // Cambiar color del badge según si hay leads seleccionados
+            const selectedBadge = this.elements.selectedLeadsCount.parentElement;
+            if (selectedBadge) {
+                if (selectedCount > 0) {
+                    selectedBadge.className = 'badge bg-success fs-6';
+                    selectedBadge.style.animation = 'pulse 2s infinite';
+                } else {
+                    selectedBadge.className = 'badge bg-secondary fs-6';
+                    selectedBadge.style.animation = '';
+                }
+            }
+        }
+        
+        console.log(`🔢 Contadores actualizados: Total=${totalFiltered}, Seleccionados=${selectedCount}`);
     }
 
     updatePagination() {

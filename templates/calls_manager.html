@@ -13,6 +13,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/corporate.css') }}?v={{ range(1, 99999) | random }}">
     <!-- CSS personalizado -->
     <link href="{{ url_for('static', filename='css/calls_manager.css') }}?v={{ range(1, 99999) | random }}" rel="stylesheet">
+    
+    <!-- Estilos específicos para contadores y visualización -->
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .lead-row-selected {
+            background-color: #B5E0F4 !important;
+            border-left: 4px solid #35C0F1 !important;
+        }
+        
+        .lead-checkbox-selected {
+            border-color: #35C0F1 !important;
+            background-color: #35C0F1 !important;
+            box-shadow: 0 0 0 0.25rem rgba(53, 192, 241, 0.25) !important;
+        }
+        
+        .counters-badge {
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .counters-badge:hover {
+            transform: scale(1.05);
+        }
+    </style>
 </head>
 <body>
     <!-- Navbar -->
@@ -137,13 +166,24 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="row align-items-center">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <h5 class="mb-0">
                                     <i class="bi bi-people-fill me-2"></i>
                                     Gestión de Leads
                                 </h5>
                             </div>
-                            <div class="col-md-6 text-end">
+                            <div class="col-md-4 text-center">
+                                <!-- Contador de leads más visible -->
+                                <div class="d-flex justify-content-center gap-2">
+                                    <span class="badge bg-primary fs-6 counters-badge" title="Total de leads mostrados" id="totalLeadsCountBadge">
+                                        <i class="bi bi-list-ol"></i> Total: <span id="totalLeadsCount">0</span>
+                                    </span>
+                                    <span class="badge bg-secondary fs-6 counters-badge" title="Leads seleccionados para llamadas" id="selectedLeadsCountBadge">
+                                        <i class="bi bi-check-square"></i> Seleccionados: <span id="selectedLeadsCount">0</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
                                 <div class="btn-group me-2" role="group">
                                     <button class="btn btn-outline-success btn-sm" id="selectAllBtn">
                                         <i class="bi bi-check-all"></i> Seleccionar Todo
