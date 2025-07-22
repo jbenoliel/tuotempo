@@ -5,15 +5,54 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<style>
-/* Force cache override for dashboard colors */
-.dashboard-card-blue { background: #35C0F1 !important; color: white !important; }
-.dashboard-card-green { background: #92D050 !important; color: white !important; }
-.dashboard-card-gray { background: #646762 !important; color: white !important; }
-.dashboard-card-blue2 { background: #37ADE2 !important; color: white !important; }
-.dashboard-card-yellow { background: #ffc107 !important; color: #333 !important; }
-.dashboard-card-red { background: #dc3545 !important; color: white !important; }
-.dashboard-text-white { color: white !important; font-weight: bold !important; }
+<meta http-equiv="Last-Modified" content="Mon, 22 Jul 2025 {{ range(10, 59) | random }}:{{ range(10, 59) | random }}:{{ range(10, 59) | random }} GMT">
+<style data-version="{{ range(100000, 999999) | random }}">
+/* FORCE REFRESH - Dashboard Colors {{ range(1000, 9999) | random }} */
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; }
+
+/* Ultra aggressive color override */
+.card[style*="35C0F1"], .dashboard-card-blue {
+  background: #35C0F1 !important;
+  color: white !important;
+}
+
+.card[style*="92D050"], .dashboard-card-green {
+  background: #92D050 !important;
+  color: white !important;
+}
+
+.card[style*="646762"], .dashboard-card-gray {
+  background: #646762 !important;
+  color: white !important;
+}
+
+.card[style*="37ADE2"], .dashboard-card-blue2 {
+  background: #37ADE2 !important;
+  color: white !important;
+}
+
+.card[style*="ffc107"], .dashboard-card-yellow {
+  background: #ffc107 !important;
+  color: #333 !important;
+}
+
+.card[style*="dc3545"], .dashboard-card-red {
+  background: #dc3545 !important;
+  color: white !important;
+}
+
+/* Force text colors */
+.dashboard-text-white, .card h6, .card h2 {
+  color: white !important;
+  font-weight: bold !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
+}
+
+.card[style*="ffc107"] h6, .card[style*="ffc107"] h2 {
+  color: #333 !important;
+  text-shadow: none !important;
+}
 </style>
 {% endblock %}
 
