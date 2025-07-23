@@ -210,15 +210,20 @@ body { margin: 0; padding: 0; }
 console.log('🎨 FORZANDO COLORES DEL DASHBOARD...');
 
 function forceDashboardColors() {
-    // Definir colores corporativos
-    const colors = {
-        blue: '#35C0F1',
-        green: '#92D050', 
-        gray: '#646762',
-        lightBlue: '#37ADE2',
-        yellow: '#ffc107',
-        red: '#dc3545'
-    };
+    // Definir colores corporativos con contraste optimizado
+    const colorConfig = [
+        {bg: '#35C0F1', text: '#000000'}, // Total leads - Azul con texto NEGRO
+        {bg: '#92D050', text: '#000000'}, // Leads contactados - Verde con texto NEGRO  
+        {bg: '#646762', text: '#FFFFFF'}, // Tasa contacto - Gris con texto BLANCO
+        {bg: '#37ADE2', text: '#000000'}, // % Citas - Azul claro con texto NEGRO
+        {bg: '#35C0F1', text: '#000000'}, // Citas agendadas - Azul con texto NEGRO
+        {bg: '#ffc107', text: '#000000'}, // Volver a llamar - Amarillo con texto NEGRO
+        {bg: '#dc3545', text: '#FFFFFF'}, // No interesados - Rojo con texto BLANCO
+        {bg: '#35C0F1', text: '#000000'}, // Gráficos adicionales
+        {bg: '#35C0F1', text: '#000000'},
+        {bg: '#35C0F1', text: '#000000'},
+        {bg: '#35C0F1', text: '#000000'}
+    ];
     
     // Seleccionar todas las tarjetas del dashboard
     const cards = document.querySelectorAll('.card');
@@ -227,61 +232,34 @@ function forceDashboardColors() {
         const cardBody = card.querySelector('.card-body');
         if (!cardBody) return;
         
-        // Aplicar colores según la posición/índice
-        let bgColor, textColor;
+        const config = colorConfig[index] || {bg: '#35C0F1', text: '#000000'};
         
-        switch(index) {
-            case 0: // Total leads
-                bgColor = colors.blue;
-                textColor = 'white';
-                break;
-            case 1: // Leads contactados  
-                bgColor = colors.green;
-                textColor = 'white';
-                break;
-            case 2: // Tasa contacto
-                bgColor = colors.gray;
-                textColor = 'white';
-                break;
-            case 3: // % Citas / Contactados
-                bgColor = colors.lightBlue;
-                textColor = 'white';
-                break;
-            case 4: // Citas agendadas
-                bgColor = colors.blue;
-                textColor = 'white';
-                break;
-            case 5: // Volver a llamar
-                bgColor = colors.yellow;
-                textColor = '#333';
-                break;
-            case 6: // No interesados
-                bgColor = colors.red;
-                textColor = 'white';
-                break;
-            default:
-                bgColor = colors.blue;
-                textColor = 'white';
-        }
-        
-        // Aplicar estilos directamente
-        card.style.setProperty('background-color', bgColor, 'important');
-        card.style.setProperty('color', textColor, 'important');
+        // Aplicar colores de fondo
+        card.style.setProperty('background-color', config.bg, 'important');
+        card.style.setProperty('background', config.bg, 'important');
         card.style.setProperty('border', 'none', 'important');
         
-        // Aplicar a todos los elementos hijos también
+        // FORZAR color de texto en TODOS los elementos de la tarjeta
         const allElements = card.querySelectorAll('*');
         allElements.forEach(el => {
-            el.style.setProperty('color', textColor, 'important');
-            if (textColor === 'white') {
-                el.style.setProperty('text-shadow', '1px 1px 2px rgba(0,0,0,0.3)', 'important');
+            el.style.setProperty('color', config.text, 'important');
+            el.style.setProperty('opacity', '1', 'important');
+            
+            // Añadir sombra de texto para mejor legibilidad si es texto blanco
+            if (config.text === '#FFFFFF') {
+                el.style.setProperty('text-shadow', '1px 1px 2px rgba(0,0,0,0.5)', 'important');
+            } else {
+                el.style.setProperty('text-shadow', 'none', 'important');
             }
         });
         
-        console.log(`✅ Tarjeta ${index}: ${bgColor} con texto ${textColor}`);
+        // También aplicar al contenedor principal
+        card.style.setProperty('color', config.text, 'important');
+        
+        console.log(`✅ Tarjeta ${index}: Fondo ${config.bg}, Texto ${config.text}`);
     });
     
-    console.log('🎨 COLORES APLICADOS EXITOSAMENTE');
+    console.log('🎨 COLORES Y TEXTO APLICADOS EXITOSAMENTE');
 }
 
 // Ejecutar inmediatamente

@@ -23,7 +23,11 @@ DB_CONFIG = {
     'port': settings.DB_PORT,
     'user': settings.DB_USER,
     'password': settings.DB_PASSWORD,
-    'database': settings.DB_DATABASE
+    'database': settings.DB_DATABASE,
+    'ssl_disabled': True,  # Deshabilitar SSL para evitar errores de conexión
+    'autocommit': True,
+    'charset': 'utf8mb4',
+    'use_unicode': True
 }
 
 def get_db_connection():
@@ -32,7 +36,17 @@ def get_db_connection():
         connection = mysql.connector.connect(**DB_CONFIG)
         return connection
     except mysql.connector.Error as err:
-        logger.error(f"Error al conectar a MySQL: {err}")
+        logger.error(f"Error conectando a MySQL: {err}")
+        # Si falla con SSL, intentar sin SSL
+        if 'SSL' in str(err) or '2026' in str(err):
+            try:
+                logger.info("Intentando conexión sin SSL...")
+                config_no_ssl = DB_CONFIG.copy()
+                config_no_ssl['ssl_disabled'] = True
+                connection = mysql.connector.connect(**config_no_ssl)
+                return connection
+            except mysql.connector.Error as err2:
+                logger.error(f"Error conectando sin SSL: {err2}")
         return None
 
 @resultado_api.route('/api/status', methods=['GET'])

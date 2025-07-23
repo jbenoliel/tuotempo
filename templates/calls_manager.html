@@ -45,7 +45,7 @@
 </head>
 <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: var(--corporate-blue-1);">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
                 <i class="bi bi-telephone-fill me-2"></i>
@@ -64,7 +64,7 @@
         <div class="row">
             <div class="col-12">
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
+                    <div class="card-header text-white" style="background-color: var(--corporate-blue-1);">
                         <h5 class="mb-0">
                             <i class="bi bi-gear-fill me-2"></i>
                             Control de Llamadas
@@ -75,35 +75,33 @@
                             <!-- Botones de Control -->
                             <div class="col-md-6">
                                 <div class="btn-group me-3" role="group">
-                                    <button id="startCallsBtn" class="btn btn-success btn-lg" type="button">
+                                    <button id="startCallsBtn" class="btn btn-lg" style="background-color: var(--corporate-green-1); color: white;" type="button">
                                         <i class="bi bi-play-fill"></i> INICIAR
                                     </button>
-                                    <button id="stopCallsBtn" class="btn btn-danger btn-lg" type="button" disabled>
-                                </button>
-                                <button id="stopCallsBtn" class="btn btn-danger btn-lg" type="button" disabled>
-                                    <i class="bi bi-stop-fill"></i> DETENER
-                                </button>
+                                    <button id="stopCallsBtn" class="btn btn-lg" style="background-color: var(--corporate-red-1); color: white;" type="button" disabled>
+                                        <i class="bi bi-stop-fill"></i> DETENER
+                                    </button>
                             </div>
-                            <button id="refreshBtn" class="btn btn-outline-primary" type="button">
+                            <button id="refreshBtn" class="btn" style="border: 1px solid var(--corporate-blue-1); color: var(--corporate-blue-1);" type="button">
                                 <i class="bi bi-arrow-clockwise"></i> Actualizar
                             </button>
                             <!-- Estado del Sistema -->
                             <div class="d-flex align-items-center justify-content-end">
                                 <div class="me-3">
-                                    <span class="badge bg-secondary fs-6" id="systemStatus">Cargando...</span>
+                                    <span class="badge fs-6" id="systemStatus" style="background-color: var(--corporate-gray-2);">Cargando...</span>
                                 </div>
                                 <div class="text-end">
                                     <div class="d-flex gap-2 mb-1">
-                                        <span class="badge bg-primary" title="Total" id="totalCallsCountBadge">
+                                        <span class="badge" title="Total" id="totalCallsCountBadge" style="background-color: var(--corporate-blue-1);">
                                             T: <span id="totalCallsCount">{{ stats.total or 0 }}</span>
                                         </span>
-                                        <span class="badge bg-success" title="Exitosas">
+                                        <span class="badge" title="Exitosas" style="background-color: var(--corporate-green-1);">
                                             ✔ <span id="successCallsCount">{{ stats.completed or 0 }}</span>
                                         </span>
-                                        <span class="badge bg-danger" title="Fallidas">
+                                        <span class="badge" title="Fallidas" style="background-color: var(--corporate-red-1);">
                                             ✖ <span id="failedCallsCount">{{ stats.error or 0 }}</span>
                                         </span>
-                                        <span class="badge" style="background-color: #ffc107; color: var(--corporate-gray-3);" title="En curso">
+                                        <span class="badge" style="background-color: var(--corporate-yellow-1); color: var(--corporate-gray-3);" title="En curso">
                                             ▶ <span id="activeCallsCount">{{ stats.in_progress or 0 }}</span>
                                         </span>
                                     </div>
@@ -175,10 +173,10 @@
                             <div class="col-md-4 text-center">
                                 <!-- Contador de leads más visible -->
                                 <div class="d-flex justify-content-center gap-2">
-                                    <span class="badge bg-primary fs-6 counters-badge" title="Total de leads mostrados" id="totalLeadsCountBadge">
+                                    <span class="badge fs-6 counters-badge" title="Total de leads mostrados" id="totalLeadsCountBadge" style="background-color: var(--corporate-blue-1);">
                                         <i class="bi bi-list-ol"></i> Total: <span id="totalLeadsCount">0</span>
                                     </span>
-                                    <span class="badge bg-secondary fs-6 counters-badge" title="Leads seleccionados para llamadas" id="selectedLeadsCountBadge">
+                                    <span class="badge fs-6 counters-badge" title="Leads seleccionados para llamadas" id="selectedLeadsCountBadge" style="background-color: var(--corporate-gray-2);">
                                         <i class="bi bi-check-square"></i> Seleccionados: <span id="selectedLeadsCount">0</span>
                                     </span>
                                 </div>
@@ -332,12 +330,12 @@
                                             <td>{{ call.status_level_1 or 'N/A' }}</td>
                                             <td>{{ call.status_level_2 or 'N/A' }}</td>
                                             <td>
-                                                <span class="badge 
-                                                    {% if call.call_status == 'completed' %}" style="background-color: #92D050; color: white;
-                                                    {% elif call.call_status == 'in_progress' %}" style="background-color: #ffc107; color: #333;
-                                                    {% elif call.call_status == 'error' %}" style="background-color: #dc3545; color: white;
-                                                    {% else %}" style="background-color: #646762; color: white;
-                                                    {% endif %}">
+                                                <span class="badge"
+                                                    {% if call.call_status == 'completed' %} style="background-color: var(--corporate-green-1); color: white;"
+                                                    {% elif call.call_status == 'in_progress' %} style="background-color: var(--corporate-yellow-1); color: var(--corporate-gray-3);"
+                                                    {% elif call.call_status == 'error' %} style="background-color: var(--corporate-red-1); color: white;"
+                                                    {% else %} style="background-color: var(--corporate-gray-2); color: white;"
+                                                    {% endif %}>
                                                     {{ (call.call_status or 'pending') | replace('_', ' ') | capitalize }}
                                                 </span>
                                             </td>

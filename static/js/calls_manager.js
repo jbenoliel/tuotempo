@@ -79,19 +79,10 @@ class CallsManager {
             return normalized;
         };
         
-        // Métodos de filtros mínimos
-        if (!this.getFilteredLeads) this.getFilteredLeads = () => {
-            return this.state.leads.filter(l => {
-                const f = this.state.filters;
-                if (f.estado1 && l.status_level_1 !== f.estado1) return false;
-                if (f.estado2 && l.status_level_2 !== f.estado2) return false;
-                if (f.status && l.call_status !== f.status) return false;
-                if (f.priority && String(l.call_priority) !== String(f.priority)) return false;
-                if (f.selected === 'true' && !l.selected_for_calling) return false;
-                if (f.selected === 'false' && l.selected_for_calling) return false;
-                return true;
-            });
-        };
+        // Asegurarse de que los métodos de filtros existan
+        if (!this.getFilteredLeads) {
+            console.log('⚠️ Método getFilteredLeads no definido, usando implementación por defecto');
+        }
         
         if (!this.updateFilters) this.updateFilters = () => {
             // Rellenar combos con valores únicos
@@ -929,6 +920,83 @@ class CallsManager {
         return this.state.leads.filter(lead => lead.selected_for_calling).length;
     }
 
+    updateSelectedCount() {
+        // Actualizar el contador de leads seleccionados en la interfaz
+        const selectedCount = this.getSelectedCount();
+        const selectedCountElement = document.getElementById('selectedLeadsCount');
+        if (selectedCountElement) {
+            selectedCountElement.textContent = selectedCount;
+            
+            // Actualizar también la clase del badge para destacar visualmente
+            const badge = document.getElementById('selectedLeadsCountBadge');
+            if (badge) {
+                if (selectedCount > 0) {
+                    badge.classList.remove('bg-secondary');
+                    badge.classList.add('bg-success');
+                } else {
+                    badge.classList.remove('bg-success');
+                    badge.classList.add('bg-secondary');
+                }
+            }
+        }
+        
+        // Actualizar también el contador total de leads
+        const totalLeadsElement = document.getElementById('totalLeadsCount');
+        if (totalLeadsElement) {
+            totalLeadsElement.textContent = this.state.leads.length;
+        }
+    }
+    
+    updateLeadsCounters(totalCount, selectedCount) {
+        // Actualizar contador total de leads
+        const totalLeadsElement = document.getElementById('totalLeadsCount');
+        if (totalLeadsElement) {
+            totalLeadsElement.textContent = totalCount;
+        }
+        
+        // Actualizar contador de leads seleccionados
+        const selectedCountElement = document.getElementById('selectedLeadsCount');
+        if (selectedCountElement) {
+            selectedCountElement.textContent = selectedCount;
+            
+            // Actualizar también la clase del badge para destacar visualmente
+            const badge = document.getElementById('selectedLeadsCountBadge');
+            if (badge) {
+                if (selectedCount > 0) {
+                    badge.classList.remove('bg-secondary');
+                    badge.classList.add('bg-success');
+                } else {
+                    badge.classList.remove('bg-success');
+                    badge.classList.add('bg-secondary');
+                }
+            }
+        }
+        
+        // Actualizar el texto del botón de selección por estado si existe
+        const selectByStatusBtn = document.getElementById('selectByStatusDropdown');
+        if (selectByStatusBtn) {
+            if (selectedCount > 0) {
+                selectByStatusBtn.innerHTML = `<i class="bi bi-funnel"></i> Seleccionados: ${selectedCount}`;
+            } else {
+                selectByStatusBtn.innerHTML = `<i class="bi bi-funnel"></i> Seleccionar por Estado`;
+            }
+        }
+    }
+    
+    getFilteredLeads() {
+        // Filtrar leads según los filtros actuales
+        return this.state.leads.filter(l => {
+            const f = this.state.filters;
+            if (f.estado1 && l.status_level_1 !== f.estado1) return false;
+            if (f.estado2 && l.status_level_2 !== f.estado2) return false;
+            if (f.status && l.call_status !== f.status) return false;
+            if (f.priority && String(l.call_priority) !== String(f.priority)) return false;
+            if (f.selected === 'true' && !l.selected_for_calling) return false;
+            if (f.selected === 'false' && l.selected_for_calling) return false;
+            return true;
+        });
+    }
+
     selectAllLeads(selected) {
         console.log(`📊 ${selected ? 'Seleccionando' : 'Deseleccionando'} todos los leads visibles...`);
         
@@ -976,13 +1044,21 @@ class CallsManager {
         const alreadySelected = matchingLeads.filter(lead => lead.selected_for_calling).length;
         const notSelected = matchingLeads.length - alreadySelected;
         
-        // Mensaje más informativo
-        let message = `Encontrados ${matchingLeads.length} leads con ${statusField} = "${statusValue}":\n\n`;
-        message += `• ${alreadySelected} ya seleccionados\n`;
-        message += `• ${notSelected} sin seleccionar\n\n`;
-        message += `¿Seleccionar TODOS los ${matchingLeads.length} leads?`;
+        // Caso especial para "Volver a llamar" - seleccionar automáticamente sin confirmación
+        const autoSelect = (statusField === 'status_level_1' && statusValue === 'Volver a llamar');
         
-        const confirmed = confirm(message);
+        // Para otros estados, mostrar mensaje de confirmación
+        let confirmed = autoSelect;
+        
+        if (!autoSelect) {
+            // Mensaje más informativo
+            let message = `Encontrados ${matchingLeads.length} leads con ${statusField} = "${statusValue}":\n\n`;
+            message += `• ${alreadySelected} ya seleccionados\n`;
+            message += `• ${notSelected} sin seleccionar\n\n`;
+            message += `¿Seleccionar TODOS los ${matchingLeads.length} leads?`;
+            
+            confirmed = confirm(message);
+        }
         
         if (confirmed) {
             const leadIds = [];
@@ -1001,6 +1077,24 @@ class CallsManager {
             
             // Re-renderizar tabla
             this.renderTable();
+            
+            // Actualizar el contador de leads seleccionados
+            this.updateSelectedCount();
+            
+            // Actualizar filtros si es "Volver a llamar" para mostrar solo esos leads
+            if (autoSelect) {
+                // Establecer filtro para mostrar solo leads con estado "Volver a llamar"
+                this.state.filters.estado1 = 'Volver a llamar';
+                
+                // Actualizar la interfaz de filtros si existe
+                const filterEstado1 = document.getElementById('filterEstado1');
+                if (filterEstado1) {
+                    filterEstado1.value = 'Volver a llamar';
+                }
+                
+                // Re-renderizar tabla con el nuevo filtro aplicado
+                this.renderTable();
+            }
             
             this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}" (${notSelected} nuevos)`, 'success');
             console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);

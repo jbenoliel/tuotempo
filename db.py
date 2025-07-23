@@ -18,11 +18,24 @@ def get_connection():
         'user': settings.DB_USER,
         'password': settings.DB_PASSWORD,
         'database': settings.DB_DATABASE,
+        'ssl_disabled': True,  # Deshabilitar SSL para evitar errores de conexión
+        'autocommit': True,
+        'charset': 'utf8mb4',
+        'use_unicode': True
     }
     try:
         conn = mysql.connector.connect(**cfg)
         return conn
     except Error as e:
-        # Logging mínimo, el llamante puede manejar el error
         print(f"ERROR conectando a MySQL: {e}")
+        # Si falla con SSL, intentar sin SSL
+        if 'SSL' in str(e) or '2026' in str(e):
+            try:
+                print("Intentando conexión sin SSL...")
+                cfg_no_ssl = cfg.copy()
+                cfg_no_ssl['ssl_disabled'] = True
+                conn = mysql.connector.connect(**cfg_no_ssl)
+                return conn
+            except Error as e2:
+                print(f"ERROR conectando sin SSL: {e2}")
         return None
