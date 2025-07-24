@@ -450,6 +450,13 @@ def register_apis(app):
             logger.info("Blueprint 'api_pearl_calls' registrado correctamente.")
         else:
             logger.info("Blueprint 'api_pearl_calls' ya estaba registrado, se omite.")
+            
+        if 'centros_api' not in registered_blueprints:
+            from api_centros import centros_api
+            app.register_blueprint(centros_api)
+            logger.info("Blueprint 'centros_api' registrado correctamente.")
+        else:
+            logger.info("Blueprint 'centros_api' ya estaba registrado, se omite.")
 
 
     except ImportError as e:

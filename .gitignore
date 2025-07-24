@@ -172,3 +172,7 @@ SegurcaixaCalls_julio21_procesar_grabaciones_campos_json.xlsx
 SegurcaixaCalls_julio21_procesar_grabaciones.xlsx
 SegurcaixaCalls_julio21_procesar.xlsx
 grabaciones_21_julio/llamadas_21_julio.json
+start.py.backup
+temp_patch.txt
+__pycache__/tuotempo_api.cpython-312.pyc
+__pycache__/db.cpython-312.pyc

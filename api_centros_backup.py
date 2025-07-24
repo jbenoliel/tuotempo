@@ -1,9 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Flask, request, jsonify
 import os
 from dotenv import load_dotenv
 import logging
 from tuotempo_api import TuoTempoAPI
-from datetime import datetime
 
 # Cargar variables de entorno
 load_dotenv()
@@ -14,13 +13,13 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # Crear la aplicación Flask
-centros_api = Blueprint("centros_api", __name__)
+app = Flask(__name__)
 
 # Configuración de la aplicación
+app.config['JSON_AS_ASCII'] = False  # Para manejar caracteres especiales en JSON
+app.secret_key = os.getenv('SECRET_KEY', 'clave-secreta-por-defecto')
 
-
-
-@centros_api.route('/api/status', methods=['GET'])
+@app.route('/api/status', methods=['GET'])
 def status():
     """Endpoint para verificar el estado de la API"""
     return jsonify({
@@ -29,7 +28,7 @@ def status():
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 
-@centros_api.route('/api/centros', methods=['GET'])
+@app.route('/api/centros', methods=['GET'])
 def obtener_centros():
     """
     Endpoint para obtener centros de TuoTempo
@@ -106,7 +105,7 @@ def obtener_centros():
             "message": f"Error al procesar la solicitud: {str(e)}"
         }), 500
 
-@centros_api.route('/api/centros/<codigo_postal>', methods=['GET'])
+@app.route('/api/centros/<codigo_postal>', methods=['GET'])
 def obtener_centros_por_cp(codigo_postal):
     """
     Endpoint para obtener centros por código postal (versión REST)
@@ -120,4 +119,12 @@ def obtener_centros_por_cp(codigo_postal):
     # Redirigir a la versión con query parameters
     return obtener_centros()
 
+# Importar datetime para el timestamp
+from datetime import datetime
 
+if __name__ == '__main__':
+    # Obtener puerto del entorno o usar 5000 por defecto
+    port = int(os.getenv('PORT', 5000))
+    
+    # Ejecutar la aplicación
+    app.run(host='0.0.0.0', port=port, debug=True)

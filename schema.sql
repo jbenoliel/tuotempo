@@ -5,6 +5,7 @@
 DROP TABLE IF EXISTS `pearl_calls`;
 DROP TABLE IF EXISTS `recargas`;
 DROP TABLE IF EXISTS `leads`;
+DROP TABLE IF EXISTS `clinicas`;
 DROP TABLE IF EXISTS `usuarios`;
 
 -- --- Tabla de Usuarios ---
@@ -18,6 +19,25 @@ CREATE TABLE `usuarios` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `email_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --- Tabla de Clínicas ---
+-- Almacena la información de todas las clínicas disponibles.
+CREATE TABLE `clinicas` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `areaid` VARCHAR(255) NOT NULL COMMENT 'ID único del área/clínica',
+  `areaTitle` VARCHAR(255) NOT NULL COMMENT 'Nombre de la clínica',
+  `address` VARCHAR(255) NULL COMMENT 'Dirección de la clínica',
+  `cp` VARCHAR(10) NOT NULL COMMENT 'Código postal',
+  `city` VARCHAR(100) NOT NULL COMMENT 'Ciudad',
+  `province` VARCHAR(100) NOT NULL COMMENT 'Provincia',
+  `phone` VARCHAR(20) NULL COMMENT 'Teléfono de contacto',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_cp` (`cp`),
+  INDEX `idx_city` (`city`),
+  INDEX `idx_province` (`province`),
+  UNIQUE KEY `unique_areaid` (`areaid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --- Tabla de Leads ---
