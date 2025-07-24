@@ -7,7 +7,8 @@ from pathlib import Path
 import json
 import re
 import logging
-from tuotempo import Tuotempo
+# Temporalmente comentado para resolver importación circular
+# from tuotempo import Tuotempo
 
 # Crear el Blueprint para la API de Tuotempo
 tuotempo_api = Blueprint('tuotempo_api', __name__)

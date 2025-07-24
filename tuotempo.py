@@ -1,6 +1,11 @@
 import os
 import logging
-from tuotempo_api import TuoTempoAPI
+import requests
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class Tuotempo:
     """
@@ -22,6 +27,9 @@ class Tuotempo:
         # Determinar el environment basado en la key
         is_pro = any(pro_key in api_key for pro_key in ['PRO', 'pro'])
         self.environment = "PRO" if is_pro else "PRE"
+        
+        # Importar TuoTempoAPI aquí para evitar importación circular
+        from tuotempo_api import TuoTempoAPI
         
         # Inicializar el cliente real
         self.client = TuoTempoAPI(

@@ -10,7 +10,7 @@ import secrets
 import string
 
 from db import get_connection
-# from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token
+from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token
 from flask import send_file
 
 # Configurar logger para este blueprint
@@ -63,10 +63,6 @@ def login():
 
     return render_template('login.html')
 
-@bp.route('/health')
-def health():
-    return 'OK', 200
-
 @bp.route('/logout')
 def logout():
     session.clear()
@@ -76,9 +72,9 @@ def logout():
 @bp.route('/')
 @login_required
 def index():
-    # Importamos la función get_statistics desde utils.py que tiene la estructura completa
-    from utils import get_statistics as utils_get_statistics
-    stats = utils_get_statistics()
+    # La función get_statistics() debería estar en utils.py
+    from utils import get_statistics
+    stats = get_statistics()
     return render_template('dashboard.html', stats=stats)
 
 
@@ -415,38 +411,114 @@ def admin_reset_password(user_id):
 
 def register_apis(app):
     """
-    Registra solo las APIs que sabemos que existen y funcionan.
+    Importa y registra todos los Blueprints de las APIs en la aplicación principal.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    # APIs que sabemos que existen
-    existing_apis = [
-        ('api_centros', 'centros_api', 'API de centros'),
-        ('api_tuotempo', 'tuotempo_api', 'API de TuoTempo'),
-        ('api_daemon_status', 'daemon_status_api', 'API de estado del daemon'),
-        ('api_railway_verification', 'railway_verification_api', 'API de verificación de Railway'),
-    ]
-    
-    for module_name, blueprint_name, description in existing_apis:
+    try:
+        # Importar APIs de resultado de llamada
+        from api_resultado_llamada import resultado_llamada_api
+        app.register_blueprint(resultado_llamada_api)
+        logger.info("API de resultado de llamada registrada exitosamente")
+        
+        # Importar API de reservas
+        from reservation_api import reservation_api
+        app.register_blueprint(reservation_api)
+        logger.info("API de reservas registrada exitosamente")
+        
+        # Importar API de centros
+        from api_centros import centros_api
+        app.register_blueprint(centros_api)
+        logger.info("API de centros registrada exitosamente")
+        
+        # Importar API de estadísticas
+        from api_estadisticas import estadisticas_api
+        app.register_blueprint(estadisticas_api)
+        logger.info("API de estadísticas registrada exitosamente")
+        
+        # Importar API de exportación
+        from api_exportacion import exportacion_api
+        app.register_blueprint(exportacion_api)
+        logger.info("API de exportación registrada exitosamente")
+        
+        # Importar API de TuoTempo
+        from api_tuotempo import tuotempo_api
+        app.register_blueprint(tuotempo_api)
+        logger.info("API de TuoTempo registrada exitosamente")
+        
+        # Importar API de llamadas automáticas
+        from api_llamadas_automaticas import llamadas_automaticas_api
+        app.register_blueprint(llamadas_automaticas_api)
+        logger.info("API de llamadas automáticas registrada exitosamente")
+        
+        # Importar API de estado del daemon de reservas automáticas
+        from api_daemon_status import daemon_status_api
+        app.register_blueprint(daemon_status_api)
+        logger.info("API de estado del daemon registrada exitosamente")
+        
+        # Importar API de verificación de Railway
+        from api_railway_verification import railway_verification_api
+        app.register_blueprint(railway_verification_api)
+        logger.info("API de verificación de Railway registrada exitosamente")
+        
+        logger.info("Todas las APIs han sido registradas exitosamente")
+        
+        if 'api_pearl_calls' not in registered_blueprints:
+            from api_pearl_calls import api_pearl_calls
+            app.register_blueprint(api_pearl_calls)
+            logger.info("Blueprint 'api_pearl_calls' registrado correctamente.")
+        else:
+            logger.info("Blueprint 'api_pearl_calls' ya estaba registrado, se omite.")
+            
+        if 'centros_api' not in registered_blueprints:
+            from api_centros import centros_api
+            app.register_blueprint(centros_api)
+            logger.info("Blueprint 'centros_api' registrado correctamente.")
+        else:
+            logger.info("Blueprint 'centros_api' ya estaba registrado, se omite.")
+
+
+    except ImportError as e:
+        logger.error(f"Error registrando APIs: {e}")
+    except Exception as e:
+        logger.critical(f"Error inesperado al registrar los Blueprints de API: {e}")
+
+@bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password_with_token(token):
+    user_id = verify_reset_token(token)
+    if not user_id:
+        flash('El enlace de restablecimiento de contraseña es inválido o ha expirado.', 'danger')
+        return redirect(url_for('main.login'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        password_confirm = request.form.get('password_confirm')
+
+        if not password or password != password_confirm:
+            flash('Las contraseñas no coinciden o están vacías.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        from flask import current_app
+        password_hash = current_app.bcrypt.generate_password_hash(password).decode('utf-8')
+
         try:
-            module = __import__(module_name, fromlist=[blueprint_name])
-            blueprint = getattr(module, blueprint_name)
-            # Evitar doble registro del mismo blueprint
-            if blueprint.name in app.blueprints:
-                logger.warning(f"Blueprint {blueprint.name} ya registrado, se omite")
-            else:
-                app.register_blueprint(blueprint)
-            logger.info(f"{description} registrada correctamente")
-        except ImportError as e:
-            logger.warning(f"No se pudo importar {module_name}: {e}")
-        except AttributeError as e:
-            logger.warning(f"No se encontró {blueprint_name} en {module_name}: {e}")
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET password_hash = %s WHERE id = %s", (password_hash, user_id))
+            conn.commit()
+            flash('Tu contraseña ha sido actualizada exitosamente. Ya puedes iniciar sesión.', 'success')
+            return redirect(url_for('main.login'))
         except Exception as e:
-            logger.error(f"Error registrando {description}: {e}")
-    
-    logger.info("Registro de APIs completado")
-@bp.route("/calls-manager")
+            logger.error(f"Error al actualizar la contraseña: {e}")
+            flash('Ocurrió un error al actualizar tu contraseña.', 'danger')
+        finally:
+            if conn and conn.is_connected():
+                cursor.close()
+                conn.close()
+
+    return render_template('reset_password.html', token=token)
+
+# --- RUTA DEL GESTOR DE LLAMADAS ---
+
+@bp.route('/calls-manager')
 @login_required
 def calls_manager():
     """Página principal del gestor de llamadas automáticas."""
@@ -577,19 +649,3 @@ def search_leads():
 # Esta función ha sido combinada con la función register_apis anterior
 # para evitar el error de registro duplicado
 
-# Dummy functions to replace utils imports
-
-def get_statistics():
-    return {'total_leads': 0, 'active_calls': 0, 'completed_calls': 0}
-
-def load_excel_data(connection, filepath):
-    return {'insertados': 0, 'errores': 1}
-
-def exportar_datos_completos(connection):
-    return False, 'Not implemented'
-
-def send_password_reset_email(email, user_id):
-    return False
-
-def verify_reset_token(token):
-    return None

@@ -3,6 +3,7 @@ import json
 import os
 import logging
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -136,6 +137,35 @@ class TuoTempoAPI:
         except ValueError:
             return {"raw": response.text, "status_code": response.status_code}
     
+    def format_date_to_ddmmyyyy(self, date_string):
+        """
+        Convierte cualquier formato de fecha a dd/mm/yyyy para TuoTempo.
+        
+        Args:
+            date_string (str): Fecha en cualquier formato (YYYY-MM-DD, DD-MM-YYYY, etc.)
+            
+        Returns:
+            str: Fecha en formato dd/mm/yyyy o la cadena original si no se pudo convertir
+        """
+        if not date_string or not isinstance(date_string, str):
+            return ""
+            
+        date_string = date_string.strip()
+        
+        # Intentar varios formatos comunes
+        formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d', '%m/%d/%Y', '%d.%m.%Y']
+        
+        for fmt in formats:
+            try:
+                date_obj = datetime.strptime(date_string, fmt)
+                return date_obj.strftime('%d/%m/%Y')  # Convertir siempre a dd/mm/yyyy
+            except ValueError:
+                continue
+        
+        # Si llegamos aquí, no se pudo convertir
+        logging.warning(f"[TuoTempoAPI] No se pudo convertir la fecha '{date_string}' a formato dd/mm/yyyy")
+        return date_string  # Devolver la cadena original como fallback
+
     def register_non_insured_user(self, fname, lname, birthday, phone):
         """
         Register a non-insured user in TuoTempo.
@@ -145,7 +175,7 @@ class TuoTempoAPI:
         Args:
             fname (str): First name of the appointment recipient
             lname (str): Last name of the appointment recipient
-            birthday (str): Birth date of the appointment recipient
+            birthday (str): Birth date of the appointment recipient (will be converted to dd/mm/yyyy format)
             phone (str): Phone number associated with the appointment
         
         Returns:
@@ -157,12 +187,15 @@ class TuoTempoAPI:
         url = f"{self.base_url}/{self.instance_id}/users"
         params = {"lang": self.lang}
         
+        # Asegurar que la fecha de nacimiento esté en formato dd/mm/yyyy
+        formatted_birthday = self.format_date_to_ddmmyyyy(birthday) if birthday else ""
+        
         # Sanitize input to prevent issues with spaces or invisible characters
         payload = {
             "fname": fname.strip() if fname else "",
             "lname": lname.strip() if lname else "",
             "privacy": "1",  # Indicates that privacy policy has been accepted
-            "birthday": birthday.strip() if birthday else "",
+            "birthday": formatted_birthday,  # Asegurar formato dd/mm/yyyy
             "phone": phone.strip() if phone else "",
             "onetime_user": "1"  # Indicates that this is a temporary user linked to a single appointment
         }

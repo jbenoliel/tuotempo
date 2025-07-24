@@ -1,0 +1,1 @@
+web: python procesador_reservas_automaticas.py --daemon --interval 30

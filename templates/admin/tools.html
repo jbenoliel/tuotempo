@@ -71,6 +71,34 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center admin-card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-robot fa-3x" style="color: #17a2b8;"></i>
+                            </div>
+                            <h5 class="card-title text-corporate-secondary">Reservas Automáticas</h5>
+                            <p class="card-text text-corporate-secondary">Monitorea el estado del daemon de reservas automáticas y visualiza estadísticas en tiempo real.</p>
+                            <a href="{{ url_for('main.daemon_status') }}" class="btn btn-info">
+                                <i class="fas fa-chart-line me-1"></i> Ver Estado
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center admin-card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-server fa-3x" style="color: #6f42c1;"></i>
+                            </div>
+                            <h5 class="card-title text-corporate-secondary">Verificación Railway</h5>
+                            <p class="card-text text-corporate-secondary">Verifica el estado de todos los servicios desplegados en Railway y detecta problemas.</p>
+                            <a href="{{ url_for('main.railway_verification') }}" class="btn btn-purple" style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
+                                <i class="fas fa-check-circle me-1"></i> Verificar Servicios
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

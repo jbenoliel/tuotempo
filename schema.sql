@@ -91,6 +91,10 @@ CREATE TABLE `leads` (
   `call_error_message` TEXT NULL COMMENT 'Último mensaje de error en caso de fallo en la llamada',
   `pearl_call_response` TEXT NULL COMMENT 'Respuesta completa de la API de Pearl AI',
   `call_notes` TEXT NULL COMMENT 'Notas adicionales sobre la llamada',
+  -- Campos para reservas automáticas
+  `reserva_automatica` BOOLEAN DEFAULT FALSE COMMENT 'Flag para indicar si el lead debe tener reserva automática',
+  `preferencia_horario` ENUM('mañana', 'tarde') DEFAULT 'mañana' COMMENT 'Preferencia de horario para la reserva automática',
+  `fecha_minima_reserva` DATE NULL COMMENT 'Fecha mínima a partir de la cual se puede realizar la reserva automática',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp de última actualización del registro'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -100,6 +104,11 @@ CREATE INDEX idx_selected_for_calling ON leads(selected_for_calling);
 CREATE INDEX idx_call_priority ON leads(call_priority);
 CREATE INDEX idx_last_call_attempt ON leads(last_call_attempt);
 CREATE INDEX idx_pearl_outbound_id ON leads(pearl_outbound_id);
+
+-- Índices para optimizar consultas del sistema de reservas automáticas
+CREATE INDEX idx_reserva_automatica ON leads(reserva_automatica);
+CREATE INDEX idx_fecha_minima_reserva ON leads(fecha_minima_reserva);
+CREATE INDEX idx_reserva_auto_fecha ON leads(reserva_automatica, fecha_minima_reserva);
 
 -- --- Tabla de Llamadas de Pearl --- 
 -- Almacena un registro detallado de cada llamada gestionada a través de Pearl AI.

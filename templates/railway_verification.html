@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación de Servicios Railway</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-success { color: #28a745; }
+        .status-warning { color: #ffc107; }
+        .status-error { color: #dc3545; }
+        .card-verification { border-left: 4px solid #007bff; }
+        .card-results { border-left: 4px solid #28a745; }
+        .card-quick-check { border-left: 4px solid #17a2b8; }
+        .test-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #dee2e6;
+        }
+        .test-success { border-left-color: #28a745; background-color: #f8fff9; }
+        .test-warning { border-left-color: #ffc107; background-color: #fffbf0; }
+        .test-error { border-left-color: #dc3545; background-color: #fff5f5; }
+        .progress-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        .verification-running {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .response-time {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+        .endpoint-url {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #495057;
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="fas fa-server me-2"></i>Verificación Railway
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('main.admin_tools') }}">
+                    <i class="fas fa-tools me-1"></i>Herramientas
+                </a>
+                <a class="nav-link" href="{{ url_for('main.index') }}">
+                    <i class="fas fa-home me-1"></i>Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Verificación Rápida -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-quick-check">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>Verificación Rápida
+                        </h5>
+                        <button class="btn btn-info btn-sm" onclick="runQuickCheck()">
+                            <i class="fas fa-bolt me-1"></i>Verificar Ahora
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="quick-check-results">
+                            <p class="text-muted">Haz clic en "Verificar Ahora" para una verificación rápida de los servicios principales.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control de Verificación Completa -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-verification">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-clipboard-check me-2"></i>Verificación Completa de Servicios
+                        </h5>
+                        <div>
+                            <button id="start-verification-btn" class="btn btn-primary" onclick="startFullVerification()">
+                                <i class="fas fa-play me-1"></i>Iniciar Verificación
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshStatus()">
+                                <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="verification-status">
+                            <p class="text-muted">Inicia una verificación completa para revisar todos los servicios de Railway.</p>
+                        </div>
+                        
+                        <!-- Barra de Progreso -->
+                        <div id="progress-container" class="progress-container" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span id="current-test">Preparando verificación...</span>
+                                <span id="progress-percentage">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados de Verificación -->
+        <div class="row" id="results-section" style="display: none;">
+            <div class="col-12">
+                <div class="card card-results">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Resultados de Verificación
+                        </h5>
+                        <div id="results-timestamp" class="text-muted small"></div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Resumen -->
+                        <div class="row mb-4">
+                            <div class="col-md-3 text-center">
+                                <h3 id="total-tests" class="text-primary">-</h3>
+                                <small>Total Pruebas</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h3 id="passed-tests" class="text-success">-</h3>
+                                <small>Exitosas</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h3 id="failed-tests" class="text-danger">-</h3>
+                                <small>Fallidas</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h3 id="success-rate" class="text-info">-</h3>
+                                <small>Tasa Éxito</small>
+                            </div>
+                        </div>
+
+                        <!-- Estado General -->
+                        <div class="alert" id="overall-status-alert" role="alert">
+                            <h6 class="alert-heading" id="overall-status-title">Estado General</h6>
+                            <p id="overall-status-message" class="mb-0">-</p>
+                        </div>
+
+                        <!-- Detalles de Pruebas -->
+                        <h6>Detalles de Verificación:</h6>
+                        <div id="test-details">
+                            <p class="text-muted">No hay resultados disponibles.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuración -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-cog me-2"></i>Configuración de Verificación
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="verification-config">
+                            <p class="text-muted">Cargando configuración...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let verificationInterval;
+        
+        // Función para formatear fechas
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('es-ES');
+        }
+        
+        // Función para obtener el icono según el estado
+        function getStatusIcon(success) {
+            return success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
+        }
+        
+        // Función para verificación rápida
+        async function runQuickCheck() {
+            const container = document.getElementById('quick-check-results');
+            container.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>Ejecutando verificación rápida...</div>';
+            
+            try {
+                const response = await fetch('/api/railway/quick-check');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const quickCheck = data.quick_check;
+                    const summary = quickCheck.summary;
+                    
+                    let html = `
+                        <div class="row mb-3">
+                            <div class="col-md-3 text-center">
+                                <h5 class="text-primary">${summary.total_tests}</h5>
+                                <small>Total</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h5 class="text-success">${summary.passed_tests}</h5>
+                                <small>Exitosas</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h5 class="text-danger">${summary.failed_tests}</h5>
+                                <small>Fallidas</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h5 class="text-info">${summary.success_rate}%</h5>
+                                <small>Tasa Éxito</small>
+                            </div>
+                        </div>
+                        <div class="row">
+                    `;
+                    
+                    for (const [testName, result] of Object.entries(quickCheck.tests)) {
+                        const statusClass = result.success ? 'test-success' : 'test-error';
+                        const statusText = result.success ? 'OK' : 'ERROR';
+                        const responseTime = result.response_time ? `${(result.response_time * 1000).toFixed(0)}ms` : '-';
+                        
+                        html += `
+                            <div class="col-md-4 mb-2">
+                                <div class="test-item ${statusClass}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><strong>${testName}</strong></span>
+                                        <span class="badge ${result.success ? 'bg-success' : 'bg-danger'}">${statusText}</span>
+                                    </div>
+                                    <div class="response-time">Tiempo: ${responseTime}</div>
+                                    ${result.error ? `<div class="text-danger small mt-1">${result.error}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div class="alert alert-danger">Error al ejecutar verificación rápida</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="alert alert-danger">Error de conexión</div>';
+            }
+        }
+        
+        // Función para iniciar verificación completa
+        async function startFullVerification() {
+            try {
+                const response = await fetch('/api/railway/verify', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('start-verification-btn').disabled = true;
+                    document.getElementById('progress-container').style.display = 'block';
+                    document.getElementById('verification-status').innerHTML = 
+                        '<div class="alert alert-info verification-running"><i class="fas fa-cogs me-2"></i>Verificación en curso...</div>';
+                    
+                    // Iniciar polling para obtener progreso
+                    verificationInterval = setInterval(checkVerificationStatus, 2000);
+                } else {
+                    alert('Error al iniciar verificación: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        // Función para verificar estado de verificación
+        async function checkVerificationStatus() {
+            try {
+                const response = await fetch('/api/railway/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const status = data.verification_status;
+                    
+                    // Actualizar progreso
+                    document.getElementById('progress-bar').style.width = status.progress + '%';
+                    document.getElementById('progress-percentage').textContent = status.progress + '%';
+                    document.getElementById('current-test').textContent = status.current_test || 'Procesando...';
+                    
+                    // Si terminó la verificación
+                    if (!status.running && status.results) {
+                        clearInterval(verificationInterval);
+                        document.getElementById('start-verification-btn').disabled = false;
+                        document.getElementById('progress-container').style.display = 'none';
+                        
+                        // Mostrar resultados
+                        displayResults(status.results);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking verification status:', error);
+            }
+        }
+        
+        // Función para mostrar resultados
+        function displayResults(results) {
+            if (results.error) {
+                document.getElementById('verification-status').innerHTML = 
+                    `<div class="alert alert-danger">Error en verificación: ${results.error}</div>`;
+                return;
+            }
+            
+            const summary = results.summary;
+            
+            // Actualizar resumen
+            document.getElementById('total-tests').textContent = summary.total_tests;
+            document.getElementById('passed-tests').textContent = summary.passed_tests;
+            document.getElementById('failed-tests').textContent = summary.failed_tests;
+            document.getElementById('success-rate').textContent = summary.success_rate + '%';
+            document.getElementById('results-timestamp').textContent = 'Última verificación: ' + formatDate(results.timestamp);
+            
+            // Estado general
+            const statusAlert = document.getElementById('overall-status-alert');
+            const statusTitle = document.getElementById('overall-status-title');
+            const statusMessage = document.getElementById('overall-status-message');
+            
+            if (summary.overall_status === 'success') {
+                statusAlert.className = 'alert alert-success';
+                statusTitle.innerHTML = '<i class="fas fa-check-circle me-2"></i>Todos los Servicios Operativos';
+                statusMessage.textContent = 'Todas las verificaciones pasaron exitosamente. Los servicios están funcionando correctamente.';
+            } else if (summary.overall_status === 'warning') {
+                statusAlert.className = 'alert alert-warning';
+                statusTitle.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Algunos Servicios con Problemas';
+                statusMessage.textContent = 'La mayoría de servicios funcionan, pero hay algunos problemas que requieren atención.';
+            } else {
+                statusAlert.className = 'alert alert-danger';
+                statusTitle.innerHTML = '<i class="fas fa-times-circle me-2"></i>Servicios con Problemas Críticos';
+                statusMessage.textContent = 'Varios servicios presentan problemas. Se requiere intervención inmediata.';
+            }
+            
+            // Detalles de pruebas
+            let detailsHtml = '';
+            for (const [testName, result] of Object.entries(results.tests)) {
+                const statusClass = result.success ? 'test-success' : 'test-error';
+                const statusText = result.success ? 'OK' : 'ERROR';
+                const responseTime = result.response_time ? `${(result.response_time * 1000).toFixed(0)}ms` : '-';
+                
+                detailsHtml += `
+                    <div class="test-item ${statusClass} mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>${testName}</strong></span>
+                            <div>
+                                <span class="response-time me-2">⏱️ ${responseTime}</span>
+                                <span class="badge ${result.success ? 'bg-success' : 'bg-danger'}">${statusText}</span>
+                            </div>
+                        </div>
+                        ${result.status_code ? `<div class="small text-muted">Código HTTP: ${result.status_code}</div>` : ''}
+                        ${result.error ? `<div class="text-danger small mt-1"><strong>Error:</strong> ${result.error}</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            document.getElementById('test-details').innerHTML = detailsHtml;
+            document.getElementById('results-section').style.display = 'block';
+            document.getElementById('verification-status').innerHTML = 
+                '<div class="alert alert-success"><i class="fas fa-check me-2"></i>Verificación completada</div>';
+        }
+        
+        // Función para refrescar estado
+        async function refreshStatus() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.classList.add('fa-spin');
+            
+            try {
+                await checkVerificationStatus();
+            } finally {
+                refreshIcon.classList.remove('fa-spin');
+            }
+        }
+        
+        // Función para cargar configuración
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/railway/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.config;
+                    let configHtml = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>URL Base:</strong> <span class="endpoint-url">${config.base_url}</span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Timeout:</strong> ${config.timeout}s
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>Endpoints Verificados:</strong>
+                            <ul class="list-unstyled mt-2">
+                    `;
+                    
+                    config.endpoints_checked.forEach(endpoint => {
+                        configHtml += `<li><i class="fas fa-check text-success me-2"></i>${endpoint}</li>`;
+                    });
+                    
+                    configHtml += '</ul></div>';
+                    document.getElementById('verification-config').innerHTML = configHtml;
+                }
+            } catch (error) {
+                document.getElementById('verification-config').innerHTML = 
+                    '<div class="text-danger">Error cargando configuración</div>';
+            }
+        }
+        
+        // Inicializar página
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfig();
+            refreshStatus();
+        });
+    </script>
+</body>
+</html>

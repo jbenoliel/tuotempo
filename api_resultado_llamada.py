@@ -165,6 +165,50 @@ def actualizar_resultado():
         'manual_management': data.get('gestionManual')
     }
 
+    # -------------------------------------------------------------
+    # 3.1. Manejo de parámetros de reservas automáticas
+    # -------------------------------------------------------------
+    # Procesar parámetros de reserva automática si están presentes
+    if 'reservaAutomatica' in data:
+        reserva_auto = data.get('reservaAutomatica')
+        # Convertir a boolean si viene como string
+        if isinstance(reserva_auto, str):
+            reserva_auto = reserva_auto.lower() in ['true', '1', 'yes', 'si', 'sí']
+        update_fields['reserva_automatica'] = bool(reserva_auto)
+        
+        # Si se marca para reserva automática, procesar preferencia y fecha
+        if reserva_auto:
+            # Preferencia de horario (por defecto 'mañana')
+            preferencia = data.get('preferenciaHorario', 'mañana')
+            if preferencia not in ['mañana', 'tarde']:
+                preferencia = 'mañana'  # Valor por defecto si es inválido
+            update_fields['preferencia_horario'] = preferencia
+            
+            # Fecha mínima para reserva (por defecto hoy + 15 días)
+            fecha_minima = data.get('fechaMinimaReserva')
+            if fecha_minima:
+                try:
+                    # Validar y convertir formato de fecha
+                    if '/' in fecha_minima:
+                        # Formato DD/MM/YYYY
+                        dia, mes, anio = fecha_minima.split('/')
+                        fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                    else:
+                        # Asumir formato YYYY-MM-DD
+                        fecha_formateada = fecha_minima
+                    update_fields['fecha_minima_reserva'] = fecha_formateada
+                except Exception as e:
+                    logger.warning(f"Formato de fecha mínima inválido: {fecha_minima}. Usando fecha por defecto.")
+                    # Usar fecha por defecto (hoy + 15 días)
+                    from datetime import date, timedelta
+                    fecha_defecto = date.today() + timedelta(days=15)
+                    update_fields['fecha_minima_reserva'] = fecha_defecto.strftime('%Y-%m-%d')
+            else:
+                # Usar fecha por defecto (hoy + 15 días)
+                from datetime import date, timedelta
+                fecha_defecto = date.today() + timedelta(days=15)
+                update_fields['fecha_minima_reserva'] = fecha_defecto.strftime('%Y-%m-%d')
+
     # Si llega una nueva cita, actualizamos los campos 'cita' (DATE) y opcionalmente 'hora_cita' (TIME)
     if data.get('nuevaCita'):
         try:
@@ -264,6 +308,48 @@ def actualizar_resultado():
         return jsonify({"error": f"Error de base de datos: {str(err)}"}), 500
     finally:
         if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@resultado_api.route('/api/leads_reserva_automatica', methods=['GET'])
+def obtener_leads_reserva_automatica():
+    """
+    Obtener leads marcados para reserva automática
+    """
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Error de conexión a la base de datos"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+        SELECT id, nombre, apellidos, telefono, area_id, 
+               preferencia_horario, fecha_minima_reserva,
+               codigo_postal, ciudad, status_level_1, status_level_2
+        FROM leads 
+        WHERE reserva_automatica = TRUE
+        ORDER BY fecha_minima_reserva ASC, id ASC
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        # Convertir date a string para JSON
+        for row in results:
+            if row.get('fecha_minima_reserva'):
+                row['fecha_minima_reserva'] = row['fecha_minima_reserva'].strftime("%Y-%m-%d")
+        
+        return jsonify({
+            "success": True,
+            "count": len(results),
+            "leads": results
+        })
+    
+    except mysql.connector.Error as err:
+        logger.error(f"Error de base de datos: {err}")
+        return jsonify({"error": f"Error de base de datos: {str(err)}"}), 500
+    finally:
+        if conn.is_connected():
             cursor.close()
             conn.close()
 

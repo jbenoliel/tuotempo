@@ -137,6 +137,67 @@ def verify_deployment():
         sys.exit(1)
     logging.info("--- Verificación completada exitosamente ---")
 
+def run_reservas_automaticas_daemon():
+    """Ejecuta el daemon de reservas automáticas en segundo plano."""
+    logging.info("[RESERVAS-DAEMON] Iniciando daemon de reservas automáticas...")
+    
+    # Verificar si el daemon está habilitado
+    daemon_enabled = os.getenv('RESERVAS_DAEMON_ENABLED', 'false').lower() == 'true'  # Temporalmente deshabilitado
+    if not daemon_enabled:
+        logging.info("[RESERVAS-DAEMON] Daemon deshabilitado por variable RESERVAS_DAEMON_ENABLED")
+        return
+    
+    # Verificar variables de entorno necesarias para TuoTempo
+    env = os.getenv('TUOTEMPO_ENV', 'PRO').upper()
+    api_key = os.getenv(f'TUOTEMPO_API_KEY_{env}')
+    instance_id = os.getenv('TUOTEMPO_INSTANCE_ID')
+    
+    # Si no hay API key en variables de entorno, usar valores predeterminados
+    has_tuotempo_config = api_key or instance_id
+    
+    if not has_tuotempo_config:
+        logging.info("[RESERVAS-DAEMON] No se encontraron variables de TuoTempo personalizadas, usando configuración predeterminada")
+        logging.info("[RESERVAS-DAEMON] El daemon usará las credenciales integradas en el código")
+    else:
+        logging.info(f"[RESERVAS-DAEMON] Usando configuración personalizada de TuoTempo para entorno {env}")
+    
+    try:
+        from procesador_reservas_automaticas import ProcesadorReservasAutomaticas
+        import time
+        from datetime import datetime
+        
+        procesador = ProcesadorReservasAutomaticas()
+        interval_minutes = int(os.getenv('RESERVAS_INTERVAL_MINUTES', '30'))
+        
+        logging.info(f"[RESERVAS-DAEMON] Daemon iniciado con intervalo de {interval_minutes} minutos")
+        logging.info(f"[RESERVAS-DAEMON] Configuración TuoTempo - Entorno: {env}, Instance ID: {instance_id or 'tt_portal_adeslas'}")
+        
+        while True:
+            try:
+                start_time = datetime.now()
+                logging.info(f"[RESERVAS-DAEMON] --- Iniciando ciclo: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+                
+                procesador.procesar_reservas_automaticas()
+                
+                end_time = datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                logging.info(f"[RESERVAS-DAEMON] --- Ciclo completado en {duration:.2f} segundos ---")
+                
+                logging.info(f"[RESERVAS-DAEMON] Esperando {interval_minutes} minutos...")
+                time.sleep(interval_minutes * 60)
+                
+            except Exception as e:
+                logging.error(f"[RESERVAS-DAEMON] Error en ciclo de procesamiento: {e}")
+                logging.info("[RESERVAS-DAEMON] Esperando 5 minutos antes de reintentar...")
+                time.sleep(300)  # 5 minutos
+                
+    except ImportError as e:
+        logging.error(f"[RESERVAS-DAEMON] No se pudo importar procesador de reservas: {e}")
+        logging.error("[RESERVAS-DAEMON] Asegúrate de que el archivo procesador_reservas_automaticas.py esté disponible")
+    except Exception as e:
+        logging.error(f"[RESERVAS-DAEMON] Error fatal en daemon: {e}")
+        logging.error("[RESERVAS-DAEMON] El daemon de reservas automáticas no pudo iniciarse")
+
 def main():
     """Punto de entrada principal. Orquesta el arranque de servicios."""
     run_migrations()
@@ -162,11 +223,21 @@ def main():
         scheduler_thread = threading.Thread(target=run_scheduler, name="SchedulerThread", daemon=True)
         scheduler_thread.start()
         
-        from api_tuotempo import app
+        # Iniciar daemon de reservas automáticas en entorno local
+        reservas_thread = threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasThread", daemon=True)
+        reservas_thread.start()
+        
+        from app import app
         app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)), debug=True)
 
     else: # Servicio web principal (web, dashboard, tuotempo-apis, etc.)
         logging.info("Iniciando la aplicación web principal (Dashboard + API)...")
+        
+        # Iniciar daemon de reservas automáticas como hilo en segundo plano
+        logging.info("Iniciando daemon de reservas automáticas en segundo plano...")
+        reservas_thread = threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasAutomaticasThread", daemon=True)
+        reservas_thread.start()
+        
         if use_gunicorn:
             port = os.getenv('PORT', '8080')
             gunicorn_command = [
