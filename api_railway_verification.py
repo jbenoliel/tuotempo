@@ -134,10 +134,10 @@ class RailwayVerifier:
             mostrar_respuesta=True
         )
         
-        # 2. Obtener resultados (API Web - no TuoTempo)
+        # 2. Obtener resultados (API TuoTempo)
         self.update_progress(40, "Obteniendo resultados de leads")
         api_results['obtener_resultados'] = self.verificar_endpoint(
-            f"{self.web_url}/api/obtener_resultados",
+            f"{self.tuotempo_api_url}/api/obtener_resultados",
             descripcion="API Obtener Resultados"
         )
         
@@ -172,18 +172,18 @@ class RailwayVerifier:
                 'response_time': 0
             }
         
-        # 4. Verificar API de centros (ahora integrada en API Web)
+        # 4. Verificar API de centros (API TuoTempo)
         self.update_progress(60, "Verificando API de centros")
         api_results['api_centros'] = self.verificar_endpoint(
-            f"{self.web_url}/api/centros",
+            f"{self.tuotempo_api_url}/api/centros",
             descripcion="API Centros"
         )
         
-        # 5. Verificar API de reservas (ahora integrada en API Web)
+        # 5. Verificar API de reservas (API TuoTempo)
         self.update_progress(70, "Verificando API de reservas")
         # Usar GET para verificar que el endpoint existe (405 indica que existe pero requiere POST)
         api_results['api_reservas'] = self.verificar_endpoint(
-            f"{self.web_url}/api/reservar",
+            f"{self.tuotempo_api_url}/api/reservar",
             descripcion="API Reservas"
         )
         
@@ -346,7 +346,7 @@ def quick_health_check():
         'app_main': verifier.verificar_endpoint(f"{WEB_URL}/", descripcion="App Principal"),
         'api_status': verifier.verificar_endpoint(f"{WEB_URL}/api/status", descripcion="API Status"),
         'daemon_health': verifier.verificar_endpoint(f"{WEB_URL}/api/daemon/healthcheck", descripcion="Daemon Health"),
-        'centros_api': verifier.verificar_endpoint(f"{WEB_URL}/api/centros", descripcion="API Centros"),
+        'centros_api': verifier.verificar_endpoint(f"{TUOTEMPO_API_URL}/api/centros", descripcion="API Centros"),
         'llamadas_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/status", descripcion="API Llamadas")
     }
     
