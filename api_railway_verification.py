@@ -158,8 +158,16 @@ class RailwayVerifier:
             descripcion="API Actualizar Resultado"
         )
         
-        # Si falla, agregar información del servicio
-        if not api_results['actualizar_resultado']['success']:
+        # Para la API de actualizar_resultado, también considerar éxito si devuelve 400 con mensaje de "No se encontró"
+        # porque significa que la API está funcionando correctamente
+        if (not api_results['actualizar_resultado']['success'] and 
+            api_results['actualizar_resultado']['status_code'] == 400 and 
+            'No se encontró' in str(api_results['actualizar_resultado']['error'])):
+            api_results['actualizar_resultado']['success'] = True
+            api_results['actualizar_resultado']['error'] = None
+        
+        # Si aún falla, agregar información del servicio
+        elif not api_results['actualizar_resultado']['success']:
             error_msg = api_results['actualizar_resultado']['error']
             if api_results['actualizar_resultado']['status_code'] == 502:
                 api_results['actualizar_resultado']['error'] = f"⚠️ Servicio de llamadas caído (502) - Requiere reinicio en Railway: {error_msg}"
