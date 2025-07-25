@@ -166,7 +166,11 @@ class RailwayVerifier:
         """Ejecuta una verificación completa de todos los servicios"""
         self.results = {
             'timestamp': datetime.now().isoformat(),
-            'base_url': self.base_url,
+            'services': {
+                'web': self.web_url,
+                'tuotempo_api': self.tuotempo_api_url,
+                'llamadas_api': self.llamadas_url
+            },
             'tests': {},
             'summary': {
                 'total_tests': 0,
