@@ -125,80 +125,73 @@ class RailwayVerifier:
     def verificar_api_completa(self):
         """Verifica todos los endpoints de la API de resultados de llamadas"""
         api_results = {}
-        
+
         # 1. Verificar status de la API web
         self.update_progress(20, "Verificando API Status")
         api_results['api_status'] = self.verificar_endpoint(
-            f"{self.web_url}/api/status", 
-            descripcion="API Status Web", 
+            f"{self.web_url}/api/status",
+            descripcion="API Status Web",
             mostrar_respuesta=True
         )
-        
-        # 2. Obtener resultados (API Web - resultado_api registrada en web)
-        self.update_progress(40, "Obteniendo resultados de leads")
+
+        # 2. Obtener resultados (API Web)
+        self.update_progress(30, "Obteniendo resultados de leads")
         api_results['obtener_resultados'] = self.verificar_endpoint(
             f"{self.web_url}/api/obtener_resultados",
             descripcion="API Obtener Resultados"
         )
-        
-        # 3. Verificar API de actualización (sin datos reales) - Servicio de Llamadas
-        self.update_progress(50, "Verificando API de actualización")
-        # Intentar directamente el endpoint de actualización ya que el servicio puede estar funcionando
-        # pero sin endpoint de status
-        datos_prueba = {
-            "telefono": "600000000",  # Teléfono de prueba sin prefijo
-            "status_level_1": "No Interesado",
-            "status_level_2": "Prueba automatica"
-        }
-        
-        api_results['actualizar_resultado'] = self.verificar_endpoint(
-            f"{self.llamadas_url}/api/actualizar_resultado",
-            metodo="POST",
-            datos=datos_prueba,
-            descripcion="API Actualizar Resultado"
+
+        # 3. Verificar API de actualización (Servicio de Llamadas)
+        self.update_progress(40, "Verificando API de actualización")
+        # Primero, verificar si el servicio de llamadas está online con el endpoint de status
+        status_check = self.verificar_endpoint(
+            f"{self.llamadas_url}/api/status",
+            descripcion="Status del servicio de llamadas"
         )
-        
-        # Para la API de actualizar_resultado, también considerar éxito si devuelve 400 con mensaje de "No se encontró"
-        # porque significa que la API está funcionando correctamente
-        if (not api_results['actualizar_resultado']['success'] and 
-            api_results['actualizar_resultado']['status_code'] == 400 and 
-            'No se encontró' in str(api_results['actualizar_resultado']['error'])):
-            api_results['actualizar_resultado']['success'] = True
-            api_results['actualizar_resultado']['error'] = None
-        
-        # Si aún falla, agregar información del servicio
-        elif not api_results['actualizar_resultado']['success']:
-            error_msg = api_results['actualizar_resultado']['error']
-            if api_results['actualizar_resultado']['status_code'] == 502:
-                api_results['actualizar_resultado']['error'] = f"⚠️ Servicio de llamadas caído (502) - Requiere reinicio en Railway: {error_msg}"
-        
-        # 4. Verificar API de centros (API TuoTempo)
+
+        if status_check['success']:
+            # Si el servicio está online, probar el endpoint de actualización
+            datos_prueba = {"telefono": "+34600000000", "no_interesado": True}
+            api_results['actualizar_resultado'] = self.verificar_endpoint(
+                f"{self.llamadas_url}/api/actualizar_resultado",
+                metodo="POST",
+                datos=datos_prueba,
+                descripcion="API Actualizar Resultado"
+            )
+        else:
+            # Si el servicio no responde, registrar el error directamente
+            api_results['actualizar_resultado'] = {
+                'success': False,
+                'status_code': status_check.get('status_code'),
+                'error': f"Servicio de llamadas no disponible. Error: {status_check['error']}",
+                'response_time': status_check.get('response_time', 0)
+            }
+
+        # 4. Verificar API de centros (ahora integrada en API Web)
         self.update_progress(60, "Verificando API de centros")
         api_results['api_centros'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/centros",
+            f"{self.web_url}/api/centros",
             descripcion="API Centros"
         )
-        
-        # 5. Verificar API de reservas (API TuoTempo)
+
+        # 5. Verificar API de reservas (ahora integrada en API Web)
         self.update_progress(70, "Verificando API de reservas")
-        # Usar GET para verificar que el endpoint existe (405 indica que existe pero requiere POST)
         api_results['api_reservas'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/reservar",
+            f"{self.web_url}/api/reservar",
             descripcion="API Reservas"
         )
-        
-        # Considerar éxito si devuelve 200 o 405 (Method Not Allowed indica que existe pero requiere otro método)
+        # Considerar éxito si devuelve 405 (Method Not Allowed), ya que indica que el endpoint existe.
         if api_results['api_reservas']['status_code'] == 405:
             api_results['api_reservas']['success'] = True
             api_results['api_reservas']['error'] = None
-        
+
         # 6. Verificar API del daemon (Web)
         self.update_progress(80, "Verificando API del daemon")
         api_results['daemon_status'] = self.verificar_endpoint(
             f"{self.web_url}/api/daemon/healthcheck",
             descripcion="Daemon Healthcheck"
         )
-        
+
         return api_results
     
     def verificar_admin_login(self):
