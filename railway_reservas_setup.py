@@ -62,11 +62,11 @@ def run_database_migration():
     
     try:
         # Importar el sistema de migración existente
-        from db_schema_manager import run_intelligent_migration
+        from db_schema_manager import run_migrations
         
         logger.info("Iniciando migración inteligente basada en schema.sql...")
         
-        if run_intelligent_migration():
+        if run_migrations():
             logger.info("✅ Migración de base de datos completada exitosamente")
             return True
         else:
@@ -146,7 +146,7 @@ def start_reservation_daemon():
                 start_time = datetime.now()
                 logger.info(f"--- Iniciando ciclo de procesamiento: {start_time} ---")
                 
-                procesador.procesar_reservas_automaticas()
+                procesador.procesar_leads_automaticos()
                 
                 end_time = datetime.now()
                 duration = (end_time - start_time).total_seconds()
