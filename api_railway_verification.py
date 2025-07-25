@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 railway_verification_api = Blueprint('railway_verification_api', __name__)
 
 # URL base de la aplicación en Railway
-BASE_URL = "https://tuotempo-production.up.railway.app"
+import os
+BASE_URL = os.getenv('RAILWAY_BASE_URL', "https://web-production-b743.up.railway.app")
 
 # Estado global de la verificación
 verification_status = {
