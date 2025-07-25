@@ -130,17 +130,34 @@ class RailwayVerifier:
         
         # 3. Verificar API de actualización (sin datos reales) - Servicio de Llamadas
         self.update_progress(50, "Verificando API de actualización")
-        datos_prueba = {
-            "telefono": "+34600000000",  # Teléfono de prueba
-            "no_interesado": True
-        }
-        
-        api_results['actualizar_resultado'] = self.verificar_endpoint(
-            f"{self.llamadas_url}/api/actualizar_resultado",
-            metodo="POST",
-            datos=datos_prueba,
-            descripcion="API Actualizar Resultado"
+        # Primero verificar si el servicio está disponible con un GET al status
+        status_check = self.verificar_endpoint(
+            f"{self.llamadas_url}/api/status",
+            descripcion="Status del servicio de llamadas"
         )
+        
+        if status_check['success']:
+            # Si el servicio está disponible, probar el endpoint de actualización
+            datos_prueba = {
+                "telefono": "600000000",  # Teléfono de prueba sin prefijo
+                "status_level_1": "No Interesado",
+                "status_level_2": "Prueba automatica"
+            }
+            
+            api_results['actualizar_resultado'] = self.verificar_endpoint(
+                f"{self.llamadas_url}/api/actualizar_resultado",
+                metodo="POST",
+                datos=datos_prueba,
+                descripcion="API Actualizar Resultado"
+            )
+        else:
+            # Si el servicio no está disponible, marcar como error
+            api_results['actualizar_resultado'] = {
+                'success': False,
+                'status_code': None,
+                'error': f'Servicio de llamadas no disponible: {status_check["error"]}',
+                'response_time': 0
+            }
         
         # 4. Verificar API de centros (API TuoTempo)
         self.update_progress(60, "Verificando API de centros")
