@@ -134,10 +134,10 @@ class RailwayVerifier:
             mostrar_respuesta=True
         )
         
-        # 2. Obtener resultados (API TuoTempo)
+        # 2. Obtener resultados (API Web - resultado_api registrada en web)
         self.update_progress(40, "Obteniendo resultados de leads")
         api_results['obtener_resultados'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/obtener_resultados",
+            f"{self.web_url}/api/obtener_resultados",
             descripcion="API Obtener Resultados"
         )
         
