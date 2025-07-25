@@ -67,6 +67,12 @@ class RailwayVerifier:
     def verificar_endpoint(self, url, metodo="GET", datos=None, descripcion="", mostrar_respuesta=False):
         """Verifica que un endpoint esté funcionando correctamente"""
         try:
+            # Asegurar que la URL comience con http:// o https://
+            if not url.startswith('http://') and not url.startswith('https://'):
+                url = 'https://' + url
+            
+            logger.info(f"Verificando endpoint: {url} [método: {metodo}]")
+            
             if metodo == "GET":
                 response = requests.get(url, timeout=15)
             elif metodo == "POST":
@@ -89,7 +95,8 @@ class RailwayVerifier:
             if mostrar_respuesta and response.status_code == 200:
                 try:
                     result['response_data'] = response.json()
-                except:
+                except Exception as e:
+                    logger.error(f"Error al procesar respuesta JSON: {str(e)}")
                     result['response_data'] = response.text[:500]
             
             return result
