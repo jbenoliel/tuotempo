@@ -24,14 +24,27 @@ railway_verification_api = Blueprint('railway_verification_api', __name__)
 # URLs de los distintos servicios en Railway
 import os
 
-# Servicio web principal
-WEB_URL = os.getenv('RAILWAY_WEB_URL', "https://web-production-b743.up.railway.app")
+# --- Carga y validación de URLs de servicios ---
 
-# Servicio de APIs de TuoTempo
-TUOTEMPO_API_URL = os.getenv('RAILWAY_TUOTEMPO_API_URL', "https://tuotempo-apis-production.up.railway.app")
+# Servicio web principal
+WEB_URL = os.getenv('RAILWAY_WEB_URL')
+if not WEB_URL:
+    raise ValueError("FATAL: La variable de entorno RAILWAY_WEB_URL no está configurada.")
 
 # Servicio de actualización de llamadas
-LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL', "https://web-production-b743.up.railway.app")
+LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL')
+if not LLAMADAS_URL:
+    raise ValueError("FATAL: La variable de entorno RAILWAY_LLAMADAS_URL no está configurada. Por favor, defina la URL del servicio de llamadas.")
+if LLAMADAS_URL.strip('/') == WEB_URL.strip('/'):
+    raise ValueError("FATAL: RAILWAY_LLAMADAS_URL no puede ser igual a RAILWAY_WEB_URL. Verifique la configuración.")
+
+# Servicio de APIs de TuoTempo
+TUOTEMPO_API_URL = os.getenv('RAILWAY_TUOTEMPO_API_URL')
+if not TUOTEMPO_API_URL:
+    raise ValueError("FATAL: La variable de entorno RAILWAY_TUOTEMPO_API_URL no está configurada. Por favor, defina la URL del servicio de TuoTempo.")
+if TUOTEMPO_API_URL.strip('/') == WEB_URL.strip('/'):
+    raise ValueError("FATAL: RAILWAY_TUOTEMPO_API_URL no puede ser igual a RAILWAY_WEB_URL. Verifique la configuración.")
+
 
 # URL base para compatibilidad con código existente
 BASE_URL = WEB_URL
