@@ -143,34 +143,26 @@ class RailwayVerifier:
         
         # 3. Verificar API de actualización (sin datos reales) - Servicio de Llamadas
         self.update_progress(50, "Verificando API de actualización")
-        # Primero verificar si el servicio está disponible con un GET al status
-        status_check = self.verificar_endpoint(
-            f"{self.llamadas_url}/api/status",
-            descripcion="Status del servicio de llamadas"
+        # Intentar directamente el endpoint de actualización ya que el servicio puede estar funcionando
+        # pero sin endpoint de status
+        datos_prueba = {
+            "telefono": "600000000",  # Teléfono de prueba sin prefijo
+            "status_level_1": "No Interesado",
+            "status_level_2": "Prueba automatica"
+        }
+        
+        api_results['actualizar_resultado'] = self.verificar_endpoint(
+            f"{self.llamadas_url}/api/actualizar_resultado",
+            metodo="POST",
+            datos=datos_prueba,
+            descripcion="API Actualizar Resultado"
         )
         
-        if status_check['success']:
-            # Si el servicio está disponible, probar el endpoint de actualización
-            datos_prueba = {
-                "telefono": "600000000",  # Teléfono de prueba sin prefijo
-                "status_level_1": "No Interesado",
-                "status_level_2": "Prueba automatica"
-            }
-            
-            api_results['actualizar_resultado'] = self.verificar_endpoint(
-                f"{self.llamadas_url}/api/actualizar_resultado",
-                metodo="POST",
-                datos=datos_prueba,
-                descripcion="API Actualizar Resultado"
-            )
-        else:
-            # Si el servicio no está disponible, marcar como error
-            api_results['actualizar_resultado'] = {
-                'success': False,
-                'status_code': None,
-                'error': f'Servicio de llamadas no disponible: {status_check["error"]}',
-                'response_time': 0
-            }
+        # Si falla, agregar información del servicio
+        if not api_results['actualizar_resultado']['success']:
+            error_msg = api_results['actualizar_resultado']['error']
+            if api_results['actualizar_resultado']['status_code'] == 502:
+                api_results['actualizar_resultado']['error'] = f"Servicio de llamadas no disponible (502): {error_msg}"
         
         # 4. Verificar API de centros (API TuoTempo)
         self.update_progress(60, "Verificando API de centros")
