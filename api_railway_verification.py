@@ -21,9 +21,20 @@ logger = logging.getLogger(__name__)
 # Crear Blueprint
 railway_verification_api = Blueprint('railway_verification_api', __name__)
 
-# URL base de la aplicación en Railway
+# URLs de los distintos servicios en Railway
 import os
-BASE_URL = os.getenv('RAILWAY_BASE_URL', "https://web-production-b743.up.railway.app")
+
+# Servicio web principal
+WEB_URL = os.getenv('RAILWAY_WEB_URL', "https://web-production-b743.up.railway.app")
+
+# Servicio de APIs de TuoTempo
+TUOTEMPO_API_URL = os.getenv('RAILWAY_TUOTEMPO_API_URL', "https://tuotempo-apis-production.up.railway.app")
+
+# Servicio de actualización de llamadas
+LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL', "https://actualizarllamadas-production.up.railway.app")
+
+# URL base para compatibilidad con código existente
+BASE_URL = WEB_URL
 
 # Estado global de la verificación
 verification_status = {
@@ -38,7 +49,9 @@ class RailwayVerifier:
     """Clase para verificar el estado de los servicios en Railway"""
     
     def __init__(self):
-        self.base_url = BASE_URL
+        self.web_url = WEB_URL
+        self.tuotempo_api_url = TUOTEMPO_API_URL
+        self.llamadas_url = LLAMADAS_URL
         self.results = {}
         self.progress_callback = None
     
@@ -93,56 +106,53 @@ class RailwayVerifier:
         """Verifica todos los endpoints de la API de resultados de llamadas"""
         api_results = {}
         
-        # 1. Verificar status de la API
+        # 1. Verificar status de la API web
         self.update_progress(20, "Verificando API Status")
         api_results['api_status'] = self.verificar_endpoint(
-            f"{self.base_url}/api/status", 
-            descripcion="API Status", 
+            f"{self.web_url}/api/status", 
+            descripcion="API Status Web", 
             mostrar_respuesta=True
         )
         
-        if not api_results['api_status']['success']:
-            return api_results
-        
-        # 2. Obtener resultados
+        # 2. Obtener resultados (API TuoTempo)
         self.update_progress(40, "Obteniendo resultados de leads")
         api_results['obtener_resultados'] = self.verificar_endpoint(
-            f"{self.base_url}/api/obtener_resultados",
+            f"{self.tuotempo_api_url}/api/obtener_resultados",
             descripcion="API Obtener Resultados"
         )
         
-        # 3. Verificar API de actualización (sin datos reales)
-        self.update_progress(60, "Verificando API de actualización")
+        # 3. Verificar API de actualización (sin datos reales) - Servicio de Llamadas
+        self.update_progress(50, "Verificando API de actualización")
         datos_prueba = {
             "telefono": "+34600000000",  # Teléfono de prueba
             "no_interesado": True
         }
         
         api_results['actualizar_resultado'] = self.verificar_endpoint(
-            f"{self.base_url}/api/actualizar_resultado",
+            f"{self.llamadas_url}/api/actualizar_resultado",
             metodo="POST",
             datos=datos_prueba,
             descripcion="API Actualizar Resultado"
         )
         
-        # 4. Verificar API de centros
-        self.update_progress(70, "Verificando API de centros")
+        # 4. Verificar API de centros (API TuoTempo)
+        self.update_progress(60, "Verificando API de centros")
         api_results['api_centros'] = self.verificar_endpoint(
-            f"{self.base_url}/api/centros",
+            f"{self.tuotempo_api_url}/api/centros",
             descripcion="API Centros"
         )
         
-        # 5. Verificar API de reservas
-        self.update_progress(80, "Verificando API de reservas")
+        # 5. Verificar API de reservas (API TuoTempo)
+        self.update_progress(70, "Verificando API de reservas")
         api_results['api_reservas'] = self.verificar_endpoint(
-            f"{self.base_url}/api/reservar",
+            f"{self.tuotempo_api_url}/api/reservar",
             descripcion="API Reservas"
         )
         
-        # 6. Verificar API del daemon
-        self.update_progress(90, "Verificando API del daemon")
+        # 6. Verificar API del daemon (Web)
+        self.update_progress(80, "Verificando API del daemon")
         api_results['daemon_status'] = self.verificar_endpoint(
-            f"{self.base_url}/api/daemon/healthcheck",
+            f"{self.web_url}/api/daemon/healthcheck",
             descripcion="Daemon Healthcheck"
         )
         
@@ -150,7 +160,7 @@ class RailwayVerifier:
     
     def verificar_admin_login(self):
         """Verifica que la página de login esté disponible"""
-        return self.verificar_endpoint(f"{self.base_url}/login", descripcion="Página de Login")
+        return self.verificar_endpoint(f"{self.web_url}/login", descripcion="Página de Login")
     
     def ejecutar_verificacion_completa(self):
         """Ejecuta una verificación completa de todos los servicios"""
@@ -169,7 +179,7 @@ class RailwayVerifier:
         # 1. Verificar que la aplicación esté en línea
         self.update_progress(10, "Verificando aplicación principal")
         self.results['tests']['app_main'] = self.verificar_endpoint(
-            f"{self.base_url}/", 
+            f"{self.web_url}/", 
             descripcion="Página principal"
         )
         
@@ -286,9 +296,11 @@ def quick_health_check():
     verifier = RailwayVerifier()
     
     quick_tests = {
-        'app_main': verifier.verificar_endpoint(f"{BASE_URL}/", descripcion="App Principal"),
-        'api_status': verifier.verificar_endpoint(f"{BASE_URL}/api/status", descripcion="API Status"),
-        'daemon_health': verifier.verificar_endpoint(f"{BASE_URL}/api/daemon/healthcheck", descripcion="Daemon Health")
+        'app_main': verifier.verificar_endpoint(f"{WEB_URL}/", descripcion="App Principal"),
+        'api_status': verifier.verificar_endpoint(f"{WEB_URL}/api/status", descripcion="API Status"),
+        'daemon_health': verifier.verificar_endpoint(f"{WEB_URL}/api/daemon/healthcheck", descripcion="Daemon Health"),
+        'tuotempo_api': verifier.verificar_endpoint(f"{TUOTEMPO_API_URL}/api/status", descripcion="API TuoTempo"),
+        'llamadas_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/status", descripcion="API Llamadas")
     }
     
     passed = sum(1 for test in quick_tests.values() if test['success'])
@@ -315,17 +327,21 @@ def get_verification_config():
     return jsonify({
         'success': True,
         'config': {
-            'base_url': BASE_URL,
+            'services': {
+                'web': WEB_URL,
+                'tuotempo_api': TUOTEMPO_API_URL,
+                'llamadas_api': LLAMADAS_URL
+            },
             'timeout': 15,
             'endpoints_checked': [
-                'Aplicación principal',
-                'API Status',
-                'API Obtener Resultados', 
-                'API Actualizar Resultado',
-                'API Centros',
-                'API Reservas',
-                'Daemon Healthcheck',
-                'Sistema de Administración'
+                'Aplicación principal (WEB)',
+                'API Status (WEB)',
+                'API Obtener Resultados (TUOTEMPO API)', 
+                'API Actualizar Resultado (LLAMADAS API)',
+                'API Centros (TUOTEMPO API)',
+                'API Reservas (TUOTEMPO API)',
+                'Daemon Healthcheck (WEB)',
+                'Sistema de Administración (WEB)'
             ]
         }
     })
