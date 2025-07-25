@@ -177,7 +177,7 @@ def run_reservas_automaticas_daemon():
                 start_time = datetime.now()
                 logging.info(f"[RESERVAS-DAEMON] --- Iniciando ciclo: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
                 
-                procesador.procesar_reservas_automaticas()
+                procesador.procesar_leads_automaticos()
                 
                 end_time = datetime.now()
                 duration = (end_time - start_time).total_seconds()
