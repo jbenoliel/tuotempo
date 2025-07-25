@@ -24,27 +24,14 @@ railway_verification_api = Blueprint('railway_verification_api', __name__)
 # URLs de los distintos servicios en Railway
 import os
 
-# --- Carga y validación de URLs de servicios ---
-
 # Servicio web principal
 WEB_URL = os.getenv('RAILWAY_WEB_URL')
-if not WEB_URL:
-    raise ValueError("FATAL: La variable de entorno RAILWAY_WEB_URL no está configurada.")
-
-# Servicio de actualización de llamadas
-LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL')
-if not LLAMADAS_URL:
-    raise ValueError("FATAL: La variable de entorno RAILWAY_LLAMADAS_URL no está configurada. Por favor, defina la URL del servicio de llamadas.")
-if LLAMADAS_URL.strip('/') == WEB_URL.strip('/'):
-    raise ValueError("FATAL: RAILWAY_LLAMADAS_URL no puede ser igual a RAILWAY_WEB_URL. Verifique la configuración.")
 
 # Servicio de APIs de TuoTempo
 TUOTEMPO_API_URL = os.getenv('RAILWAY_TUOTEMPO_API_URL')
-if not TUOTEMPO_API_URL:
-    raise ValueError("FATAL: La variable de entorno RAILWAY_TUOTEMPO_API_URL no está configurada. Por favor, defina la URL del servicio de TuoTempo.")
-if TUOTEMPO_API_URL.strip('/') == WEB_URL.strip('/'):
-    raise ValueError("FATAL: RAILWAY_TUOTEMPO_API_URL no puede ser igual a RAILWAY_WEB_URL. Verifique la configuración.")
 
+# Servicio de actualización de llamadas
+LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL')
 
 # URL base para compatibilidad con código existente
 BASE_URL = WEB_URL
@@ -213,6 +200,15 @@ class RailwayVerifier:
     
     def ejecutar_verificacion_completa(self):
         """Ejecuta una verificación completa de todos los servicios"""
+
+        # Validar configuración antes de ejecutar
+        missing_vars = []
+        if not self.web_url: missing_vars.append("RAILWAY_WEB_URL")
+        if not self.llamadas_url: missing_vars.append("RAILWAY_LLAMADAS_URL")
+        if not self.tuotempo_api_url: missing_vars.append("RAILWAY_TUOTEMPO_API_URL")
+        if missing_vars:
+            raise ValueError(f"Configuración incompleta. Faltan las siguientes variables de entorno en Railway: {', '.join(missing_vars)}")
+
         self.results = {
             'timestamp': datetime.now().isoformat(),
             'services': {
@@ -375,26 +371,24 @@ def quick_health_check():
     })
 
 @railway_verification_api.route('/api/railway/config', methods=['GET'])
-def get_verification_config():
-    """Obtiene la configuración actual de verificación"""
-    return jsonify({
-        'success': True,
-        'config': {
-            'services': {
-                'web': WEB_URL,
-                'tuotempo_api': TUOTEMPO_API_URL,
-                'llamadas_api': LLAMADAS_URL
-            },
-            'timeout': 15,
-            'endpoints_checked': [
-                'Aplicación principal (WEB)',
-                'API Status (WEB)',
-                'API Obtener Resultados (TUOTEMPO API)', 
-                'API Actualizar Resultado (LLAMADAS API)',
-                'API Centros (TUOTEMPO API)',
-                'API Reservas (TUOTEMPO API)',
-                'Daemon Healthcheck (WEB)',
-                'Sistema de Administración (WEB)'
-            ]
-        }
-    })
+def get_config():
+    """Devuelve la configuración actual de los servicios y valida que existan."""
+    missing_vars = []
+    if not WEB_URL:
+        missing_vars.append("RAILWAY_WEB_URL")
+    if not LLAMADAS_URL:
+        missing_vars.append("RAILWAY_LLAMADAS_URL")
+    if not TUOTEMPO_API_URL:
+        missing_vars.append("RAILWAY_TUOTEMPO_API_URL")
+
+    config = {
+        'web_url': WEB_URL,
+        'tuotempo_api_url': TUOTEMPO_API_URL,
+        'llamadas_url': LLAMADAS_URL
+    }
+
+    if missing_vars:
+        error_message = f"Configuración incompleta. Faltan las siguientes variables de entorno en Railway: {', '.join(missing_vars)}"
+        return jsonify({'error': error_message, 'config': config}), 503
+
+    return jsonify(config)
