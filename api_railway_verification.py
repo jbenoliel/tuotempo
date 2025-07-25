@@ -67,16 +67,29 @@ class RailwayVerifier:
     def verificar_endpoint(self, url, metodo="GET", datos=None, descripcion="", mostrar_respuesta=False):
         """Verifica que un endpoint esté funcionando correctamente"""
         try:
+            # Sanitización de la URL
+            url = url.strip()
+            
+            # Eliminar cualquier barra diagonal al final
+            if url.endswith('/'):
+                url = url[:-1]
+                
             # Asegurar que la URL comience con http:// o https://
             if not url.startswith('http://') and not url.startswith('https://'):
                 url = 'https://' + url
             
-            logger.info(f"Verificando endpoint: {url} [método: {metodo}]")
+            logger.info(f"Verificando endpoint: {url} [método: {metodo}] - {descripcion}")
+            
+            # Preparar headers adecuados
+            headers = {
+                'User-Agent': 'RailwayVerifier/1.0',
+                'Accept': 'application/json, text/plain, */*'
+            }
             
             if metodo == "GET":
-                response = requests.get(url, timeout=15)
+                response = requests.get(url, headers=headers, timeout=15)
             elif metodo == "POST":
-                response = requests.post(url, json=datos, timeout=15)
+                response = requests.post(url, json=datos, headers=headers, timeout=15)
             else:
                 return {
                     'success': False,
@@ -121,10 +134,10 @@ class RailwayVerifier:
             mostrar_respuesta=True
         )
         
-        # 2. Obtener resultados (API TuoTempo)
+        # 2. Obtener resultados (API Web - no TuoTempo)
         self.update_progress(40, "Obteniendo resultados de leads")
         api_results['obtener_resultados'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/obtener_resultados",
+            f"{self.web_url}/api/obtener_resultados",
             descripcion="API Obtener Resultados"
         )
         
@@ -159,19 +172,25 @@ class RailwayVerifier:
                 'response_time': 0
             }
         
-        # 4. Verificar API de centros (API TuoTempo)
+        # 4. Verificar API de centros (ahora integrada en API Web)
         self.update_progress(60, "Verificando API de centros")
         api_results['api_centros'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/centros",
+            f"{self.web_url}/api/centros",
             descripcion="API Centros"
         )
         
-        # 5. Verificar API de reservas (API TuoTempo)
+        # 5. Verificar API de reservas (ahora integrada en API Web)
         self.update_progress(70, "Verificando API de reservas")
+        # Usar GET para verificar que el endpoint existe (405 indica que existe pero requiere POST)
         api_results['api_reservas'] = self.verificar_endpoint(
-            f"{self.tuotempo_api_url}/api/reservar",
+            f"{self.web_url}/api/reservar",
             descripcion="API Reservas"
         )
+        
+        # Considerar éxito si devuelve 200 o 405 (Method Not Allowed indica que existe pero requiere otro método)
+        if api_results['api_reservas']['status_code'] == 405:
+            api_results['api_reservas']['success'] = True
+            api_results['api_reservas']['error'] = None
         
         # 6. Verificar API del daemon (Web)
         self.update_progress(80, "Verificando API del daemon")
@@ -327,7 +346,7 @@ def quick_health_check():
         'app_main': verifier.verificar_endpoint(f"{WEB_URL}/", descripcion="App Principal"),
         'api_status': verifier.verificar_endpoint(f"{WEB_URL}/api/status", descripcion="API Status"),
         'daemon_health': verifier.verificar_endpoint(f"{WEB_URL}/api/daemon/healthcheck", descripcion="Daemon Health"),
-        'tuotempo_api': verifier.verificar_endpoint(f"{TUOTEMPO_API_URL}/api/status", descripcion="API TuoTempo"),
+        'centros_api': verifier.verificar_endpoint(f"{WEB_URL}/api/centros", descripcion="API Centros"),
         'llamadas_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/status", descripcion="API Llamadas")
     }
     
