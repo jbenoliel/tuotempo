@@ -31,7 +31,7 @@ WEB_URL = os.getenv('RAILWAY_WEB_URL', "https://web-production-b743.up.railway.a
 TUOTEMPO_API_URL = os.getenv('RAILWAY_TUOTEMPO_API_URL', "https://tuotempo-apis-production.up.railway.app")
 
 # Servicio de actualización de llamadas
-LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL', "https://actualizarllamadas-production.up.railway.app")
+LLAMADAS_URL = os.getenv('RAILWAY_LLAMADAS_URL', "https://web-production-b743.up.railway.app")
 
 # URL base para compatibilidad con código existente
 BASE_URL = WEB_URL
@@ -162,7 +162,7 @@ class RailwayVerifier:
         if not api_results['actualizar_resultado']['success']:
             error_msg = api_results['actualizar_resultado']['error']
             if api_results['actualizar_resultado']['status_code'] == 502:
-                api_results['actualizar_resultado']['error'] = f"Servicio de llamadas no disponible (502): {error_msg}"
+                api_results['actualizar_resultado']['error'] = f"⚠️ Servicio de llamadas caído (502) - Requiere reinicio en Railway: {error_msg}"
         
         # 4. Verificar API de centros (API TuoTempo)
         self.update_progress(60, "Verificando API de centros")
