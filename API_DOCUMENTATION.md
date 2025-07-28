@@ -148,6 +148,106 @@ response = requests.post("http://localhost:5000/api/actualizar_resultado", json=
 print(response.json())
 ```
 
+### 4. Marcar lead para reserva automática
+
+Marca o desmarca un lead para que sea procesado automáticamente por el daemon de reservas.
+
+- **URL**: `/api/marcar_reserva_automatica`
+- **Método**: `POST`
+- **Servicio**: `actualizarllamadas-production.up.railway.app`
+- **Parámetros**:
+  - `telefono` (requerido, string): Número de teléfono del lead
+  - `reserva_automatica` (requerido, boolean): `true` para que el daemon lo procese, `false` para desactivar
+  - `preferencia_horario` (opcional, string): "mañana" o "tarde" (por defecto: "mañana")
+  - `fecha_minima_reserva` (opcional, string): Fecha mínima para reservar en formato "YYYY-MM-DD"
+
+**Respuesta exitosa**:
+```json
+{
+  "success": true,
+  "message": "Lead Juan Pérez actualizado correctamente",
+  "lead_id": 123,
+  "telefono": "+34600123456",
+  "nombre": "Juan Pérez",
+  "reserva_automatica": true,
+  "preferencia_horario": "mañana",
+  "fecha_minima_reserva": "2025-08-15",
+  "timestamp": "2025-07-28T09:55:15"
+}
+```
+
+**Respuesta de error (lead no encontrado)**:
+```json
+{
+  "success": false,
+  "error": "No se encontró ningún lead con teléfono +34600123456"
+}
+```
+
+**Ejemplo de uso**:
+```python
+import requests
+
+# Marcar lead para reserva automática
+data = {
+    "telefono": "+34600123456",
+    "reserva_automatica": True,
+    "preferencia_horario": "tarde",
+    "fecha_minima_reserva": "2025-08-15"
+}
+response = requests.post("https://actualizarllamadas-production.up.railway.app/api/marcar_reserva_automatica", json=data)
+print(response.json())
+
+# Desmarcar lead (no procesarlo automáticamente)
+data = {
+    "telefono": "+34600123456",
+    "reserva_automatica": False
+}
+response = requests.post("https://actualizarllamadas-production.up.railway.app/api/marcar_reserva_automatica", json=data)
+print(response.json())
+```
+
+### 5. Consultar leads marcados para reserva automática
+
+Obtiene la lista de leads marcados para ser procesados por el daemon de reservas automáticas.
+
+- **URL**: `/api/leads_reserva_automatica`
+- **Método**: `GET`
+- **Servicio**: `actualizarllamadas-production.up.railway.app`
+- **Parámetros**: Ninguno
+
+**Respuesta exitosa**:
+```json
+{
+  "success": true,
+  "count": 2,
+  "leads": [
+    {
+      "id": 123,
+      "nombre": "Juan",
+      "apellidos": "Pérez",
+      "telefono": "600123456",
+      "area_id": "area_madrid",
+      "preferencia_horario": "mañana",
+      "fecha_minima_reserva": "2025-08-15",
+      "codigo_postal": "28001",
+      "ciudad": "Madrid",
+      "status_level_1": "Pendiente",
+      "status_level_2": "Sin contactar"
+    }
+  ]
+}
+```
+
+**Ejemplo de uso**:
+```python
+import requests
+
+response = requests.get("https://actualizarllamadas-production.up.railway.app/api/leads_reserva_automatica")
+leads = response.json()
+print(f"Leads marcados para reserva automática: {leads['count']}")
+```
+
 ## Códigos de estado HTTP
 
 - `200 OK`: La solicitud se ha procesado correctamente

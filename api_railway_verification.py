@@ -158,9 +158,29 @@ class RailwayVerifier:
                 datos=datos_prueba,
                 descripcion="API Actualizar Resultado"
             )
+            
+            # 3.5. Verificar API de marcar reserva automática (mismo servicio)
+            self.update_progress(45, "Verificando API de reserva automática")
+            datos_reserva = {
+                "telefono": "+34600000000", 
+                "reserva_automatica": True,
+                "preferencia_horario": "mañana"
+            }
+            api_results['marcar_reserva_automatica'] = self.verificar_endpoint(
+                f"{self.llamadas_url}/api/marcar_reserva_automatica",
+                metodo="POST",
+                datos=datos_reserva,
+                descripcion="API Marcar Reserva Automática"
+            )
         else:
-            # Si el servicio no responde, registrar el error directamente
+            # Si el servicio no responde, registrar el error para ambos endpoints
             api_results['actualizar_resultado'] = {
+                'success': False,
+                'status_code': status_check.get('status_code'),
+                'error': f"Servicio de llamadas no disponible. Error: {status_check['error']}",
+                'response_time': status_check.get('response_time', 0)
+            }
+            api_results['marcar_reserva_automatica'] = {
                 'success': False,
                 'status_code': status_check.get('status_code'),
                 'error': f"Servicio de llamadas no disponible. Error: {status_check['error']}",
@@ -349,7 +369,8 @@ def quick_health_check():
         'api_status': verifier.verificar_endpoint(f"{WEB_URL}/api/status", descripcion="API Status"),
         'daemon_health': verifier.verificar_endpoint(f"{WEB_URL}/api/daemon/healthcheck", descripcion="Daemon Health"),
         'centros_api': verifier.verificar_endpoint(f"{TUOTEMPO_API_URL}/api/centros", descripcion="API Centros"),
-        'llamadas_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/status", descripcion="API Llamadas")
+        'llamadas_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/status", descripcion="API Llamadas"),
+        'reserva_automatica_api': verifier.verificar_endpoint(f"{LLAMADAS_URL}/api/leads_reserva_automatica", descripcion="API Reserva Automática")
     }
     
     passed = sum(1 for test in quick_tests.values() if test['success'])
