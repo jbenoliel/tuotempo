@@ -397,3 +397,147 @@ def obtener_resultados():
             conn.close()
 
 
+@resultado_api.route('/api/marcar_reserva_automatica', methods=['POST'])
+def marcar_reserva_automatica():
+    """
+    Marca o desmarca un lead para reserva automática por el daemon.
+    
+    Body JSON:
+        {
+            "telefono": "+34600000000",  // Teléfono del lead (requerido)
+            "reserva_automatica": true,  // true = daemon procesa, false = no procesa
+            "preferencia_horario": "mañana",  // opcional: "mañana" o "tarde"
+            "fecha_minima_reserva": "2025-08-15"  // opcional: formato YYYY-MM-DD
+        }
+    
+    Returns:
+        JSON: Resultado de la operación
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Validar parámetros requeridos
+        telefono_raw = data.get('telefono')
+        if not telefono_raw:
+            return jsonify({
+                "success": False,
+                "error": "Se requiere el número de teléfono"
+            }), 400
+        
+        # Normalizar teléfono (igual que en actualizar_resultado)
+        import re
+        telefono_raw = str(telefono_raw)
+        telefono_digits = re.sub(r'\D', '', telefono_raw)
+        if len(telefono_digits) > 9:
+            telefono_digits = telefono_digits[-9:]
+        telefono = telefono_digits
+
+        reserva_automatica = data.get('reserva_automatica', True)
+        if not isinstance(reserva_automatica, bool):
+            return jsonify({
+                "success": False,
+                "error": "reserva_automatica debe ser true o false"
+            }), 400
+        
+        # Parámetros opcionales
+        preferencia_horario = data.get('preferencia_horario', 'mañana')
+        if preferencia_horario not in ['mañana', 'tarde']:
+            preferencia_horario = 'mañana'
+        
+        fecha_minima_reserva = data.get('fecha_minima_reserva')
+        
+        # Conectar a la base de datos
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                "success": False,
+                "error": "Error de conexión a la base de datos"
+            }), 500
+        
+        try:
+            cursor = conn.cursor()
+            
+            # Buscar el lead por teléfono
+            cursor.execute("""
+                SELECT id, nombre, apellidos 
+                FROM leads 
+                WHERE telefono = %s OR telefono2 = %s
+                LIMIT 1
+            """, (telefono, telefono))
+            
+            lead = cursor.fetchone()
+            if not lead:
+                return jsonify({
+                    "success": False,
+                    "error": f"No se encontró ningún lead con teléfono {telefono_raw}"
+                }), 404
+            
+            lead_id = lead[0]
+            lead_nombre = f"{lead[1] or ''} {lead[2] or ''}".strip()
+            
+            # Construir la consulta de actualización
+            if reserva_automatica:
+                # Marcar para reserva automática con parámetros opcionales
+                update_query = """
+                UPDATE leads 
+                SET reserva_automatica = TRUE,
+                    manual_management = FALSE,
+                    preferencia_horario = %s
+                """
+                params = [preferencia_horario]
+                
+                # Añadir fecha mínima si se proporciona
+                if fecha_minima_reserva:
+                    update_query += ", fecha_minima_reserva = %s"
+                    params.append(fecha_minima_reserva)
+                
+                update_query += " WHERE id = %s"
+                params.append(lead_id)
+            else:
+                # Desmarcar para reserva automática
+                update_query = """
+                UPDATE leads 
+                SET reserva_automatica = FALSE
+                WHERE id = %s
+                """
+                params = [lead_id]
+            
+            # Ejecutar la actualización
+            cursor.execute(update_query, params)
+            updated_count = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"Lead {lead_id} ({telefono}) marcado para reserva_automatica = {reserva_automatica}")
+            
+            return jsonify({
+                "success": True,
+                "message": f"Lead {lead_nombre} actualizado correctamente",
+                "lead_id": lead_id,
+                "telefono": telefono_raw,
+                "nombre": lead_nombre,
+                "reserva_automatica": reserva_automatica,
+                "preferencia_horario": preferencia_horario if reserva_automatica else None,
+                "fecha_minima_reserva": fecha_minima_reserva if reserva_automatica else None,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+        except mysql.connector.Error as err:
+            logger.error(f"Error actualizando reserva automática: {err}")
+            return jsonify({
+                "success": False,
+                "error": f"Error de base de datos: {str(err)}"
+            }), 500
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+        
+    except Exception as e:
+        logger.error(f"Error en marcar_reserva_automatica: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+
