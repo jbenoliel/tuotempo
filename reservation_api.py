@@ -45,6 +45,12 @@ class TuoTempoSlotReservation:
                     "msg": f"El slot proporcionado no coincide con la fecha {selected_date} y hora {selected_time} seleccionadas"
                 }
         
+        # Si activityid no está presente, usar valor por defecto
+        if 'activityid' not in slot_data or not slot_data['activityid']:
+            default_activity_id = os.getenv('TUOTEMPO_ACTIVITY_ID', 'sc159232371eb9c1')
+            slot_data['activityid'] = default_activity_id
+            app.logger.info(f"activityId no presente. Usando valor por defecto: {default_activity_id}")
+        
         # Añadimos la información del usuario al slot
         slot_data["userid"] = userid
         slot_data["communication_phone"] = phone
