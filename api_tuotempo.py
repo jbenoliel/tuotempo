@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import re
 import logging
+import mysql.connector
 from tuotempo import Tuotempo
 
 # Crear el Blueprint para la API de Tuotempo
@@ -18,6 +19,75 @@ def _norm_phone(phone: str) -> str:
     if not phone:
         return ""
     return re.sub(r"\D", "", phone)
+
+def _get_db_connection():
+    """Obtiene una conexión a la base de datos MySQL."""
+    try:
+        # Configuración de la base de datos (misma que en api_resultado_llamada.py)
+        DB_CONFIG = {
+            'host': os.getenv('MYSQL_HOST', 'localhost'),
+            'port': int(os.getenv('MYSQL_PORT', 3306)),
+            'user': os.getenv('MYSQL_USER', 'root'),
+            'password': os.getenv('MYSQL_PASSWORD', ''),
+            'database': os.getenv('MYSQL_DATABASE', 'tuotempo'),
+            'ssl_disabled': True,
+            'autocommit': True,
+            'charset': 'utf8mb4',
+            'use_unicode': True
+        }
+        
+        # Intentar conexión con SSL deshabilitado
+        connection = mysql.connector.connect(**DB_CONFIG)
+        return connection
+    except mysql.connector.Error as e:
+        current_app.logger.error(f"Error conectando a MySQL: {e}")
+        # Fallback: intentar sin SSL explícitamente
+        try:
+            DB_CONFIG_FALLBACK = DB_CONFIG.copy()
+            DB_CONFIG_FALLBACK.pop('ssl_disabled', None)
+            connection = mysql.connector.connect(**DB_CONFIG_FALLBACK)
+            return connection
+        except mysql.connector.Error as e2:
+            current_app.logger.error(f"Error en fallback de conexión MySQL: {e2}")
+            return None
+
+def _buscar_fecha_nacimiento(telefono):
+    """Busca la fecha de nacimiento de un lead en la base de datos por teléfono."""
+    if not telefono:
+        return None
+        
+    conn = _get_db_connection()
+    if not conn:
+        current_app.logger.warning("No se pudo conectar a la base de datos para buscar fecha de nacimiento")
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        telefono_norm = _norm_phone(telefono)
+        
+        # Buscar por teléfono normalizado
+        query = "SELECT fecha_nacimiento FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s LIMIT 1"
+        cursor.execute(query, (telefono_norm,))
+        result = cursor.fetchone()
+        
+        if result and result[0]:
+            fecha_nacimiento = result[0]
+            # Convertir a formato YYYY-MM-DD si es necesario
+            if isinstance(fecha_nacimiento, str):
+                return fecha_nacimiento
+            else:
+                return fecha_nacimiento.strftime('%Y-%m-%d')
+        
+        current_app.logger.info(f"No se encontró fecha de nacimiento para el teléfono: {telefono_norm}")
+        return None
+        
+    except mysql.connector.Error as e:
+        current_app.logger.error(f"Error al buscar fecha de nacimiento: {e}")
+        return None
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 def parse_date(date_string):
     """Intenta convertir un string de fecha a objeto date, probando varios formatos."""
@@ -220,10 +290,23 @@ def reservar():
     if missing_fields:
         return jsonify({"error": f"Faltan campos críticos para la reserva: {missing_fields}. No se pudieron completar desde la caché."}), 400
 
+    # Buscar fecha de nacimiento en BD si no viene en el request
+    birthday = user_info.get('birthday')
+    if not birthday:
+        current_app.logger.info(f"Fecha de nacimiento no proporcionada. Buscando en BD para teléfono: {user_info.get('phone')}")
+        birthday = _buscar_fecha_nacimiento(user_info.get('phone'))
+        if birthday:
+            current_app.logger.info(f"Fecha de nacimiento encontrada en BD: {birthday}")
+        else:
+            current_app.logger.warning(f"No se encontró fecha de nacimiento en BD para teléfono: {user_info.get('phone')}")
+            # Asignar fecha por defecto si no se encuentra
+            birthday = '1920-01-01'
+            current_app.logger.info(f"Asignando fecha de nacimiento por defecto: {birthday}")
+
     user_info_norm = {
         'name': user_info.get('fname'),
         'surname': user_info.get('lname'),
-        'birth_date': user_info.get('birthday'),
+        'birth_date': birthday,
         'mobile_phone': user_info.get('phone')
     }
     
