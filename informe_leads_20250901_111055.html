@@ -1,0 +1,483 @@
+
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Estadísticas de Leads - Tuotempo</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }
+            h1 {
+                color: #2c3e50;
+                text-align: center;
+                border-bottom: 3px solid #3498db;
+                padding-bottom: 10px;
+            }
+            h2 {
+                color: #34495e;
+                border-left: 4px solid #3498db;
+                padding-left: 15px;
+                margin-top: 30px;
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin: 20px 0;
+            }
+            .stat-card {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .stat-number {
+                font-size: 2.5em;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            .stat-label {
+                font-size: 1.1em;
+                opacity: 0.9;
+            }
+            .table-container {
+                overflow-x: auto;
+                margin: 20px 0;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+            th, td {
+                padding: 12px 15px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+            }
+            th {
+                background: #3498db;
+                color: white;
+                font-weight: bold;
+            }
+            tr:nth-child(even) {
+                background-color: #f8f9fa;
+            }
+            tr:hover {
+                background-color: #e8f4f8;
+            }
+            .progress-bar {
+                background: #ecf0f1;
+                border-radius: 10px;
+                overflow: hidden;
+                height: 20px;
+                margin: 5px 0;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #3498db, #2980b9);
+                transition: width 0.3s ease;
+            }
+            .percentage {
+                font-weight: bold;
+                color: #2c3e50;
+            }
+            .footer {
+                text-align: center;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #ddd;
+                color: #7f8c8d;
+            }
+            .highlight {
+                background: linear-gradient(120deg, #a8edea 0%, #fed6e3 100%);
+                padding: 15px;
+                border-radius: 8px;
+                margin: 15px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📊 Estadísticas de Leads - Tuotempo</h1>
+            
+            <div class="highlight">
+                <strong>📅 Fecha de generación:</strong> 01/09/2025 11:10:55<br>
+                <strong>📊 Total de leads analizados:</strong> 964
+            </div>
+            
+            <h2>🎯 Resumen General</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">964</div>
+                    <div class="stat-label">Total Leads</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">761</div>
+                    <div class="stat-label">Leads Contactados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">12</div>
+                    <div class="stat-label">Leads con Cita</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">78.9%</div>
+                    <div class="stat-label">Tasa de Contacto</div>
+                </div>
+            </div>
+            
+            <h2>📞 Resultados de Contacto (Status Level 1)</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>Cantidad</th>
+                            <th>Porcentaje</th>
+                            <th>Progreso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        <tr>
+                            <td><strong>Volver a llamar</strong></td>
+                            <td>696</td>
+                            <td class="percentage">72.2%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 72.19917012448133%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Sin definir</strong></td>
+                            <td>203</td>
+                            <td class="percentage">21.1%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 21.058091286307054%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Cita Agendada</strong></td>
+                            <td>41</td>
+                            <td class="percentage">4.3%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 4.253112033195021%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>No Interesado</strong></td>
+                            <td>24</td>
+                            <td class="percentage">2.5%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 2.4896265560165975%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+            
+            <h2>🎯 Resultados Detallados (Status Level 2)</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estado Detallado</th>
+                            <th>Cantidad</th>
+                            <th>Porcentaje</th>
+                            <th>Progreso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        <tr>
+                            <td><strong>no disponible cliente</strong></td>
+                            <td>668</td>
+                            <td class="percentage">69.3%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 69.29460580912863%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Sin definir</strong></td>
+                            <td>203</td>
+                            <td class="percentage">21.1%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 21.058091286307054%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Con Pack</strong></td>
+                            <td>35</td>
+                            <td class="percentage">3.6%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 3.630705394190872%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>cortado</strong></td>
+                            <td>33</td>
+                            <td class="percentage">3.4%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 3.423236514522822%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>No da motivos</strong></td>
+                            <td>12</td>
+                            <td class="percentage">1.2%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 1.2448132780082988%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Cita programada</strong></td>
+                            <td>6</td>
+                            <td class="percentage">0.6%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0.6224066390041494%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Interesado. Problema técnico</strong></td>
+                            <td>4</td>
+                            <td class="percentage">0.4%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0.4149377593360996%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>no disponibilidad cliente</strong></td>
+                            <td>2</td>
+                            <td class="percentage">0.2%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0.2074688796680498%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>buzón</strong></td>
+                            <td>1</td>
+                            <td class="percentage">0.1%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0.1037344398340249%"></div>
+                                </div>
+                            </td>
+                        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+            
+            <h2>🔗 Top 10 Combinaciones de Status</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Combinación</th>
+                            <th>Cantidad</th>
+                            <th>Porcentaje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        <tr>
+                            <td><strong>Volver a llamar → no disponible cliente</strong></td>
+                            <td>658</td>
+                            <td class="percentage">68.3%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Sin definir → Sin definir</strong></td>
+                            <td>203</td>
+                            <td class="percentage">21.1%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Cita Agendada → Con Pack</strong></td>
+                            <td>35</td>
+                            <td class="percentage">3.6%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Volver a llamar → cortado</strong></td>
+                            <td>33</td>
+                            <td class="percentage">3.4%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>No Interesado → No da motivos</strong></td>
+                            <td>12</td>
+                            <td class="percentage">1.2%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>No Interesado → no disponible cliente</strong></td>
+                            <td>10</td>
+                            <td class="percentage">1.0%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Cita Agendada → Cita programada</strong></td>
+                            <td>6</td>
+                            <td class="percentage">0.6%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Volver a llamar → Interesado. Problema técnico</strong></td>
+                            <td>4</td>
+                            <td class="percentage">0.4%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>No Interesado → no disponibilidad cliente</strong></td>
+                            <td>2</td>
+                            <td class="percentage">0.2%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Volver a llamar → buzón</strong></td>
+                            <td>1</td>
+                            <td class="percentage">0.1%</td>
+                        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+            
+            <h2>🏥 Top 10 Clínicas por Volumen</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Clínica</th>
+                            <th>Total Leads</th>
+                            <th>Porcentaje del Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        <tr>
+                            <td><strong>Adeslas Dental Murcia</strong></td>
+                            <td>33</td>
+                            <td class="percentage">3.4%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Valencia Tres Forques</strong></td>
+                            <td>24</td>
+                            <td class="percentage">2.5%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Sabadell</strong></td>
+                            <td>18</td>
+                            <td class="percentage">1.9%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Torrente</strong></td>
+                            <td>16</td>
+                            <td class="percentage">1.7%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Mataró</strong></td>
+                            <td>16</td>
+                            <td class="percentage">1.7%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Barcelona Sgda Familia</strong></td>
+                            <td>15</td>
+                            <td class="percentage">1.6%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Valencia Peris y Valero</strong></td>
+                            <td>14</td>
+                            <td class="percentage">1.5%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Gerona</strong></td>
+                            <td>14</td>
+                            <td class="percentage">1.5%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Mallorca</strong></td>
+                            <td>13</td>
+                            <td class="percentage">1.3%</td>
+                        </tr>
+        
+                        <tr>
+                            <td><strong>Adeslas Dental Alicante</strong></td>
+                            <td>13</td>
+                            <td class="percentage">1.3%</td>
+                        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="footer">
+                <p>📊 Informe generado automáticamente el 01/09/2025 a las 11:10:55</p>
+                <p>🚀 Sistema Tuotempo - Gestión de Leads</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    

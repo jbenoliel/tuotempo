@@ -325,11 +325,16 @@ class CallsManager {
         } catch (error) {
             console.error(`❌ API call failed: ${method} ${url}`, error);
             
-            // No mostrar toast para todos los errores, solo loggear
+            // Mostrar errores de forma más informativa
             if (error.message.includes('404')) {
-                console.warn('⚠️ Endpoint no encontrado - esto es normal si la API no está implementada aún');
+                console.warn('⚠️ Endpoint no encontrado:', url);
+                this.showToast(`Endpoint no encontrado: ${url}. Verifica que la API esté registrada correctamente.`, 'warning');
+            } else if (error.message.includes('500')) {
+                this.showToast(`Error interno del servidor en ${url}. Revisa los logs del backend.`, 'error');
+            } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+                this.showToast(`Error de conexión. Verifica que el servidor esté ejecutándose.`, 'error');
             } else {
-                this.showToast(`Error en la API: ${error.message}`, 'error');
+                this.showToast(`Error en ${method} ${url}: ${error.message}`, 'error');
             }
             
             throw error;
@@ -497,7 +502,7 @@ class CallsManager {
                             if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
                             
                             const queryString = params.toString();
-                            const endpoint = queryString ? `/api/leads?${queryString}` : '/api/leads';
+                            const endpoint = queryString ? `/leads?${queryString}` : '/leads';
                             
                             // Usar caché para reducir solicitudes al servidor
                             const resp = await this.apiCall('GET', endpoint, null, true);
@@ -521,7 +526,7 @@ class CallsManager {
                     case 'mark_lead':
                         // payload: { lead_id, selected }
                         try {
-                            await this.apiCall('POST', '/api/leads/select', {
+                            await this.apiCall('POST', '/leads/select', {
                                 lead_ids: [payload.lead_id],
                                 selected: payload.selected
                             });
@@ -533,7 +538,7 @@ class CallsManager {
                     case 'mark_leads':
                         // payload: { lead_ids, selected }
                         try {
-                            await this.apiCall('POST', '/api/leads/select', {
+                            await this.apiCall('POST', '/leads/select', {
                                 lead_ids: payload.lead_ids,
                                 selected: payload.selected
                             });
@@ -997,7 +1002,7 @@ class CallsManager {
         });
     }
 
-    selectAllLeads(selected) {
+    async selectAllLeads(selected) {
         console.log(`📊 ${selected ? 'Seleccionando' : 'Deseleccionando'} todos los leads visibles...`);
         
         // Obtener leads visibles (filtrados y paginados)
@@ -1006,7 +1011,7 @@ class CallsManager {
         
         const leadIds = [];
         
-        // Actualizar estado local
+        // Actualizar estado local ANTES de enviar al servidor
         paginatedLeads.forEach(lead => {
             const leadInState = this.state.leads.find(l => l.id === lead.id);
             if (leadInState) {
@@ -1016,15 +1021,25 @@ class CallsManager {
             }
         });
         
-        // Enviar al servidor
-        if (leadIds.length > 0) {
-            this.sendMessage('mark_leads', { lead_ids: leadIds, selected });
-        }
-        
-        // Re-renderizar tabla
+        // Re-renderizar tabla inmediatamente para mostrar cambios
         this.renderTable();
         
-        console.log(`✅ ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+        // Enviar al servidor de forma asíncrona sin esperar respuesta que recargue datos
+        if (leadIds.length > 0) {
+            try {
+                await this.apiCall('POST', '/leads/select', {
+                    lead_ids: leadIds,
+                    selected: selected
+                });
+                console.log(`✅ Servidor actualizado: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+            } catch (error) {
+                console.error('Error actualizando servidor:', error);
+                this.showToast('Error actualizando selección en el servidor', 'warning');
+                // No revertir cambios locales - mantener la UI como está
+            }
+        }
+        
+        console.log(`✅ UI actualizada: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
     }
 
     selectByStatus(statusField, statusValue) {
@@ -1070,9 +1085,15 @@ class CallsManager {
                 leadIds.push(lead.id);
             });
             
-            // Enviar al servidor
+            // Enviar al servidor sin recargar datos
             if (leadIds.length > 0) {
-                this.sendMessage('mark_leads', { lead_ids: leadIds, selected: true });
+                this.apiCall('POST', '/leads/select', {
+                    lead_ids: leadIds,
+                    selected: true
+                }).catch(error => {
+                    console.error('Error actualizando servidor:', error);
+                    this.showToast('Error actualizando selección en el servidor', 'warning');
+                });
             }
             
             // Re-renderizar tabla
@@ -1172,9 +1193,15 @@ class CallsManager {
                 leadIds.push(lead.id);
             });
             
-            // Enviar al servidor
+            // Enviar al servidor sin recargar datos
             if (leadIds.length > 0) {
-                this.sendMessage('mark_leads', { lead_ids: leadIds, selected: false });
+                this.apiCall('POST', '/leads/select', {
+                    lead_ids: leadIds,
+                    selected: false
+                }).catch(error => {
+                    console.error('Error actualizando servidor:', error);
+                    this.showToast('Error actualizando selección en el servidor', 'warning');
+                });
             }
             
             // Re-renderizar tabla
@@ -1288,7 +1315,13 @@ class CallsManager {
             }
         });
 
-        this.sendMessage('mark_leads', { lead_ids: visibleLeadIds, selected: isChecked });
+        this.apiCall('POST', '/leads/select', {
+            lead_ids: visibleLeadIds,
+            selected: isChecked
+        }).catch(error => {
+            console.error('Error actualizando servidor:', error);
+            this.showToast('Error actualizando selección en el servidor', 'warning');
+        });
         this.renderTable();
     }
 
@@ -1324,21 +1357,6 @@ class CallsManager {
         return this.state.leads.filter(lead => lead.selected_for_calling).length;
     }
 
-    selectAllLeads(select) {
-        // Select or deselect all visible leads
-        const filteredLeads = this.getFilteredLeads();
-        const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
-        
-        paginatedLeads.forEach(lead => {
-            lead.selected_for_calling = select;
-            lead.selected = select; // For compatibility
-        });
-        
-        // Update the UI
-        this.renderTable();
-        
-        console.log(`📎 ${select ? 'Seleccionados' : 'Deseleccionados'} ${paginatedLeads.length} leads visibles`);
-    }
 
     deselectAllLeads() {
         // Deselect all leads in the state

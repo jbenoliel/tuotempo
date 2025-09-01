@@ -168,9 +168,14 @@ reservation_response.json
 # carpetas de cache de slots
 autoslots/
 cached_slots/
-SegurcaixaCalls_julio21_procesar_grabaciones_campos_json.xlsx
-SegurcaixaCalls_julio21_procesar_grabaciones.xlsx
-SegurcaixaCalls_julio21_procesar.xlsx
+
+# Archivos Excel (datos de llamadas y procesamiento)
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+
+# Archivos específicos de procesamiento
 grabaciones_21_julio/llamadas_21_julio.json
 start.py.backup
 temp_patch.txt

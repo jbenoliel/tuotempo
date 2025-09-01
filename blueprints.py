@@ -427,6 +427,7 @@ def register_apis(app):
         ('api_daemon_status', 'daemon_status_api', 'API de estado del daemon'),
         ('api_railway_verification', 'railway_verification_api', 'API de verificación de Railway'),
         ('api_resultado_llamada', 'resultado_api', 'API de resultado de llamadas'),
+        ('api_pearl_calls', 'api_pearl_calls', 'API de llamadas Pearl'),
     ]
     
     for module_name, blueprint_name, description in existing_apis:

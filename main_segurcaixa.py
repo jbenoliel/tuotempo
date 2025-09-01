@@ -30,14 +30,20 @@ def get_call_info(call_id, account_id, secret_key):
     headers = {"Authorization": f"Bearer {account_id}:{secret_key}"}
     
     try:
-        response = requests.get(url, headers=headers)
+        print(f"Consultando Call ID: {call_id}...")
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
-            return response.json()
+            call_data = response.json()
+            print(f"[OK] Call ID {call_id} procesado")
+            return call_data
         else:
-            print(f"Error en la API: {response.status_code} - {response.text}")
+            print(f"[ERROR] Error en la API para Call ID {call_id}: {response.status_code} - {response.text}")
             return None
+    except requests.exceptions.Timeout:
+        print(f"[TIMEOUT] Timeout para Call ID {call_id}")
+        return None
     except Exception as e:
-        print(f"Error al obtener información de la llamada: {e}")
+        print(f"[ERROR] Error al obtener informacion de la llamada {call_id}: {e}")
         return None
 
 def extract_json_fields(collected_info_value):
@@ -116,13 +122,57 @@ def process_excel_file(file_path):
             print("ADVERTENCIA: No se encontró la columna 'Call ID'")
             return
 
-        # Procesar filas para obtener URLs
+        # Procesar todas las filas para obtener URLs
+        total_filas = ws.max_row - 1
+        print(f"Procesando {total_filas} filas totales...")
+        print("ATENCIÓN: Esto realizará muchas llamadas a la API de Pearl. Se añadirá pausa entre llamadas.")
+        
+        procesadas = 0
+        exitosas = 0
+        errores = 0
+        
         for row in range(2, ws.max_row + 1):
             call_id = ws.cell(row=row, column=call_id_col).value
             if call_id:
+                print(f"Fila {row}: Procesando Call ID {call_id} ({procesadas + 1}/{total_filas})")
                 call_info = get_call_info(call_id, account_id, secret_key)
-                recording_url = call_info.get("recording") if call_info else None
-                ws.cell(row=row, column=recording_col, value=recording_url or "No disponible")
+                
+                if call_info:
+                    recording_url = call_info.get("recording")
+                    if recording_url:
+                        ws.cell(row=row, column=recording_col, value=recording_url)
+                        exitosas += 1
+                        print(f"  [OK] URL obtenida: {recording_url[:50]}...")
+                    else:
+                        ws.cell(row=row, column=recording_col, value="No disponible")
+                        print(f"  [WARN] Sin URL de grabacion en respuesta")
+                else:
+                    ws.cell(row=row, column=recording_col, value="No disponible")
+                    errores += 1
+                    print(f"  [ERROR] Error al obtener datos de la llamada")
+                
+                procesadas += 1
+                
+                # Pausa entre llamadas para no saturar la API
+                if procesadas % 10 == 0:
+                    print(f"  [PAUSE] Pausa de 2 segundos cada 10 llamadas... ({procesadas}/{total_filas})")
+                    time.sleep(2)
+                else:
+                    time.sleep(0.5)  # Pausa corta entre cada llamada
+                    
+                # Guardar progreso cada 50 filas
+                if procesadas % 50 == 0:
+                    wb.save(file_path.replace(".xlsx", "_grabaciones_temp.xlsx"))
+                    print(f"  [SAVE] Progreso guardado: {procesadas}/{total_filas}")
+                    
+            else:
+                print(f"Fila {row}: Sin Call ID")
+                
+        print(f"\n[RESUMEN FINAL]")
+        print(f"  Total procesadas: {procesadas}")
+        print(f"  URLs exitosas: {exitosas}")
+        print(f"  Errores: {errores}")
+        print(f"  Tasa de exito: {(exitosas/procesadas)*100:.1f}%" if procesadas > 0 else "  Sin datos procesados")
 
         # Guardar y procesar el archivo con las URLs
         output_file_urls = file_path.replace(".xlsx", "_grabaciones.xlsx")
@@ -257,9 +307,9 @@ if __name__ == "__main__":
     # Limpiar archivos temporales de ejecuciones anteriores
     limpiar_archivos_temporales()
     
-    # Ruta del archivo original en Dropbox
-    original_file_path = "C:\\Users\\jbeno\\Dropbox\\TEYAME\\Prueba Segurcaixa\\llamadas julio 21.xlsx"
-    local_file_path = os.path.join(os.getcwd(), "SegurcaixaCalls_julio21_procesar.xlsx")
+    # Ruta del archivo de llamadas del 30 julio al 1 agosto
+    original_file_path = "C:\\Users\\jbeno\\Dropbox\\TEYAME\\Prueba Segurcaixa\\Llamadas 07_30_2025 08_01_2025.xlsx"
+    local_file_path = os.path.join(os.getcwd(), "Llamadas_07_30_2025_08_01_2025_procesar.xlsx")
     excel_file = None
 
     if os.path.exists(original_file_path):
@@ -323,4 +373,4 @@ if __name__ == "__main__":
         print("Por favor, asegúrate de que el archivo original existe en la ruta de Dropbox especificada.")
     
     print("\nFin del script.")
-    input("\nPresiona Enter para salir...")
+    print("\nProcesamiento completado.")

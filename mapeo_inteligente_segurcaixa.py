@@ -146,10 +146,15 @@ class MapeadorInteligente:
         Returns:
             dict: Estado detectado y confianza
         """
-        if not resumen:
+        if not resumen or resumen is None:
             return {'estado': 'sin_clasificar', 'confianza': 0}
         
-        resumen_lower = resumen.lower()
+        # Convertir a string si no lo es ya
+        resumen_str = str(resumen) if resumen is not None else ""
+        if not resumen_str.strip():
+            return {'estado': 'sin_clasificar', 'confianza': 0}
+            
+        resumen_lower = resumen_str.lower()
         resultados = {}
         
         # Buscar patrones en el resumen
@@ -191,7 +196,12 @@ class MapeadorInteligente:
         Returns:
             dict: Fechas y horas encontradas
         """
-        if not resumen:
+        if not resumen or resumen is None:
+            return {}
+        
+        # Convertir a string si no lo es ya
+        resumen_str = str(resumen) if resumen is not None else ""
+        if not resumen_str.strip():
             return {}
         
         resultado = {}
@@ -210,13 +220,13 @@ class MapeadorInteligente:
         ]
         
         for patron in patrones_fecha:
-            match = re.search(patron, resumen)
+            match = re.search(patron, resumen_str)
             if match:
                 resultado['fecha_raw'] = match.group(0)
                 break
         
         for patron in patrones_hora:
-            match = re.search(patron, resumen)
+            match = re.search(patron, resumen_str)
             if match:
                 resultado['hora_raw'] = match.group(0)
                 break
@@ -413,10 +423,22 @@ class MapeadorInteligente:
                 
                 payload["nuevaCita"] = f"{fecha_formateada} {hora_limpia}"
             else:
-                # Sin fecha válida, tratar como volver a llamar
-                payload["volverALlamar"] = True
-                payload["razonvueltaallamar"] = "ConPack marcado pero sin fecha/hora de cita"
-                payload["codigoVolverLlamar"] = "interrupcion"
+                # ConPack=True pero sin fecha/hora: verificar si es "no interesado"
+                if collected_info_json.get('noInteresado', False):
+                    payload["noInteresado"] = True
+                    razon = collected_info_json.get('razonNoInteres', '')
+                    if razon:
+                        payload["razonNoInteres"] = razon
+                    else:
+                        payload["razonNoInteres"] = "Cliente no interesado (conPack=True pero sin fecha)"
+                    payload["codigoNoInteres"] = "otros"
+                    logger.info(f"ConPack=True pero sin fecha/hora y noInteresado=True -> marcado como no interesado")
+                else:
+                    # Sin fecha válida y sin noInteresado, tratar como volver a llamar
+                    payload["volverALlamar"] = True
+                    payload["razonvueltaallamar"] = "ConPack marcado pero sin fecha/hora de cita"
+                    payload["codigoVolverLlamar"] = "interrupcion"
+                    logger.info(f"ConPack=True pero sin fecha/hora y noInteresado=False -> volver a llamar")
         
         elif collected_info_json.get('sinPack', False):
             # Solo si tenemos fecha y hora válidas
@@ -475,10 +497,22 @@ class MapeadorInteligente:
                 
                 payload["nuevaCita"] = f"{fecha_formateada} {hora_limpia}"
             else:
-                # Sin fecha válida, tratar como volver a llamar
-                payload["volverALlamar"] = True
-                payload["razonvueltaallamar"] = "SinPack marcado pero sin fecha/hora de cita"
-                payload["codigoVolverLlamar"] = "interrupcion"
+                # SinPack=True pero sin fecha/hora: verificar si es "no interesado"
+                if collected_info_json.get('noInteresado', False):
+                    payload["noInteresado"] = True
+                    razon = collected_info_json.get('razonNoInteres', '')
+                    if razon:
+                        payload["razonNoInteres"] = razon
+                    else:
+                        payload["razonNoInteres"] = "Cliente no interesado (sinPack=True pero sin fecha)"
+                    payload["codigoNoInteres"] = "otros"
+                    logger.info(f"SinPack=True pero sin fecha/hora y noInteresado=True -> marcado como no interesado")
+                else:
+                    # Sin fecha válida y sin noInteresado, tratar como volver a llamar
+                    payload["volverALlamar"] = True
+                    payload["razonvueltaallamar"] = "SinPack marcado pero sin fecha/hora de cita"
+                    payload["codigoVolverLlamar"] = "interrupcion"
+                    logger.info(f"SinPack=True pero sin fecha/hora y noInteresado=False -> volver a llamar")
         
         elif collected_info_json.get('volverALlamar', False):
             payload["volverALlamar"] = True
@@ -603,9 +637,11 @@ class MapeadorInteligente:
                 payload["razonvueltaallamar"] = "Problema técnico durante la llamada"
             
             # Intentar extraer hora sugerida
-            hora_match = re.search(r'(\d{1,2}):(\d{2})', resumen_llamada)
-            if hora_match:
-                payload["horaRellamada"] = hora_match.group(0)
+            if resumen_llamada and resumen_llamada is not None:
+                resumen_str = str(resumen_llamada) if resumen_llamada is not None else ""
+                hora_match = re.search(r'(\d{1,2}):(\d{2})', resumen_str)
+                if hora_match:
+                    payload["horaRellamada"] = hora_match.group(0)
         
         elif nivel_1 == 'No Interesado':
             payload["noInteresado"] = True
