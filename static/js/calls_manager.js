@@ -420,8 +420,9 @@ class CallsManager {
                 break;
             case 'all_leads':
                 // Normalizar datos antes de asignar
-                this.state.leads = this.normalizeLeadsData(data.data);
-                console.log('📄 Leads normalizados:', this.state.leads);
+                this.state.leads = this.normalizeLeadsData(data.data || data);
+                console.log('🔥 [DEBUG] Leads recibidos en handleWebSocketMessage:', data);
+                console.log('🔥 [DEBUG] Leads normalizados:', this.state.leads.length);
                 this.updateFilters();
                 this.renderTable();
                 break;
