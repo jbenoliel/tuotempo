@@ -784,12 +784,18 @@ class CallsManager {
     }
 
     renderTable() {
-        console.log('🎨 Renderizando tabla...');
-        console.log('Total leads en state:', this.state.leads.length);
+        console.log('🔥 [DEBUG] 🎨 Renderizando tabla...');
+        console.log('🔥 [DEBUG] Total leads en state:', this.state.leads.length);
+        console.log('🔥 [DEBUG] Filtros actuales:', this.state.filters);
         
         this.elements.leadsTableBody.innerHTML = '';
         const filteredLeads = this.getFilteredLeads();
-        console.log('Leads después de filtros:', filteredLeads.length);
+        console.log('🔥 [DEBUG] Leads después de filtros:', filteredLeads.length);
+        
+        if (filteredLeads.length === 0) {
+            console.log('🔥 [DEBUG] ❌ NO HAY LEADS FILTRADOS - esto puede ser el problema!');
+            console.log('🔥 [DEBUG] Leads originales:', this.state.leads.slice(0, 3));
+        }
         
         const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
         console.log('Leads paginados:', paginatedLeads.length);
@@ -1003,17 +1009,23 @@ class CallsManager {
     }
 
     async selectAllLeads(selected) {
-        console.log(`📊 ${selected ? 'Seleccionando' : 'Deseleccionando'} todos los leads visibles...`);
+        console.log(`🔥 [DEBUG] selectAllLeads iniciado - selected=${selected}`);
+        console.log(`🔥 [DEBUG] Total leads en estado:`, this.state.leads.length);
         
         // Obtener leads visibles (filtrados y paginados)
         const filteredLeads = this.getFilteredLeads();
+        console.log(`🔥 [DEBUG] Leads filtrados:`, filteredLeads.length);
+        
         const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
+        console.log(`🔥 [DEBUG] Leads paginados:`, paginatedLeads.length);
         
         const leadIds = [];
         
         // Actualizar estado local ANTES de enviar al servidor
-        paginatedLeads.forEach(lead => {
+        console.log(`🔥 [DEBUG] Actualizando estado local...`);
+        paginatedLeads.forEach((lead, index) => {
             const leadInState = this.state.leads.find(l => l.id === lead.id);
+            console.log(`🔥 [DEBUG] Lead ${index + 1}: ID=${lead.id}, encontrado en estado=${!!leadInState}`);
             if (leadInState) {
                 leadInState.selected_for_calling = selected;
                 leadInState.selected = selected; // Para compatibilidad
@@ -1021,25 +1033,46 @@ class CallsManager {
             }
         });
         
+        console.log(`🔥 [DEBUG] Lead IDs para actualizar:`, leadIds);
+        
+        // TEMPORAL: Limpiar filtro de selección para evitar que los leads desaparezcan
+        const originalSelectedFilter = this.state.filters.selected;
+        if (this.state.filters.selected !== '') {
+            console.log(`🔥 [DEBUG] Limpiando filtro de selección temporalmente: ${this.state.filters.selected} -> ''`);
+            this.state.filters.selected = '';
+            if (this.elements.selectedFilter) {
+                this.elements.selectedFilter.value = '';
+            }
+        }
+        
         // Re-renderizar tabla inmediatamente para mostrar cambios
+        console.log(`🔥 [DEBUG] Renderizando tabla...`);
         this.renderTable();
+        console.log(`🔥 [DEBUG] Tabla renderizada`);
         
         // Enviar al servidor de forma asíncrona sin esperar respuesta que recargue datos
         if (leadIds.length > 0) {
             try {
+                console.log(`🔥 [DEBUG] Enviando al servidor:`, { lead_ids: leadIds, selected });
                 await this.apiCall('POST', '/leads/select', {
                     lead_ids: leadIds,
                     selected: selected
                 });
                 console.log(`✅ Servidor actualizado: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
             } catch (error) {
-                console.error('Error actualizando servidor:', error);
+                console.error('🔥 [DEBUG] Error actualizando servidor:', error);
                 this.showToast('Error actualizando selección en el servidor', 'warning');
                 // No revertir cambios locales - mantener la UI como está
             }
+        } else {
+            console.log(`🔥 [DEBUG] No hay leads para actualizar en servidor`);
         }
         
         console.log(`✅ UI actualizada: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+        
+        // Verificar estado después de renderizar
+        const selectedCount = this.state.leads.filter(l => l.selected_for_calling).length;
+        console.log(`🔥 [DEBUG] Estado final - Total seleccionados: ${selectedCount}`);
     }
 
     selectByStatus(statusField, statusValue) {
