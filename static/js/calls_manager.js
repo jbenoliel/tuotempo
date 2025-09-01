@@ -1013,20 +1013,17 @@ class CallsManager {
         console.log(`🔥 [DEBUG] selectAllLeads iniciado - selected=${selected}`);
         console.log(`🔥 [DEBUG] Total leads en estado:`, this.state.leads.length);
         
-        // Obtener leads visibles (filtrados y paginados)
+        // CAMBIO: Usar TODOS los leads filtrados, no solo los paginados
         const filteredLeads = this.getFilteredLeads();
         console.log(`🔥 [DEBUG] Leads filtrados:`, filteredLeads.length);
-        
-        const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
-        console.log(`🔥 [DEBUG] Leads paginados:`, paginatedLeads.length);
+        console.log(`🔥 [DEBUG] Seleccionando TODOS los leads filtrados (no solo página actual)`);
         
         const leadIds = [];
         
         // Actualizar estado local ANTES de enviar al servidor
-        console.log(`🔥 [DEBUG] Actualizando estado local...`);
-        paginatedLeads.forEach((lead, index) => {
+        console.log(`🔥 [DEBUG] Actualizando estado local para ${filteredLeads.length} leads...`);
+        filteredLeads.forEach((lead, index) => {
             const leadInState = this.state.leads.find(l => l.id === lead.id);
-            console.log(`🔥 [DEBUG] Lead ${index + 1}: ID=${lead.id}, encontrado en estado=${!!leadInState}`);
             if (leadInState) {
                 leadInState.selected_for_calling = selected;
                 leadInState.selected = selected; // Para compatibilidad
@@ -1035,6 +1032,15 @@ class CallsManager {
         });
         
         console.log(`🔥 [DEBUG] Lead IDs para actualizar:`, leadIds);
+        
+        // Mostrar confirmación si son muchos leads
+        if (leadIds.length > 50 && selected) {
+            const confirmar = confirm(`¿Estás seguro de que quieres seleccionar ${leadIds.length} leads filtrados?\n\nEsto puede tomar unos segundos.`);
+            if (!confirmar) {
+                console.log('🔥 [DEBUG] Usuario canceló la selección masiva');
+                return;
+            }
+        }
         
         // TEMPORAL: Limpiar filtro de selección para evitar que los leads desaparezcan
         const originalSelectedFilter = this.state.filters.selected;
@@ -1046,30 +1052,83 @@ class CallsManager {
             }
         }
         
+        // Deshabilitar botón durante el procesamiento
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        if (selectAllBtn) {
+            selectAllBtn.disabled = true;
+            selectAllBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Procesando...';
+        }
+        if (deselectAllBtn) {
+            deselectAllBtn.disabled = true;
+        }
+        
         // Re-renderizar tabla inmediatamente para mostrar cambios
         console.log(`🔥 [DEBUG] Renderizando tabla...`);
         this.renderTable();
         console.log(`🔥 [DEBUG] Tabla renderizada`);
         
-        // Enviar al servidor de forma asíncrona sin esperar respuesta que recargue datos
+        // Enviar al servidor con procesamiento por lotes si hay muchos leads
         if (leadIds.length > 0) {
             try {
-                console.log(`🔥 [DEBUG] Enviando al servidor:`, { lead_ids: leadIds, selected });
-                await this.apiCall('POST', '/leads/select', {
-                    lead_ids: leadIds,
-                    selected: selected
-                });
-                console.log(`✅ Servidor actualizado: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+                console.log(`🔥 [DEBUG] Enviando ${leadIds.length} leads al servidor...`);
+                
+                // Si hay más de 100 leads, procesar en lotes para evitar timeouts
+                if (leadIds.length > 100) {
+                    const batchSize = 100;
+                    let totalUpdated = 0;
+                    
+                    for (let i = 0; i < leadIds.length; i += batchSize) {
+                        const batch = leadIds.slice(i, i + batchSize);
+                        console.log(`🔥 [DEBUG] Procesando lote ${Math.floor(i/batchSize) + 1} (${batch.length} leads)...`);
+                        
+                        const response = await this.apiCall('POST', '/leads/select', {
+                            lead_ids: batch,
+                            selected: selected
+                        });
+                        
+                        totalUpdated += response.updated_count || batch.length;
+                        
+                        // Pequeña pausa entre lotes para no sobrecargar el servidor
+                        if (i + batchSize < leadIds.length) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                    }
+                    
+                    console.log(`✅ Servidor actualizado en lotes: ${totalUpdated} leads`);
+                    this.showToast(`${selected ? 'Seleccionados' : 'Deseleccionados'} ${totalUpdated} leads filtrados`, 'success');
+                } else {
+                    // Para cantidades menores, enviar todo junto
+                    const response = await this.apiCall('POST', '/leads/select', {
+                        lead_ids: leadIds,
+                        selected: selected
+                    });
+                    
+                    const updated = response.updated_count || leadIds.length;
+                    console.log(`✅ Servidor actualizado: ${updated} leads`);
+                    this.showToast(`${selected ? 'Seleccionados' : 'Deseleccionados'} ${updated} leads filtrados`, 'success');
+                }
+                
             } catch (error) {
                 console.error('🔥 [DEBUG] Error actualizando servidor:', error);
-                this.showToast('Error actualizando selección en el servidor', 'warning');
+                this.showToast(`Error actualizando selección: ${error.message}`, 'error');
                 // No revertir cambios locales - mantener la UI como está
             }
         } else {
             console.log(`🔥 [DEBUG] No hay leads para actualizar en servidor`);
+            this.showToast('No hay leads que cumplan los filtros para seleccionar', 'info');
         }
         
         console.log(`✅ UI actualizada: ${selected ? 'Seleccionados' : 'Deseleccionados'} ${leadIds.length} leads`);
+        
+        // Restaurar botones
+        if (selectAllBtn) {
+            selectAllBtn.disabled = false;
+            selectAllBtn.innerHTML = '<i class="bi bi-check-all"></i> Seleccionar Todo';
+        }
+        if (deselectAllBtn) {
+            deselectAllBtn.disabled = false;
+        }
         
         // Verificar estado después de renderizar
         const selectedCount = this.state.leads.filter(l => l.selected_for_calling).length;
