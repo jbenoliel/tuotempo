@@ -82,6 +82,19 @@ class CallsManager {
         // Asegurarse de que los métodos de filtros existan
         if (!this.getFilteredLeads) {
             console.log('⚠️ Método getFilteredLeads no definido, usando implementación por defecto');
+            this.getFilteredLeads = () => {
+                // Filtrar leads según los filtros actuales
+                return this.state.leads.filter(l => {
+                    const f = this.state.filters;
+                    if (f.estado1 && l.status_level_1 !== f.estado1) return false;
+                    if (f.estado2 && l.status_level_2 !== f.estado2) return false;
+                    if (f.status && l.call_status !== f.status) return false;
+                    if (f.priority && String(l.call_priority) !== String(f.priority)) return false;
+                    if (f.selected === 'true' && !l.selected_for_calling) return false;
+                    if (f.selected === 'false' && l.selected_for_calling) return false;
+                    return true;
+                });
+            };
         }
         
         if (!this.updateFilters) this.updateFilters = () => {
@@ -503,7 +516,7 @@ class CallsManager {
                             if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
                             
                             const queryString = params.toString();
-                            const endpoint = queryString ? `/leads?${queryString}` : '/leads';
+                            const endpoint = queryString ? `leads?${queryString}` : 'leads';
                             
                             // Usar caché para reducir solicitudes al servidor
                             const resp = await this.apiCall('GET', endpoint, null, true);
@@ -788,14 +801,22 @@ class CallsManager {
         console.log('🔥 [DEBUG] 🎨 Renderizando tabla...');
         console.log('🔥 [DEBUG] Total leads en state:', this.state.leads.length);
         console.log('🔥 [DEBUG] Filtros actuales:', this.state.filters);
+        console.log('🔥 [DEBUG] Método getFilteredLeads existe:', typeof this.getFilteredLeads);
         
         this.elements.leadsTableBody.innerHTML = '';
         const filteredLeads = this.getFilteredLeads();
         console.log('🔥 [DEBUG] Leads después de filtros:', filteredLeads.length);
+        console.log('🔥 [DEBUG] Primeros 3 leads filtrados:', filteredLeads.slice(0, 3));
         
         if (filteredLeads.length === 0) {
             console.log('🔥 [DEBUG] ❌ NO HAY LEADS FILTRADOS - esto puede ser el problema!');
             console.log('🔥 [DEBUG] Leads originales:', this.state.leads.slice(0, 3));
+            console.log('🔥 [DEBUG] Revisando cada filtro:');
+            if (this.state.filters.estado1) console.log(`🔥 [DEBUG] - Filtro estado1: "${this.state.filters.estado1}"`);
+            if (this.state.filters.estado2) console.log(`🔥 [DEBUG] - Filtro estado2: "${this.state.filters.estado2}"`);
+            if (this.state.filters.status) console.log(`🔥 [DEBUG] - Filtro status: "${this.state.filters.status}"`);
+            if (this.state.filters.priority) console.log(`🔥 [DEBUG] - Filtro priority: "${this.state.filters.priority}"`);
+            if (this.state.filters.selected) console.log(`🔥 [DEBUG] - Filtro selected: "${this.state.filters.selected}"`);
         }
         
         const paginatedLeads = this.paginate(filteredLeads, this.state.currentPage, this.state.itemsPerPage);
@@ -1484,83 +1505,9 @@ class CallsManager {
         }
     }
 
-    async sendMessage(type, data = {}) {
-        // Since WebSocket is disabled, use HTTP API calls instead
-        console.log(`📡 sendMessage: ${type}`);
-        
-        // Evitar múltiples llamadas simultáneas del mismo tipo
-        if (this.state.pendingRequests && this.state.pendingRequests[type]) {
-            console.warn(`⚠️ Ya hay una solicitud pendiente de tipo ${type}, ignorando...`);
-            return;
-        }
-        
-        // Inicializar el registro de solicitudes pendientes si no existe
-        if (!this.state.pendingRequests) {
-            this.state.pendingRequests = {};
-        }
-        
-        // Marcar esta solicitud como pendiente
-        this.state.pendingRequests[type] = true;
-        
-        try {
-            switch (type) {
-                case 'get_all_leads':
-                    const response = await this.apiCall('GET', '/leads');
-                    if (response && response.success && response.data) {
-                        this.state.leads = this.normalizeLeadsData(response.data);
-                        // Solo actualizar filtros y tabla si no están ya inicializados
-                        if (this.elements.leadsTableBody) {
-                            this.updateFilters();
-                            this.renderTable();
-                        }
-                    }
-                    break;
-                case 'get_status':
-                    const statusResponse = await this.apiCall('GET', '/status');
-                    if (statusResponse && statusResponse.success) {
-                        this.updateSystemStatus(statusResponse.data || {});
-                    } else {
-                        // Si la respuesta no es exitosa, usar un objeto vacío para evitar errores
-                        this.updateSystemStatus({});
-                    }
-                    break;
-                case 'mark_lead':
-                    await this.apiCall('POST', '/api/leads/select', {
-                        lead_ids: [data.lead_id],
-                        selected: data.selected
-                    });
-                    break;
-                case 'mark_leads':
-                    await this.apiCall('POST', '/api/leads/select', {
-                        lead_ids: data.lead_ids,
-                        selected: data.selected
-                    });
-                    break;
-                default:
-                    console.warn('Tipo de mensaje no reconocido:', type);
-            }
-        } catch (error) {
-            console.error('Error en sendMessage:', error);
-        } finally {
-            // Limpiar el registro de solicitud pendiente
-            if (this.state.pendingRequests) {
-                this.state.pendingRequests[type] = false;
-            }
-        }
-    }
+    // Método sendMessage duplicado - REMOVIDO (usar el de arriba)
 
-    resetLeads() {
-        // Reset all leads to default state
-        this.state.leads.forEach(lead => {
-            lead.selected_for_calling = false;
-            lead.selected = false;
-            lead.call_status = 'no_selected';
-        });
-        
-        this.renderTable();
-        this.showNotification('Leads reiniciados', 'info');
-        console.log('🔄 Leads reiniciados');
-    }
+    // Método resetLeads duplicado - REMOVIDO (usar el de arriba)
 
     showLeadDetails(leadId) {
         const lead = this.state.leads.find(l => l.id == leadId);
@@ -1666,7 +1613,14 @@ class CallsManager {
     }
 
     updateLeadsInfo(totalFiltered) {
-        if (!this.elements.leadsInfo) return;
+        console.log(`🔥 [DEBUG] updateLeadsInfo llamado con totalFiltered: ${totalFiltered}`);
+        console.log(`🔥 [DEBUG] this.elements.leadsInfo existe:`, !!this.elements.leadsInfo);
+        console.log(`🔥 [DEBUG] this.state.leads.length:`, this.state.leads.length);
+        
+        if (!this.elements.leadsInfo) {
+            console.log(`🔥 [DEBUG] ❌ leadsInfo element no encontrado!`);
+            return;
+        }
         
         // Calcular información de paginación
         const start = totalFiltered > 0 ? (this.state.currentPage - 1) * this.state.itemsPerPage + 1 : 0;
@@ -1674,12 +1628,16 @@ class CallsManager {
         const selectedCount = this.getSelectedCount();
         const filteredSelectedCount = this.getFilteredLeads().filter(lead => lead.selected_for_calling).length;
         
+        console.log(`🔥 [DEBUG] start: ${start}, end: ${end}, selectedCount: ${selectedCount}, filteredSelectedCount: ${filteredSelectedCount}`);
+        
         // Información más detallada y visible
         const info = totalFiltered > 0 
             ? `Mostrando ${start}-${end} de ${totalFiltered} leads | ${filteredSelectedCount} seleccionados de los filtrados | ${selectedCount} total seleccionados`
             : `Sin leads que mostrar | ${selectedCount} total seleccionados`;
             
+        console.log(`🔥 [DEBUG] Info generada: "${info}"`);
         this.elements.leadsInfo.textContent = info;
+        console.log(`🔥 [DEBUG] Info asignada al elemento, textContent ahora es: "${this.elements.leadsInfo.textContent}"`);
         
         // Actualizar los contadores de leads en los badges del header
         this.updateLeadsCounters(totalFiltered, selectedCount);

@@ -22,10 +22,14 @@ Sistema completo de gestión de llamadas automáticas integrado con Pearl AI par
 - **Historial completo** de intentos y respuestas
 - **Sistema de callbacks** para actualizaciones en tiempo real
 
-### ✅ **Interfaz Moderna**
-- **Dashboard reactivo** con Bootstrap 5
-- **Filtros dinámicos** por ciudad, estado y prioridad
+### ✅ **Interfaz Moderna Mejorada**
+- **Dashboard reactivo** con Bootstrap 5 y diseño corporativo
+- **Botones de selección reorganizados** con colores distintivos y mejor espaciado
+- **Selección inteligente** que procesa TODOS los leads filtrados (no solo página actual)
+- **Procesamiento por lotes** para selecciones masivas (>100 leads)
+- **Filtros dinámicos** por Estado 1, Estado 2, Status de llamada, prioridad y selección
 - **Paginación inteligente** para grandes volúmenes
+- **Contadores en tiempo real** de leads totales y seleccionados
 - **Notificaciones toast** para feedback inmediato
 
 ## 📋 Instalación y Configuración
@@ -62,17 +66,43 @@ python call_manager.py
 ## 🎯 Uso del Sistema
 
 ### **Acceso al Gestor**
-1. Inicia sesión en el dashboard de TuoTempo
-2. Haz click en **"Iniciar Llamadas"** en la sección de herramientas
-3. Accede a la URL: `http://localhost:5000/calls`
+1. Inicia sesión en el dashboard de TuoTempo con credenciales: **admin/admin**
+2. Accede a la URL: `http://localhost:8080/calls-manager`
 
 ### **Workflow Típico**
-1. **Filtrar leads** por ciudad, estado o prioridad
-2. **Seleccionar leads** usando checkboxes individuales o selección masiva
-3. **Configurar parámetros** (llamadas simultáneas, etc.)
+1. **Filtrar leads** por Estado 1, Estado 2, Status de llamada, prioridad o selección
+2. **Seleccionar leads** usando las nuevas opciones mejoradas:
+   - 🟢 **"Seleccionar Todo"** - Selecciona TODOS los leads que coincidan con filtros activos
+   - 🟡 **"Deseleccionar Todo"** - Deselecciona todos los leads
+   - 🔵 **"Seleccionar por Estado"** - Dropdown con opciones por estados específicos
+   - 🔘 **Checkboxes individuales** - Selección manual lead por lead
+3. **Gestionar leads**:
+   - 🔧 **"Gestión Manual"** - Marca leads para gestión manual vs automática
+   - 🔄 **"Reiniciar Estados"** - Limpia errores técnicos y reinicia contadores (mantiene selecciones)
 4. **Iniciar llamadas** con el botón START
 5. **Monitorear progreso** en tiempo real
 6. **Detener cuando sea necesario** con el botón STOP
+
+### **🎨 Controles de Interfaz Mejorados**
+
+#### **Fila 1: Selección Principal**
+- **🟢 Seleccionar Todo** - Selecciona TODOS los leads que coincidan con los filtros activos (no solo la página actual)
+- **🟡 Deseleccionar Todo** - Deselecciona todos los leads seleccionados
+
+#### **Fila 2: Acciones Avanzadas**
+- **🔵 Seleccionar por Estado** - Dropdown con opciones:
+  - Estados principales: "Volver a llamar", "No Interesado", "Éxito", "Cita Agendada"
+  - Estados de llamada: "Sin llamar", "Completadas", "Con Error"
+- **🔘 Gestión Manual** - Dropdown para:
+  - Marcar leads como gestión manual
+  - Marcar leads como gestión automática  
+- **🔄 Reiniciar Estados** - Limpia errores técnicos y reinicia contadores (mantiene las selecciones)
+
+#### **💡 Funcionalidades Destacadas**
+- **Procesamiento por lotes**: Para selecciones >100 leads, procesa en grupos para evitar timeouts
+- **Confirmaciones inteligentes**: Pide confirmación para selecciones >50 leads
+- **Indicadores de progreso**: Muestra progreso en operaciones masivas
+- **Tooltips informativos**: Información detallada sobre cada botón
 
 ### **Estados de Llamada**
 - 🔘 **no_selected**: Lead no seleccionado para llamadas

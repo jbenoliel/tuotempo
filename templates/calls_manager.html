@@ -181,62 +181,71 @@
                                     </span>
                                 </div>
                             </div>
-                            <div class="col-md-4 text-end">
-                                <div class="btn-group me-2" role="group">
-                                    <button class="btn btn-outline-success btn-sm" id="selectAllBtn">
-                                        <i class="bi bi-check-all"></i> Seleccionar Todo
-                                    </button>
-                                    <button class="btn btn-outline-warning btn-sm" id="deselectAllBtn">
-                                        <i class="bi bi-x-lg"></i> Deseleccionar Todo
+                            <div class="col-md-4">
+                                <!-- Fila 1: Botones principales de selección -->
+                                <div class="d-flex justify-content-end mb-2">
+                                    <div class="btn-group me-2" role="group">
+                                        <button class="btn btn-success btn-sm" id="selectAllBtn" style="background-color: #28a745; border-color: #28a745;">
+                                            <i class="bi bi-check-all"></i> Seleccionar Todo
+                                        </button>
+                                        <button class="btn btn-warning btn-sm" id="deselectAllBtn" style="background-color: #ffc107; border-color: #ffc107; color: #212529;">
+                                            <i class="bi bi-x-lg"></i> Deseleccionar Todo
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Fila 2: Botones de acciones avanzadas -->
+                                <div class="d-flex justify-content-end gap-2">
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-primary btn-sm dropdown-toggle" type="button" id="selectByStatusDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #007bff; border-color: #007bff;">
+                                            <i class="bi bi-funnel"></i> Seleccionar por Estado
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="selectByStatusDropdown">
+                                            <li><h6 class="dropdown-header">Estado 1 (Principal)</h6></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Volver a llamar')">
+                                                <i class="bi bi-telephone"></i> Volver a llamar
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'No Interesado')">
+                                                <i class="bi bi-x-circle"></i> No Interesado
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Éxito')">
+                                                <i class="bi bi-check-circle"></i> Éxito
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Cita Agendada')">
+                                                <i class="bi bi-calendar-check"></i> Cita Agendada
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><h6 class="dropdown-header">Estado Llamada</h6></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'no_selected')">
+                                                <i class="bi bi-circle"></i> Sin llamar
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'completed')">
+                                                <i class="bi bi-check-circle-fill"></i> Completadas
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'error')">
+                                                <i class="bi bi-exclamation-circle"></i> Con Error
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="manualManagementDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #6c757d; border-color: #6c757d;">
+                                            <i class="bi bi-person-gear"></i> Gestión Manual
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="manualManagementDropdown">
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(true)">
+                                                <i class="bi bi-person-fill-check"></i> Marcar como Manual
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(false)">
+                                                <i class="bi bi-robot"></i> Marcar como Automático
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <button class="btn btn-info btn-sm" id="resetLeadsBtn" title="Reinicia contadores de intentos y limpia errores técnicos (mantiene selecciones)" style="background-color: #17a2b8; border-color: #17a2b8;">
+                                        <i class="bi bi-arrow-clockwise"></i> Reiniciar Estados
                                     </button>
                                 </div>
-                                <div class="btn-group me-2" role="group">
-                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" id="selectByStatusDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-funnel"></i> Seleccionar por Estado
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="selectByStatusDropdown">
-                                        <li><h6 class="dropdown-header">Estado 1 (Principal)</h6></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Volver a llamar')">
-                                            <i class="bi bi-telephone"></i> Volver a llamar
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'No Interesado')">
-                                            <i class="bi bi-x-circle"></i> No Interesado
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Éxito')">
-                                            <i class="bi bi-check-circle"></i> Éxito
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('status_level_1', 'Cita Agendada')">
-                                            <i class="bi bi-calendar-check"></i> Cita Agendada
-                                        </a></li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li><h6 class="dropdown-header">Estado Llamada</h6></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'no_selected')">
-                                            <i class="bi bi-circle"></i> Sin llamar
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'completed')">
-                                            <i class="bi bi-check-circle-fill"></i> Completadas
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'error')">
-                                            <i class="bi bi-exclamation-circle"></i> Con Error
-                                        </a></li>
-                                    </ul>
-                                </div>
-                                <div class="btn-group me-2" role="group">
-                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="manualManagementDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-person-gear"></i> Gestión Manual
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="manualManagementDropdown">
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(true)">
-                                            <i class="bi bi-person-fill-check"></i> Marcar como Manual
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="callsManager.setManualManagement(false)">
-                                            <i class="bi bi-robot"></i> Marcar como Automático
-                                        </a></li>
-                                    </ul>
-                                </div>
-                                <button class="btn btn-outline-info btn-sm" id="resetLeadsBtn">
-                                    <i class="bi bi-arrow-clockwise"></i> Reiniciar Estados
-                                </button>
                             </div>
                         </div>
                     </div>
