@@ -478,15 +478,35 @@ class CallsManager {
 
     updateConnectionStatus(isConnected) {
         if (!this.elements.connectionStatus) return;
-        const icon = this.elements.connectionStatus.querySelector('i');
         if (isConnected) {
             this.elements.connectionStatus.classList.remove('text-danger', 'text-warning');
             this.elements.connectionStatus.classList.add('text-success');
-            this.elements.connectionStatus.innerHTML = '<i class="bi bi-check-circle-fill"></i> Conectado';
+            this.elements.connectionStatus.innerHTML = '<i class="bi bi-check-circle-fill"></i> Pearl AI: Conectado';
         } else {
             this.elements.connectionStatus.classList.remove('text-success', 'text-warning');
             this.elements.connectionStatus.classList.add('text-danger');
-            this.elements.connectionStatus.innerHTML = '<i class="bi bi-x-circle-fill"></i> Desconectado';
+            this.elements.connectionStatus.innerHTML = '<i class="bi bi-x-circle-fill"></i> Pearl AI: Error';
+        }
+    }
+
+    async checkPearlConnection() {
+        if (!this.elements.connectionStatus) return;
+        
+        // Mostrar estado "conectando"
+        this.elements.connectionStatus.classList.remove('text-success', 'text-danger');
+        this.elements.connectionStatus.classList.add('text-warning');
+        this.elements.connectionStatus.innerHTML = '<i class="bi bi-circle-fill"></i> Pearl AI: Conectando...';
+        
+        try {
+            const response = await this.apiCall('GET', '/test/connection');
+            if (response.success && response.pearl_connection) {
+                this.updateConnectionStatus(true);
+            } else {
+                this.updateConnectionStatus(false);
+            }
+        } catch (error) {
+            console.error('Error verificando conexión Pearl AI:', error);
+            this.updateConnectionStatus(false);
         }
     }
 
@@ -681,9 +701,22 @@ class CallsManager {
         
         // Actualizar UI según el estado
         if (this.elements.systemStatus) {
-            this.elements.systemStatus.innerHTML = isRunning ? 
-                '<span class="badge bg-success"><i class="bi bi-play-circle"></i> En ejecución</span>' : 
-                '<span class="badge bg-secondary"><i class="bi bi-stop-circle"></i> Detenido</span>';
+            if (isRunning) {
+                this.elements.systemStatus.className = 'badge bg-success ms-3';
+                this.elements.systemStatus.innerHTML = 'Sistema llamadas: Activo';
+                // Mostrar estado Pearl AI solo cuando esté activo
+                if (this.elements.connectionStatus) {
+                    this.elements.connectionStatus.style.display = 'inline';
+                    this.checkPearlConnection();
+                }
+            } else {
+                this.elements.systemStatus.className = 'badge bg-secondary ms-3';
+                this.elements.systemStatus.innerHTML = 'Sistema llamadas: Detenido';
+                // Ocultar estado Pearl AI cuando esté detenido
+                if (this.elements.connectionStatus) {
+                    this.elements.connectionStatus.style.display = 'none';
+                }
+            }
         }
         
         // Actualizar botones según el estado
