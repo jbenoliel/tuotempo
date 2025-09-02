@@ -428,6 +428,7 @@ def register_apis(app):
         ('api_railway_verification', 'railway_verification_api', 'API de verificación de Railway'),
         ('api_resultado_llamada', 'resultado_api', 'API de resultado de llamadas'),
         ('api_pearl_calls', 'api_pearl_calls', 'API de llamadas Pearl'),
+        ('api_scheduler', 'api_scheduler', 'API del sistema de scheduler'),
     ]
     
     for module_name, blueprint_name, description in existing_apis:
