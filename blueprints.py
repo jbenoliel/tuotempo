@@ -500,6 +500,12 @@ def calls_manager():
             
     return render_template('calls_manager.html', calls=calls, stats=stats, filter_data=filter_data)
 
+@bp.route('/scheduler-config')
+@login_required  
+def scheduler_config():
+    """Página de configuración del scheduler."""
+    return render_template('scheduler_config.html')
+
 @bp.route('/admin/update-leads')
 @login_required
 def update_leads():

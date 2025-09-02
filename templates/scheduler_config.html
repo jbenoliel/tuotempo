@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración del Scheduler - TuoTempo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .config-card { margin-bottom: 1.5rem; }
+        .config-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .config-value { font-weight: bold; color: #28a745; }
+        .save-btn { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border: none; }
+        .reset-btn { background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%); border: none; }
+        .stats-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1><i class="fas fa-cogs text-primary"></i> Configuración del Scheduler</h1>
+                    <a href="/calls-manager" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left"></i> Volver al Gestor
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Configuración Principal -->
+            <div class="col-md-8">
+                <div class="card config-card">
+                    <div class="card-header config-header">
+                        <h5 class="mb-0"><i class="fas fa-clock"></i> Horarios Laborales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Hora de Inicio</label>
+                                <input type="time" class="form-control" id="working_hours_start" value="10:00">
+                                <small class="text-muted">Hora de inicio de llamadas</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hora de Fin</label>
+                                <input type="time" class="form-control" id="working_hours_end" value="20:00">
+                                <small class="text-muted">Hora de fin de llamadas</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label class="form-label">Días Laborables</label>
+                                <div class="btn-group" role="group" aria-label="Días laborables">
+                                    <input type="checkbox" class="btn-check" id="day-1" checked>
+                                    <label class="btn btn-outline-primary" for="day-1">L</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-2" checked>
+                                    <label class="btn btn-outline-primary" for="day-2">M</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-3" checked>
+                                    <label class="btn btn-outline-primary" for="day-3">X</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-4" checked>
+                                    <label class="btn btn-outline-primary" for="day-4">J</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-5" checked>
+                                    <label class="btn btn-outline-primary" for="day-5">V</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-6">
+                                    <label class="btn btn-outline-primary" for="day-6">S</label>
+                                    
+                                    <input type="checkbox" class="btn-check" id="day-7">
+                                    <label class="btn btn-outline-primary" for="day-7">D</label>
+                                </div>
+                                <small class="text-muted d-block mt-1">Días de la semana para realizar llamadas</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card config-card">
+                    <div class="card-header config-header">
+                        <h5 class="mb-0"><i class="fas fa-redo"></i> Configuración de Reintentos</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Horas de Espera</label>
+                                <input type="number" class="form-control" id="reschedule_hours" value="30" min="1" max="168">
+                                <small class="text-muted">Horas a esperar antes del siguiente intento</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Máximo de Intentos</label>
+                                <input type="number" class="form-control" id="max_attempts" value="6" min="1" max="10">
+                                <small class="text-muted">Intentos máximos antes de cerrar el lead</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card config-card">
+                    <div class="card-header config-header">
+                        <h5 class="mb-0"><i class="fas fa-times-circle"></i> Razones de Cierre</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Sin Respuesta</label>
+                                <input type="text" class="form-control" id="closure_no_answer" value="Ilocalizable">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Cuelga</label>
+                                <input type="text" class="form-control" id="closure_hang_up" value="No colabora">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Teléfono Inválido</label>
+                                <input type="text" class="form-control" id="closure_invalid_phone" value="Teléfono erróneo">
+                            </div>
+                        </div>
+                        <small class="text-muted">Razones que se asignan al cerrar automáticamente un lead</small>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mb-4">
+                    <button class="btn btn-success save-btn" onclick="saveConfiguration()">
+                        <i class="fas fa-save"></i> Guardar Configuración
+                    </button>
+                    <button class="btn btn-warning reset-btn" onclick="loadConfiguration()">
+                        <i class="fas fa-undo"></i> Recargar
+                    </button>
+                    <button class="btn btn-info" onclick="testConfiguration()">
+                        <i class="fas fa-vial"></i> Probar Configuración
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel de Estadísticas -->
+            <div class="col-md-4">
+                <div class="card stats-card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Estadísticas del Scheduler</h6>
+                    </div>
+                    <div class="card-body" id="stats-content">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-calendar"></i> Llamadas Programadas</h6>
+                    </div>
+                    <div class="card-body" id="scheduled-calls">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> Estado Actual</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <strong>Horario Actual:</strong>
+                            <span id="current-time" class="config-value"></span>
+                        </div>
+                        <div class="mb-2">
+                            <strong>¿Es Horario Laboral?:</strong>
+                            <span id="is-working-time" class="config-value"></span>
+                        </div>
+                        <div>
+                            <strong>Próximo Slot:</strong>
+                            <span id="next-working-slot" class="config-value"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast para notificaciones -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-bell text-primary me-2"></i>
+                <strong class="me-auto">Scheduler</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toast-message">
+                <!-- Mensaje dinámico -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let config = {};
+        
+        // Cargar configuración al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfiguration();
+            loadStatistics();
+            updateCurrentTime();
+            
+            // Actualizar cada 30 segundos
+            setInterval(() => {
+                loadStatistics();
+                updateCurrentTime();
+            }, 30000);
+        });
+        
+        async function loadConfiguration() {
+            try {
+                const response = await fetch('/api/scheduler/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    config = data.config;
+                    updateFormFields();
+                    showToast('Configuración cargada correctamente', 'success');
+                } else {
+                    showToast('Error cargando configuración: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        }
+        
+        function updateFormFields() {
+            document.getElementById('working_hours_start').value = config.working_hours_start || '10:00';
+            document.getElementById('working_hours_end').value = config.working_hours_end || '20:00';
+            document.getElementById('reschedule_hours').value = config.reschedule_hours || '30';
+            document.getElementById('max_attempts').value = config.max_attempts || '6';
+            
+            // Días laborables
+            const workingDays = config.working_days || [1,2,3,4,5];
+            for (let i = 1; i <= 7; i++) {
+                document.getElementById('day-' + i).checked = workingDays.includes(i);
+            }
+            
+            // Razones de cierre
+            const closureReasons = config.closure_reasons || {};
+            document.getElementById('closure_no_answer').value = closureReasons.no_answer || 'Ilocalizable';
+            document.getElementById('closure_hang_up').value = closureReasons.hang_up || 'No colabora';
+            document.getElementById('closure_invalid_phone').value = closureReasons.invalid_phone || 'Teléfono erróneo';
+        }
+        
+        async function saveConfiguration() {
+            const newConfig = {
+                working_hours_start: document.getElementById('working_hours_start').value,
+                working_hours_end: document.getElementById('working_hours_end').value,
+                reschedule_hours: document.getElementById('reschedule_hours').value,
+                max_attempts: document.getElementById('max_attempts').value,
+                working_days: [],
+                closure_reasons: {
+                    no_answer: document.getElementById('closure_no_answer').value,
+                    hang_up: document.getElementById('closure_hang_up').value,
+                    invalid_phone: document.getElementById('closure_invalid_phone').value
+                }
+            };
+            
+            // Obtener días laborables seleccionados
+            for (let i = 1; i <= 7; i++) {
+                if (document.getElementById('day-' + i).checked) {
+                    newConfig.working_days.push(i);
+                }
+            }
+            
+            try {
+                const response = await fetch('/api/scheduler/config', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newConfig)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Configuración guardada correctamente', 'success');
+                    loadConfiguration(); // Recargar para confirmar
+                } else {
+                    showToast('Error guardando configuración: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/scheduler/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatistics(data.statistics);
+                }
+            } catch (error) {
+                document.getElementById('stats-content').innerHTML = 
+                    '<div class="text-danger">Error cargando estadísticas</div>';
+            }
+            
+            // Cargar llamadas programadas
+            try {
+                const response = await fetch('/api/scheduler/pending?due_only=false&limit=5');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateScheduledCalls(data.calls);
+                }
+            } catch (error) {
+                document.getElementById('scheduled-calls').innerHTML = 
+                    '<div class="text-danger">Error cargando llamadas</div>';
+            }
+        }
+        
+        function updateStatistics(stats) {
+            const html = `
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary">${stats.pending_calls || 0}</h4>
+                            <small class="text-muted">Pendientes</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">${stats.scheduled_today || 0}</h4>
+                        <small class="text-muted">Hoy</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <strong>Promedio Intentos:</strong> 
+                    <span class="config-value">${(stats.avg_attempts || 0).toFixed(1)}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Máximo Intentos:</strong>
+                    <span class="config-value">${stats.max_attempts || 0}</span>
+                </div>
+            `;
+            document.getElementById('stats-content').innerHTML = html;
+        }
+        
+        function updateScheduledCalls(calls) {
+            if (calls.length === 0) {
+                document.getElementById('scheduled-calls').innerHTML = 
+                    '<div class="text-muted text-center">No hay llamadas programadas</div>';
+                return;
+            }
+            
+            const html = calls.map(call => `
+                <div class="mb-2 p-2 border rounded">
+                    <strong>${call.nombre} ${call.apellidos}</strong><br>
+                    <small class="text-muted">
+                        Intento ${call.attempt_number} - 
+                        ${new Date(call.scheduled_at).toLocaleString('es-ES')}
+                    </small>
+                </div>
+            `).join('');
+            
+            document.getElementById('scheduled-calls').innerHTML = html;
+        }
+        
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('es-ES');
+            
+            // Calcular si es horario laboral (simplificado)
+            const hour = now.getHours();
+            const day = now.getDay(); // 0=Domingo, 1=Lunes...
+            const workingDay = day >= 1 && day <= 5;
+            const workingHour = hour >= 10 && hour <= 20;
+            const isWorking = workingDay && workingHour;
+            
+            document.getElementById('is-working-time').textContent = isWorking ? 'SÍ' : 'NO';
+            document.getElementById('is-working-time').className = isWorking ? 'config-value' : 'text-muted';
+            
+            // Próximo slot (simplificado)
+            let nextSlot = 'Mañana 10:00 AM';
+            if (workingDay && hour < 10) {
+                nextSlot = 'Hoy 10:00 AM';
+            } else if (workingDay && hour < 20) {
+                nextSlot = 'Ahora mismo';
+            }
+            document.getElementById('next-working-slot').textContent = nextSlot;
+        }
+        
+        async function testConfiguration() {
+            showToast('Probando configuración del scheduler...', 'info');
+            
+            try {
+                const response = await fetch('/api/scheduler/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Configuración válida y funcionando correctamente', 'success');
+                } else {
+                    showToast('Error en la configuración: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error probando configuración: ' + error.message, 'error');
+            }
+        }
+        
+        function showToast(message, type = 'info') {
+            const toastElement = document.getElementById('notification-toast');
+            const toastBody = document.getElementById('toast-message');
+            
+            toastBody.textContent = message;
+            
+            // Cambiar clase según tipo
+            toastElement.className = 'toast';
+            if (type === 'success') {
+                toastElement.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toastElement.classList.add('bg-danger', 'text-white');
+            } else if (type === 'warning') {
+                toastElement.classList.add('bg-warning', 'text-dark');
+            } else {
+                toastElement.classList.add('bg-info', 'text-white');
+            }
+            
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+        }
+    </script>
+</body>
+</html>
