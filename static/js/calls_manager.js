@@ -192,6 +192,7 @@ class CallsManager {
             leadsTableBody: document.getElementById('leadsTableBody'),
             leadsInfo: document.getElementById('leadsInfo'),
             pagination: document.getElementById('pagination'),
+            itemsPerPageSelect: document.getElementById('itemsPerPageSelect'),
             masterCheckbox: document.getElementById('masterCheckbox'),
             selectAllBtn: document.getElementById('selectAllBtn'),
             deselectAllBtn: document.getElementById('deselectAllBtn'),
@@ -244,6 +245,7 @@ class CallsManager {
         this.elements.selectAllBtn?.addEventListener('click', () => this.selectAllLeads(true));
         this.elements.deselectAllBtn?.addEventListener('click', () => this.selectAllLeads(false));
         this.elements.resetLeadsBtn?.addEventListener('click', () => this.resetLeads());
+        this.elements.itemsPerPageSelect?.addEventListener('change', (e) => this.changeItemsPerPage(parseInt(e.target.value)));
         this.elements.masterCheckbox?.addEventListener('change', (e) => this.toggleAllCheckboxes(e.target.checked));
         this.elements.testConnectionBtn?.addEventListener('click', () => this.testConnection());
         this.elements.saveConfigBtn?.addEventListener('click', () => this.saveConfiguration());
@@ -520,6 +522,10 @@ class CallsManager {
                             if (this.state.filters.status) params.append('status', this.state.filters.status);
                             if (this.state.filters.priority) params.append('priority', this.state.filters.priority);
                             if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
+                            
+                            // Agregar parámetros de paginación
+                            params.append('limit', this.state.pagination.limit || this.state.itemsPerPage);
+                            params.append('offset', this.state.pagination.offset || 0);
                             
                             const queryString = params.toString();
                             const endpoint = queryString ? `leads?${queryString}` : 'leads';
@@ -851,7 +857,7 @@ class CallsManager {
             });
         }
         
-        this.renderPagination(filteredLeads.length);
+        this.renderPagination();
         this.updateLeadsInfo();
         this.updateMasterCheckbox();
         
@@ -868,15 +874,9 @@ class CallsManager {
         const row = document.createElement('tr');
         row.dataset.leadId = lead.id;
         
-        // Hacer más visible la selección con estilos más marcados
+        // Estilo minimalista para selección
         if (lead.selected_for_calling) {
-            row.className = 'table-primary';
-            row.style.backgroundColor = '#B5E0F4'; // Azul corporativo suave
-            row.style.borderLeft = '4px solid #35C0F1'; // Borde azul corporativo
-        } else {
-            row.className = '';
-            row.style.backgroundColor = '';
-            row.style.borderLeft = '';
+            row.style.backgroundColor = 'rgba(0, 123, 255, 0.05)';
         }
 
         let statusClass = 'bg-secondary';
@@ -890,35 +890,32 @@ class CallsManager {
         // Crear el nombre completo
         const nombreCompleto = `${lead.nombre || ''} ${lead.apellidos || ''}`.trim() || 'N/A';
         
-        // Determinar colores para badges usando colores corporativos
-        let statusBadgeStyle = 'background-color: #646762; color: white;'; // Gris corporativo por defecto
-        if (lead.call_status === 'completed') statusBadgeStyle = 'background-color: #92D050; color: white;'; // Verde corporativo
-        else if (['in_progress', 'calling', 'selected'].includes(lead.call_status)) statusBadgeStyle = 'background-color: #ffc107; color: #333;'; // Warning
-        else if (['error', 'failed', 'busy', 'no_answer'].includes(lead.call_status)) statusBadgeStyle = 'background-color: #dc3545; color: white;'; // Danger
+        // Badges minimalistas
+        let statusBadgeClass = 'badge-minimal-secondary';
+        if (lead.call_status === 'completed') statusBadgeClass = 'badge-minimal-success';
+        else if (['in_progress', 'calling', 'selected'].includes(lead.call_status)) statusBadgeClass = 'badge-minimal-warning';
+        else if (['error', 'failed', 'busy', 'no_answer'].includes(lead.call_status)) statusBadgeClass = 'badge-minimal-danger';
         
         // Badge para gestión manual
         const isManual = lead.manual_management;
-        const manualBadgeStyle = isManual ? 'background-color: #ffc107; color: #333;' : 'background-color: #646762; color: white;';
+        const manualBadgeClass = isManual ? 'badge-minimal-warning' : 'badge-minimal-secondary';
         const manualBadgeText = isManual ? 'Manual' : 'Automático';
         
         row.innerHTML = `
             <td>
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''} style="${lead.selected_for_calling ? 'border-color: #35C0F1; background-color: #35C0F1; box-shadow: 0 0 0 0.25rem rgba(53, 192, 241, 0.25);' : ''}">
-                    ${lead.selected_for_calling ? '<i class="bi bi-check-circle-fill text-primary" style="position: absolute; margin-left: 1.5rem; margin-top: -1.2rem; font-size: 0.8rem;"></i>' : ''}
-                </div>
+                <input type="checkbox" class="form-check-input-minimal lead-checkbox" data-lead-id="${lead.id}" ${lead.selected_for_calling ? 'checked' : ''}>
             </td>
-            <td style="color: #333; font-weight: ${lead.selected_for_calling ? '600' : '500'};">${nombreCompleto}</td>
-            <td style="color: #35C0F1; font-weight: 500;">${lead.telefono || lead.telefono2 || 'N/A'}</td>
-            <td><span class="badge" style="background-color: #35C0F1; color: white;">${lead.status_level_1 || 'N/A'}</span></td>
-            <td><span class="badge" style="background-color: #646762; color: white;">${lead.status_level_2 || 'N/A'}</span></td>
-            <td><span class="badge" style="${statusBadgeStyle}">${callStatus}</span></td>
-            <td><span class="badge" style="${manualBadgeStyle}">${manualBadgeText}</span></td>
-            <td style="color: #333;">${lead.call_priority || 3}</td>
-            <td style="color: #333;">${lead.call_attempts_count || 0}</td>
-            <td style="color: #333;">${lastCallTime}</td>
+            <td>${nombreCompleto}</td>
+            <td>${lead.telefono || lead.telefono2 || 'N/A'}</td>
+            <td><span class="badge ${statusBadgeClass}">${lead.status_level_1 || 'N/A'}</span></td>
+            <td><span class="badge badge-minimal-secondary">${lead.status_level_2 || 'N/A'}</span></td>
+            <td><span class="badge ${statusBadgeClass}">${callStatus}</span></td>
+            <td><span class="badge ${manualBadgeClass}">${manualBadgeText}</span></td>
+            <td>${lead.call_priority || 3}</td>
+            <td>${lead.call_attempts_count || 0}</td>
+            <td>${lastCallTime}</td>
             <td>
-                <button class="btn btn-sm" style="border: 1px solid #35C0F1; color: #35C0F1;" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')">
+                <button class="btn btn-sm btn-outline-primary" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
                     <i class="bi bi-eye"></i>
                 </button>
             </td>
@@ -1522,6 +1519,24 @@ class CallsManager {
 
     // Método resetLeads duplicado - REMOVIDO (usar el de arriba)
 
+    changeItemsPerPage(newLimit) {
+        console.log(`🔄 Cambiando límite de leads por página a: ${newLimit}`);
+        
+        // Actualizar el estado interno
+        this.state.itemsPerPage = newLimit;
+        this.state.pagination.limit = newLimit;
+        
+        // Resetear a la primera página
+        this.state.currentPage = 1;
+        this.state.pagination.offset = 0;
+        
+        // Recargar datos con el nuevo límite
+        this.sendMessage('get_all_leads');
+        
+        // Mostrar notificación
+        this.showToast(`Mostrando ${newLimit} leads por página`, 'info');
+    }
+
     showLeadDetails(leadId) {
         const lead = this.state.leads.find(l => l.id == leadId);
         if (!lead) {
@@ -1603,26 +1618,102 @@ class CallsManager {
         return items.slice(start, end);
     }
 
-    renderPagination(totalItems) {
-        this.elements.pagination.innerHTML = '';
-        const pageCount = Math.ceil(totalItems / this.state.itemsPerPage);
-        if (pageCount <= 1) return;
-
-        for (let i = 1; i <= pageCount; i++) {
-            const li = document.createElement('li');
-            li.className = `page-item ${i === this.state.currentPage ? 'active' : ''}`;
-            const a = document.createElement('a');
-            a.className = 'page-link';
-            a.href = '#';
-            a.innerText = i;
+    renderPagination(totalItems = null) {
+        // Actualizar ambas paginaciones (superior y inferior si existe)
+        const paginationContainers = [
+            document.getElementById('paginationTop'),
+            document.getElementById('pagination')
+        ].filter(el => el);
+        
+        if (paginationContainers.length === 0) return;
+        
+        // Usar datos reales de la API si están disponibles
+        const total = totalItems || this.state.pagination?.total || 0;
+        const limit = this.state.pagination?.limit || this.state.itemsPerPage;
+        const offset = this.state.pagination?.offset || 0;
+        const currentPage = Math.floor(offset / limit) + 1;
+        const pageCount = Math.ceil(total / limit);
+        
+        this.state.currentPage = currentPage;
+        
+        paginationContainers.forEach(container => {
+            container.innerHTML = '';
+            
+            if (pageCount <= 1) return;
+            
+            // Botón Primera Página
+            this.addPaginationButton(container, '««', 1, currentPage === 1, 'Primera página');
+            
+            // Botón Anterior
+            this.addPaginationButton(container, '‹', currentPage - 1, currentPage === 1, 'Página anterior');
+            
+            // Páginas numeradas
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(pageCount, currentPage + 2);
+            
+            if (startPage > 1) {
+                this.addPaginationButton(container, '1', 1);
+                if (startPage > 2) {
+                    this.addPaginationEllipsis(container);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                this.addPaginationButton(container, i, i, false, `Página ${i}`, i === currentPage);
+            }
+            
+            if (endPage < pageCount) {
+                if (endPage < pageCount - 1) {
+                    this.addPaginationEllipsis(container);
+                }
+                this.addPaginationButton(container, pageCount, pageCount);
+            }
+            
+            // Botón Siguiente
+            this.addPaginationButton(container, '›', currentPage + 1, currentPage === pageCount, 'Página siguiente');
+            
+            // Botón Última Página
+            this.addPaginationButton(container, '»»', pageCount, currentPage === pageCount, 'Última página');
+        });
+    }
+    
+    addPaginationButton(container, text, page, disabled = false, title = '', active = false) {
+        const li = document.createElement('li');
+        li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
+        
+        const a = document.createElement('a');
+        a.className = 'page-link';
+        a.href = '#';
+        a.innerHTML = text;
+        if (title) a.title = title;
+        
+        if (!disabled) {
             a.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.state.currentPage = i;
-                this.renderTable();
+                this.goToPage(page);
             });
-            li.appendChild(a);
-            this.elements.pagination.appendChild(li);
         }
+        
+        li.appendChild(a);
+        container.appendChild(li);
+    }
+    
+    addPaginationEllipsis(container) {
+        const li = document.createElement('li');
+        li.className = 'page-item disabled';
+        const span = document.createElement('span');
+        span.className = 'page-link';
+        span.innerHTML = '…';
+        li.appendChild(span);
+        container.appendChild(li);
+    }
+    
+    goToPage(page) {
+        const limit = this.state.pagination?.limit || this.state.itemsPerPage;
+        const offset = (page - 1) * limit;
+        this.state.pagination.offset = offset;
+        this.state.currentPage = page;
+        this.sendMessage('get_all_leads');
     }
 
     updateLeadsInfo() {

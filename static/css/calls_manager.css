@@ -45,6 +45,158 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Diseño minimalista inspirado en la imagen de referencia */
+.table-minimal {
+    border: none;
+    background: transparent;
+}
+
+.table-minimal thead {
+    background: transparent !important;
+    border: none;
+}
+
+.table-minimal thead th {
+    background: transparent !important;
+    color: #6c757d !important;
+    font-weight: 500 !important;
+    font-size: 0.75rem !important;
+    text-transform: none !important;
+    border: none !important;
+    border-bottom: 1px solid #e9ecef !important;
+    padding: 0.75rem 0.5rem !important;
+    letter-spacing: 0.02em;
+}
+
+.table-minimal tbody tr {
+    border: none;
+    background: transparent;
+}
+
+.table-minimal tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+.table-minimal tbody td {
+    font-size: 0.75rem !important;
+    line-height: 1.4;
+    padding: 0.6rem 0.5rem !important;
+    vertical-align: middle;
+    color: #495057 !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+}
+
+/* Badges minimalistas */
+.table-minimal .badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 0.25rem;
+    border: 1px solid transparent;
+}
+
+.badge-minimal-success {
+    background-color: #f8f9fa !important;
+    color: #198754 !important;
+    border-color: #d4edda !important;
+}
+
+.badge-minimal-warning {
+    background-color: #f8f9fa !important;
+    color: #fd7e14 !important;
+    border-color: #ffeaa7 !important;
+}
+
+.badge-minimal-secondary {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+    border-color: #e9ecef !important;
+}
+
+.badge-minimal-danger {
+    background-color: #f8f9fa !important;
+    color: #dc3545 !important;
+    border-color: #f5c6cb !important;
+}
+
+/* Contenedores minimalistas */
+.pagination-container-minimal {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid #e9ecef !important;
+    padding: 1rem 0 !important;
+    margin-bottom: 0 !important;
+}
+
+.pagination-info-minimal {
+    color: #6c757d !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+
+/* Paginación minimalista */
+.pagination-minimal .page-item {
+    margin: 0 0.1rem;
+}
+
+.pagination-minimal .page-link {
+    background: transparent;
+    border: none;
+    color: #6c757d;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.pagination-minimal .page-link:hover {
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+.pagination-minimal .page-item.active .page-link {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.pagination-minimal .page-item.disabled .page-link {
+    color: #adb5bd;
+    cursor: not-allowed;
+}
+
+/* Selector minimalista */
+.form-select-minimal {
+    border: 1px solid #e9ecef !important;
+    background: white !important;
+    font-size: 0.75rem !important;
+    padding: 0.375rem 0.5rem !important;
+    border-radius: 0.25rem !important;
+}
+
+/* Checkboxes minimalistas */
+.form-check-input-minimal {
+    width: 1rem;
+    height: 1rem;
+    border: 1.5px solid #d4d4d8;
+    border-radius: 0.2rem;
+}
+
+.form-check-input-minimal:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+/* Cards minimalistas */
+.card-minimal {
+    border: 1px solid #e9ecef !important;
+    border-radius: 0.5rem !important;
+    box-shadow: none !important;
+    background: white !important;
+}
+
 /* Navbar personalizada */
 .navbar-brand {
     font-weight: 600;
