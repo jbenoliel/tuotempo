@@ -254,7 +254,7 @@ def get_leads_for_calling():
         estado1 = request.args.get('estado1')
         estado2 = request.args.get('estado2')
         selected_only = request.args.get('selected_only', 'false').lower() == 'true'
-        limit = int(request.args.get('limit', 100))
+        limit = int(request.args.get('limit', 25))
         offset = int(request.args.get('offset', 0))
         
         # Construir query dinámicamente

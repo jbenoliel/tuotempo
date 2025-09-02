@@ -10,7 +10,13 @@ class CallsManager {
         this.state = {
             leads: [],
             currentPage: 1,
-            itemsPerPage: 15,
+            itemsPerPage: 25,
+            pagination: {
+                total: 0,
+                limit: 25,
+                offset: 0,
+                has_more: false
+            },
             isSystemRunning: false,
             socket: null,
             retryCount: 0,
@@ -522,6 +528,13 @@ class CallsManager {
                             const resp = await this.apiCall('GET', endpoint, null, true);
                             const leads = resp.leads || [];
                             console.log('📊 API devuelve', leads.length, 'leads con filtros:', this.state.filters);
+                            console.log('📊 Información de paginación:', resp.pagination);
+                            
+                            // Guardar información de paginación
+                            if (resp.pagination) {
+                                this.state.pagination = resp.pagination;
+                            }
+                            
                             this.handleWebSocketMessage({ type: 'all_leads', data: leads });
                         } catch (error) {
                             console.error('❌ Error cargando leads:', error);
@@ -839,7 +852,7 @@ class CallsManager {
         }
         
         this.renderPagination(filteredLeads.length);
-        this.updateLeadsInfo(filteredLeads.length);
+        this.updateLeadsInfo();
         this.updateMasterCheckbox();
         
         // Forzar actualización de contadores después de renderizar
@@ -1612,27 +1625,34 @@ class CallsManager {
         }
     }
 
-    updateLeadsInfo(totalFiltered) {
-        console.log(`🔥 [DEBUG] updateLeadsInfo llamado con totalFiltered: ${totalFiltered}`);
+    updateLeadsInfo() {
+        console.log(`🔥 [DEBUG] updateLeadsInfo llamado`);
         console.log(`🔥 [DEBUG] this.elements.leadsInfo existe:`, !!this.elements.leadsInfo);
         console.log(`🔥 [DEBUG] this.state.leads.length:`, this.state.leads.length);
+        console.log(`🔥 [DEBUG] this.state.pagination:`, this.state.pagination);
         
         if (!this.elements.leadsInfo) {
             console.log(`🔥 [DEBUG] ❌ leadsInfo element no encontrado!`);
             return;
         }
         
-        // Calcular información de paginación
-        const start = totalFiltered > 0 ? (this.state.currentPage - 1) * this.state.itemsPerPage + 1 : 0;
-        const end = Math.min(start + this.state.itemsPerPage - 1, totalFiltered);
+        // Usar información de paginación de la API
+        const total = this.state.pagination?.total || 0;
+        const limit = this.state.pagination?.limit || this.state.itemsPerPage;
+        const offset = this.state.pagination?.offset || 0;
+        const currentLeadsCount = this.state.leads.length;
+        
+        // Calcular información de paginación real
+        const start = total > 0 ? offset + 1 : 0;
+        const end = Math.min(offset + currentLeadsCount, total);
         const selectedCount = this.getSelectedCount();
         const filteredSelectedCount = this.getFilteredLeads().filter(lead => lead.selected_for_calling).length;
         
-        console.log(`🔥 [DEBUG] start: ${start}, end: ${end}, selectedCount: ${selectedCount}, filteredSelectedCount: ${filteredSelectedCount}`);
+        console.log(`🔥 [DEBUG] start: ${start}, end: ${end}, total: ${total}, selectedCount: ${selectedCount}, filteredSelectedCount: ${filteredSelectedCount}`);
         
         // Información más detallada y visible
-        const info = totalFiltered > 0 
-            ? `Mostrando ${start}-${end} de ${totalFiltered} leads | ${filteredSelectedCount} seleccionados de los filtrados | ${selectedCount} total seleccionados`
+        const info = total > 0 
+            ? `Mostrando ${start}-${end} de ${total} leads | ${filteredSelectedCount} seleccionados de los mostrados | ${selectedCount} total seleccionados`
             : `Sin leads que mostrar | ${selectedCount} total seleccionados`;
             
         console.log(`🔥 [DEBUG] Info generada: "${info}"`);
@@ -1640,7 +1660,7 @@ class CallsManager {
         console.log(`🔥 [DEBUG] Info asignada al elemento, textContent ahora es: "${this.elements.leadsInfo.textContent}"`);
         
         // Actualizar los contadores de leads en los badges del header
-        this.updateLeadsCounters(totalFiltered, selectedCount);
+        this.updateLeadsCounters(total, selectedCount);
         
         console.log(`📊 Info actualizada: ${info}`);
     }
