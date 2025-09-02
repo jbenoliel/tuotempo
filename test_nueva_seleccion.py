@@ -7,7 +7,7 @@ import requests
 import time
 from db import get_connection
 
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:8080"
 
 def contar_seleccionados_bd():
     """Contar leads seleccionados en BD"""

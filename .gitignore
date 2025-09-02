@@ -181,3 +181,4 @@ start.py.backup
 temp_patch.txt
 __pycache__/tuotempo_api.cpython-312.pyc
 __pycache__/db.cpython-312.pyc
+.env
