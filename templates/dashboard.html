@@ -6,7 +6,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta http-equiv="Last-Modified" content="Mon, 22 Jul 2025 {{ moment().format('HH:mm:ss') if moment else range(10, 59) | random ~ ':' ~ range(10, 59) | random ~ ':' ~ range(10, 59) | random }} GMT">
-<meta name="cache-version" content="{{ range(100000, 999999) | random }}-{{ moment().timestamp if moment else range(1000000, 9999999) | random }}">
+<meta name="cache-version" content="{{ range(100000, 999999) | random }}-{{ range(1000000, 9999999) | random }}-FIXED-CHARTS">
+<meta name="refresh-time" content="{{ range(10000, 99999) | random }}">
 <style data-version="{{ range(100000, 999999) | random }}">
 /* FORCE REFRESH - Dashboard Colors {{ range(1000, 9999) | random }} */
 * { box-sizing: border-box; }
