@@ -249,17 +249,21 @@ body { margin: 0; padding: 0; }
 
 <!-- DEBUG: Mostrar datos en consola -->
 <script>
-console.log('=== DATOS DASHBOARD DEBUG ===');
-const statsData = {{ stats | default({}) | tojson | safe }};
-console.log('Stats completos:', statsData);
-console.log('Estados:', statsData.estados);
-if (statsData.estados) {
-    const citasTotal = (statsData.estados.cita_con_pack || 0) + (statsData.estados.cita_sin_pack || 0);
-    console.log('Citas agendadas:', citasTotal);
-    console.log('Volver a llamar:', statsData.estados.volver_llamar);
-    console.log('No interesados:', statsData.estados.no_interesado);
+try {
+    console.log('=== DATOS DASHBOARD DEBUG ===');
+    const statsData = {{ stats | default({}) | tojson | safe }};
+    console.log('Stats completos:', statsData);
+    console.log('Estados:', statsData.estados);
+    if (statsData.estados) {
+        const citasTotal = (statsData.estados.cita_con_pack || 0) + (statsData.estados.cita_sin_pack || 0);
+        console.log('Citas agendadas:', citasTotal);
+        console.log('Volver a llamar:', statsData.estados.volver_llamar);
+        console.log('No interesados:', statsData.estados.no_interesado);
+    }
+    console.log('Timestamp:', new Date().toISOString());
+} catch (e) {
+    console.error('Error en debug:', e);
 }
-console.log('Timestamp:', new Date().toISOString());
 </script>
 
 <!-- FORCE DASHBOARD COLORS WITH JAVASCRIPT -->
