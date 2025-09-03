@@ -59,6 +59,47 @@ body { margin: 0; padding: 0; }
 {% block content %}
 <h1 class="text-center my-4">Dashboard Seguimiento de Llamadas</h1>
 
+<!-- Filtro por archivo origen -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <form method="GET" id="filtroForm" class="d-flex align-items-center gap-3 flex-wrap">
+          <div class="d-flex align-items-center">
+            <label for="archivoSelector" class="form-label me-2 mb-0" style="white-space: nowrap;">
+              <i class="fas fa-filter"></i> Filtrar por archivo:
+            </label>
+            <select class="form-select" id="archivoSelector" name="origen_archivo" multiple style="min-width: 200px;">
+              <option value="" {% if not stats.filtro_origen %}selected{% endif %}>📊 Todos los archivos</option>
+              {% for archivo in stats.archivos_disponibles %}
+              <option value="{{ archivo.nombre_archivo }}" 
+                      {% if stats.filtro_origen and archivo.nombre_archivo in stats.filtro_origen %}selected{% endif %}>
+                📁 {{ archivo.nombre_archivo }} ({{ archivo.total_registros }} leads)
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="fas fa-sync"></i> Actualizar
+          </button>
+          
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltros()">
+            <i class="fas fa-times"></i> Limpiar
+          </button>
+          
+          {% if stats.filtro_origen %}
+          <small class="text-muted">
+            <i class="fas fa-info-circle"></i> 
+            Mostrando datos de: <strong>{{ stats.filtro_origen|join(', ') if stats.filtro_origen is iterable else stats.filtro_origen }}</strong>
+          </small>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Fila 1: Métricas principales -->
 <div class="row text-center g-3">
   <div class="col-6 col-md-3">
@@ -376,6 +417,37 @@ document.addEventListener('DOMContentLoaded', function () {
       data: { labels: citasLabels, datasets: [{ data: citasValues, backgroundColor: '#4CAF50' }] },
       options: { ...barOptions, plugins: { ...barOptions.plugins, title: { display: true, text: 'Subestados: Citas' } } }
     });
+});
+
+// Funcionalidad del filtro de archivo origen
+function limpiarFiltros() {
+  // Deseleccionar todas las opciones del selector
+  const selector = document.getElementById('archivoSelector');
+  for (let option of selector.options) {
+    option.selected = false;
+  }
+  // Seleccionar "Todos los archivos"
+  selector.options[0].selected = true;
+  // Enviar formulario
+  document.getElementById('filtroForm').submit();
+}
+
+// Mejorar UX del selector múltiple
+document.addEventListener('DOMContentLoaded', function() {
+  const selector = document.getElementById('archivoSelector');
+  
+  // Si hay selección múltiple, añadir tooltip explicativo
+  if (selector) {
+    selector.title = "Mantén Ctrl presionado para seleccionar múltiples archivos";
+    
+    // Auto-submit cuando cambie la selección
+    selector.addEventListener('change', function() {
+      // Pequeño delay para que el usuario pueda hacer selecciones múltiples
+      setTimeout(() => {
+        document.getElementById('filtroForm').submit();
+      }, 300);
+    });
+  }
 });
 </script>
 {% endblock %}

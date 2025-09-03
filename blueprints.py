@@ -76,9 +76,14 @@ def logout():
 @bp.route('/')
 @login_required
 def index():
+    # Obtener filtro de archivo origen de los parámetros de la URL
+    filtro_origen = request.args.getlist('origen_archivo')  # Permite múltiples valores
+    if not filtro_origen:
+        filtro_origen = None  # Mostrar todos los archivos por defecto
+    
     # Importamos la función get_statistics desde utils.py que tiene la estructura completa
     from utils import get_statistics as utils_get_statistics
-    stats = utils_get_statistics()
+    stats = utils_get_statistics(filtro_origen_archivo=filtro_origen)
     return render_template('dashboard.html', stats=stats)
 
 

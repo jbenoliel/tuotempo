@@ -248,8 +248,13 @@ def exportar_datos_completos(connection):
 
 from db import get_connection
 
-def get_statistics():
-    """Calcula estadísticas en tiempo real para el dashboard."""
+def get_statistics(filtro_origen_archivo=None):
+    """Calcula estadísticas en tiempo real para el dashboard.
+    
+    Args:
+        filtro_origen_archivo (str|list): Filtro por archivo origen. 
+                                          Puede ser un string, lista de strings, o None para todos.
+    """
     stats = {
         'total_leads': 0,
         'llamadas_hoy': 0,
@@ -262,7 +267,9 @@ def get_statistics():
             'no_interesado': 0,
             'cita_sin_pack': 0,
             'cita_con_pack': 0
-        }
+        },
+        'filtro_origen': filtro_origen_archivo,  # Incluir info del filtro aplicado
+        'archivos_disponibles': []  # Lista de archivos disponibles para el selector
     }
 
     conn = get_connection()
@@ -272,23 +279,42 @@ def get_statistics():
 
     try:
         with conn.cursor(dictionary=True) as cursor:
-            # Total leads
-            cursor.execute("SELECT COUNT(*) AS cnt FROM leads")
+            # Obtener lista de archivos disponibles
+            cursor.execute("SELECT nombre_archivo, total_registros FROM archivos_origen WHERE activo = 1 ORDER BY nombre_archivo")
+            stats['archivos_disponibles'] = cursor.fetchall()
+            
+            # Construir cláusula WHERE para filtro de archivo origen
+            where_clause = ""
+            params = []
+            
+            if filtro_origen_archivo:
+                if isinstance(filtro_origen_archivo, str):
+                    where_clause = "WHERE origen_archivo = %s"
+                    params = [filtro_origen_archivo]
+                elif isinstance(filtro_origen_archivo, list) and filtro_origen_archivo:
+                    placeholders = ','.join(['%s'] * len(filtro_origen_archivo))
+                    where_clause = f"WHERE origen_archivo IN ({placeholders})"
+                    params = filtro_origen_archivo
+            
+            # Total leads con filtro
+            query_total = f"SELECT COUNT(*) AS cnt FROM leads {where_clause}"
+            cursor.execute(query_total, params)
             stats['total_leads'] = cursor.fetchone()['cnt']
 
             # Llamadas de hoy (temporalmente deshabilitado)
             stats['llamadas_hoy'] = 0
 
-            # Resumen de estados solicitados (status_level_1 + conPack)
-            cursor.execute("""
+            # Resumen de estados solicitados (status_level_1 + conPack) con filtro
+            query_estados = f"""
                 SELECT
                     IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END), 0) AS contactados,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS volver_llamar,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END), 0) AS no_interesado,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND (conPack IS NULL OR conPack = 0) THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND conPack = 1 THEN 1 ELSE 0 END), 0) AS cita_con_pack
-                FROM leads
-            """)
+                FROM leads {where_clause}
+            """
+            cursor.execute(query_estados, params)
             row_states = cursor.fetchone()
             stats['contactados'] = row_states['contactados']
             stats['estados'] = {
