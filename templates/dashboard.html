@@ -60,16 +60,16 @@ body { margin: 0; padding: 0; }
 <h1 class="text-center my-4">Dashboard Seguimiento de Llamadas</h1>
 
 <!-- Filtro por archivo origen -->
-<div class="row mb-4">
+<div class="row mb-2">
   <div class="col-12">
     <div class="card">
-      <div class="card-body">
-        <form method="GET" id="filtroForm" class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="card-body py-2">
+        <form method="GET" id="filtroForm" class="d-flex align-items-center gap-2 flex-wrap">
           <div class="d-flex align-items-center">
-            <label for="archivoSelector" class="form-label me-2 mb-0" style="white-space: nowrap;">
+            <label for="archivoSelector" class="form-label me-2 mb-0 small" style="white-space: nowrap;">
               <i class="fas fa-filter"></i> Filtrar por archivo:
             </label>
-            <select class="form-select" id="archivoSelector" name="origen_archivo" multiple style="min-width: 200px;">
+            <select class="form-select form-select-sm" id="archivoSelector" name="origen_archivo" multiple style="min-width: 200px;">
               <option value="" {% if not stats.filtro_origen %}selected{% endif %}>📊 Todos los archivos</option>
               {% for archivo in stats.archivos_disponibles %}
               <option value="{{ archivo.nombre_archivo }}" 
@@ -80,11 +80,11 @@ body { margin: 0; padding: 0; }
             </select>
           </div>
           
-          <button type="submit" class="btn btn-primary btn-sm">
+          <button type="submit" class="btn btn-primary btn-sm px-2">
             <i class="fas fa-sync"></i> Actualizar
           </button>
           
-          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltros()">
+          <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="limpiarFiltros()">
             <i class="fas fa-times"></i> Limpiar
           </button>
           
@@ -101,36 +101,36 @@ body { margin: 0; padding: 0; }
 </div>
 
 <!-- Fila 1: Métricas principales -->
-<div class="row text-center g-3">
+<div class="row text-center g-2">
   <div class="col-6 col-md-3">
     <div class="card h-100 dashboard-card-blue" style="background: #35C0F1 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">Total leads</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.total_leads }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Total leads</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.total_leads }}</h4>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card h-100 dashboard-card-green" style="background: #92D050 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">Leads contactados</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.contactados }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Leads contactados</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.contactados }}</h4>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card h-100 dashboard-card-gray" style="background: #646762 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">Tasa contacto</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Tasa contacto</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ '%0.1f' % ( (stats.contactados / stats.total_leads*100) if stats.total_leads else 0) }}%</h4>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card h-100 dashboard-card-blue2" style="background: #37ADE2 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">% Citas / Contactados</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.citas_contactados_rate }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">% Citas / Contactados</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.citas_contactados_rate }}</h4>
       </div>
     </div>
   </div>
@@ -139,28 +139,28 @@ body { margin: 0; padding: 0; }
 
 
 <!-- Fila 2: Métricas secundarias -->
-<div class="row text-center g-3 mt-2">
+<div class="row text-center g-2 mt-1">
   <div class="col-6 col-md-4">
     <div class="card h-100 dashboard-card-blue" style="background: #35C0F1 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">Citas agendadas</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.cita_con_pack + stats.estados.cita_sin_pack }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Citas agendadas</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.cita_con_pack + stats.estados.cita_sin_pack }}</h4>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-4">
     <div class="card h-100 dashboard-card-yellow" style="background: #ffc107 !important; color: #333 !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1" style="color: #333 !important; font-weight: bold !important;">Volver a llamar</h6>
-        <h2 class="mb-0" style="color: #333 !important; font-weight: bold !important;">{{ stats.estados.volver_llamar }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 small" style="color: #333 !important; font-weight: bold !important;">Volver a llamar</h6>
+        <h4 class="mb-0" style="color: #333 !important; font-weight: bold !important;">{{ stats.estados.volver_llamar }}</h4>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-4">
     <div class="card h-100 dashboard-card-red" style="background: #dc3545 !important; color: white !important;">
-      <div class="card-body p-3">
-        <h6 class="mb-1 dashboard-text-white" style="color: white !important;">No interesados</h6>
-        <h2 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.no_interesado }}</h2>
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">No interesados</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.no_interesado }}</h4>
       </div>
     </div>
   </div>
