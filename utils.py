@@ -46,8 +46,20 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-def load_excel_data(connection, source):
+def load_excel_data(connection, source, origen_archivo=None):
     logger.info(f"Iniciando carga de datos desde: {source}")
+    
+    # Determinar el nombre del archivo origen
+    if origen_archivo is None:
+        if isinstance(source, str):
+            # Extraer el nombre del archivo sin extensión
+            origen_archivo = os.path.splitext(os.path.basename(source))[0].upper()
+        else:
+            # Para BytesIO usar timestamp
+            origen_archivo = f"UPLOAD_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    logger.info(f"Archivo origen determinado: {origen_archivo}")
+    
     try:
         if isinstance(source, str):
             df = pd.read_excel(source) if source.endswith('.xlsx') else pd.read_csv(source)
@@ -92,7 +104,7 @@ def load_excel_data(connection, source):
     df.rename(columns=excel_to_db_map, inplace=True)
 
     # --- Inserción real en MySQL ---
-    # Columnas exactas de la tabla leads (en el mismo orden que el INSERT)
+    # Columnas exactas de la tabla leads (incluyendo origen_archivo)
     leads_cols = [
         'nombre', 'apellidos', 'nombre_clinica', 'direccion_clinica', 'codigo_postal',
         'ciudad', 'telefono', 'area_id', 'match_source', 'match_confidence', 'cita',
@@ -101,13 +113,16 @@ def load_excel_data(connection, source):
         'status_level_1', 'status_level_2', 'hora_rellamada', 'error_tecnico',
         'razon_vuelta_a_llamar', 'razon_no_interes', 'certificado',
         'clinica_id', 'delegacion', 'fecha_nacimiento', 'nif', 'orden', 'poliza',
-        'segmento', 'sexo'
+        'segmento', 'sexo', 'origen_archivo'
     ]
 
     # Asegurar que todos los campos existen en el DataFrame
     for col in leads_cols:
         if col not in df.columns:
-            df[col] = None
+            if col == 'origen_archivo':
+                df[col] = origen_archivo  # Asignar el nombre del archivo origen
+            else:
+                df[col] = None
 
     # Preprocesar teléfonos para asegurar que se importan correctamente
     if 'telefono' in df.columns:
@@ -142,6 +157,13 @@ def load_excel_data(connection, source):
                 cursor.executemany(sql, registros)
             connection.commit()
             insertados = len(registros)
+            
+            # Registrar/actualizar archivo origen
+            try:
+                _registrar_archivo_origen(connection, origen_archivo, insertados)
+            except Exception as e:
+                logger.warning(f"Error registrando archivo origen: {e}")
+            
         except Exception as e:
             logger.error(f"Error insertando registros: {e}", exc_info=True)
             errores = len(registros)
@@ -153,6 +175,39 @@ def load_excel_data(connection, source):
         'errores': errores,
         'total': len(df)
     }
+
+def _registrar_archivo_origen(connection, nombre_archivo, registros_importados):
+    """
+    Registra o actualiza un archivo en la tabla archivos_origen.
+    """
+    try:
+        with connection.cursor() as cursor:
+            # Verificar si el archivo ya existe
+            cursor.execute("SELECT id, total_registros FROM archivos_origen WHERE nombre_archivo = %s", (nombre_archivo,))
+            resultado = cursor.fetchone()
+            
+            if resultado:
+                # Actualizar registro existente
+                archivo_id, total_anterior = resultado
+                nuevo_total = total_anterior + registros_importados
+                cursor.execute("""
+                    UPDATE archivos_origen 
+                    SET total_registros = %s, fecha_creacion = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (nuevo_total, archivo_id))
+                logger.info(f"Archivo origen '{nombre_archivo}' actualizado: {total_anterior} -> {nuevo_total} registros")
+            else:
+                # Crear nuevo registro
+                cursor.execute("""
+                    INSERT INTO archivos_origen (nombre_archivo, descripcion, total_registros, usuario_creacion)
+                    VALUES (%s, %s, %s, %s)
+                """, (nombre_archivo, f"Importación automática de {nombre_archivo}", registros_importados, "sistema"))
+                logger.info(f"Nuevo archivo origen '{nombre_archivo}' registrado con {registros_importados} registros")
+            
+            connection.commit()
+    except Exception as e:
+        logger.error(f"Error en _registrar_archivo_origen: {e}")
+        raise
 
 def exportar_datos_completos(connection):
     """

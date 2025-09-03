@@ -10,7 +10,7 @@ import secrets
 import string
 
 from db import get_connection
-# from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token
+from utils import load_excel_data, exportar_datos_completos, send_password_reset_email, verify_reset_token
 from flask import send_file
 
 # Configurar logger para este blueprint
@@ -163,7 +163,9 @@ def recargar_datos():
                 flash('Debes seleccionar un archivo', 'danger')
                 return redirect(url_for('main.recargar_datos'))
             archivo_path = os.path.join(data_dir, archivo_nombre)
-            return ejecutar_recarga(archivo_path)
+            # Obtener el nombre del archivo origen del formulario
+            origen_archivo_personalizado = request.form.get('origen_archivo', '').strip()
+            return ejecutar_recarga(archivo_path, origen_archivo_personalizado)
         elif action == 'subir_archivo':
             if 'archivo' not in request.files or request.files['archivo'].filename == '':
                 flash('No se seleccionó ningún archivo', 'danger')
@@ -176,7 +178,9 @@ def recargar_datos():
                 archivo.save(filepath)
                 flash(f'Archivo {filename} subido correctamente', 'success')
                 if request.form.get('recargar_inmediato'):
-                    return ejecutar_recarga(filepath)
+                    # Obtener el nombre del archivo origen del formulario
+                    origen_archivo_personalizado = request.form.get('origen_archivo', '').strip()
+                    return ejecutar_recarga(filepath, origen_archivo_personalizado)
             else:
                 flash('Formato de archivo no válido.', 'danger')
             return redirect(url_for('main.recargar_datos'))
@@ -184,33 +188,47 @@ def recargar_datos():
     return render_template('recargar_datos.html', archivos=archivos, historial=historial)
 
 
-def ejecutar_recarga(archivo_path):
+def ejecutar_recarga(archivo_path, origen_archivo_personalizado=None):
     try:
         connection = get_connection()
         if not connection:
             flash("No se pudo conectar a la base de datos.", "danger")
             return redirect(url_for('main.recargar_datos'))
 
+        # Contar registros existentes antes de la carga
         cursor = connection.cursor()
         try:
-            logger.info(f"Vaciando tablas 'leads' y 'pearl_calls' desde: {os.path.basename(archivo_path)}")
-            cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
-            cursor.execute("TRUNCATE TABLE pearl_calls;")
-            logger.info("Tabla 'pearl_calls' vaciada.")
-            cursor.execute("TRUNCATE TABLE leads;")
-            logger.info("Tabla 'leads' vaciada.")
-            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
-            logger.info("Revisiones de Foreign Key reactivadas.")
+            cursor.execute("SELECT COUNT(*) FROM leads")
+            registros_previos = cursor.fetchone()[0]
+            logger.info(f"Registros existentes en leads: {registros_previos}")
+            logger.info(f"Añadiendo nuevos datos desde: {os.path.basename(archivo_path)} (modo aditivo)")
         finally:
-            # Nos aseguramos de que los checks se reactiven incluso si algo falla
-            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
             cursor.close()
 
-        resultado_carga = load_excel_data(connection, archivo_path)
+        # Determinar el nombre del archivo origen
+        if origen_archivo_personalizado:
+            nombre_archivo_origen = origen_archivo_personalizado.upper()
+        else:
+            # Extraer nombre del archivo sin extensión para usar como origen
+            nombre_archivo_origen = os.path.splitext(os.path.basename(archivo_path))[0].upper()
+        
+        logger.info(f"Usando archivo origen: {nombre_archivo_origen}")
+        resultado_carga = load_excel_data(connection, archivo_path, origen_archivo=nombre_archivo_origen)
         connection.commit() # Forzar el commit para que los datos sean visibles inmediatamente
+        
         registros = resultado_carga.get('insertados', 0)
         errores = resultado_carga.get('errores', 0)
-        mensaje = f"Recarga completada. Insertados: {registros}. Errores: {errores}."
+        
+        # Contar registros totales después de la carga
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM leads")
+            registros_totales = cursor.fetchone()[0]
+            logger.info(f"Total de registros después de la carga: {registros_totales}")
+        finally:
+            cursor.close()
+        
+        mensaje = f"Carga completada (modo aditivo). Insertados: {registros}. Errores: {errores}. Total en BD: {registros_totales}."
 
         with connection.cursor() as cursor:
             cursor.execute(
@@ -591,14 +609,5 @@ def search_leads():
 def get_statistics():
     return {'total_leads': 0, 'active_calls': 0, 'completed_calls': 0}
 
-def load_excel_data(connection, filepath):
-    return {'insertados': 0, 'errores': 1}
-
-def exportar_datos_completos(connection):
-    return False, 'Not implemented'
-
-def send_password_reset_email(email, user_id):
-    return False
-
-def verify_reset_token(token):
-    return None
+# Las funciones load_excel_data, exportar_datos_completos, send_password_reset_email y verify_reset_token
+# se importan ahora desde utils.py

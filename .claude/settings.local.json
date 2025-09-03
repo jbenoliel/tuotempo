@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(.venvScriptspip install pymysql python-dotenv)",
+      "Bash(./venv/Scripts/pip.exe install pymysql python-dotenv)"
     ],
     "deny": []
   }

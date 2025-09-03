@@ -108,6 +108,14 @@
                                     </div>
                                     {% endfor %}
                                 </div>
+                                
+                                <!-- Campo opcional para nombre del archivo origen -->
+                                <div class="mt-3 mb-3">
+                                    <label for="origen_archivo" class="form-label">Nombre del archivo origen (opcional)</label>
+                                    <input type="text" class="form-control" id="origen_archivo" name="origen_archivo" placeholder="Por defecto se usará el nombre del archivo sin extensión">
+                                    <div class="form-text">Este nombre se usará para identificar el origen de los datos en la base de datos. Si se deja vacío, se usará el nombre del archivo automáticamente.</div>
+                                </div>
+                                
                                 <div class="mt-3">
                                     <button type="submit" class="btn btn-primary">Recargar Datos</button>
                                 </div>
@@ -136,6 +144,14 @@
                                 <input type="file" class="form-control" id="archivo" name="archivo" accept=".xlsx,.csv" required>
                                 <div class="form-text">El archivo se guardará en la carpeta data/ y estará disponible para futuras recargas.</div>
                             </div>
+                            
+                            <!-- Campo opcional para nombre del archivo origen -->
+                            <div class="mb-3">
+                                <label for="origen_archivo_upload" class="form-label">Nombre del archivo origen (opcional)</label>
+                                <input type="text" class="form-control" id="origen_archivo_upload" name="origen_archivo" placeholder="Por defecto se usará el nombre del archivo sin extensión">
+                                <div class="form-text">Este nombre se usará para identificar el origen de los datos en la base de datos.</div>
+                            </div>
+                            
                             <div class="mb-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="recargar_inmediato" name="recargar_inmediato" checked>
