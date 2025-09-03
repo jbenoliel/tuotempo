@@ -256,8 +256,10 @@ try {
     console.log('Stats completos:', statsData);
     console.log('Estados:', statsData.estados);
     if (statsData.estados) {
-        const citasTotal = (statsData.estados.cita_con_pack || 0) + (statsData.estados.cita_sin_pack || 0);
-        console.log('Citas agendadas:', citasTotal);
+        const citasTotal = parseInt(statsData.estados.cita_con_pack || 0) + parseInt(statsData.estados.cita_sin_pack || 0);
+        console.log('Citas agendadas (corregido):', citasTotal);
+        console.log('  - Con pack:', statsData.estados.cita_con_pack, '→', parseInt(statsData.estados.cita_con_pack || 0));
+        console.log('  - Sin pack:', statsData.estados.cita_sin_pack, '→', parseInt(statsData.estados.cita_sin_pack || 0));
         console.log('Volver a llamar:', statsData.estados.volver_llamar);
         console.log('No interesados:', statsData.estados.no_interesado);
     }
@@ -363,9 +365,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. Pie Chart Data
     const pieLabels = ['Citas Agendadas', 'Volver a llamar', 'No Interesado'];
     const pieData = [
-        get(stats, 'estados.cita_con_pack', 0) + get(stats, 'estados.cita_sin_pack', 0),
-        get(stats, 'estados.volver_llamar', 0),
-        get(stats, 'estados.no_interesado', 0)
+        parseInt(get(stats, 'estados.cita_con_pack', 0)) + parseInt(get(stats, 'estados.cita_sin_pack', 0)),
+        parseInt(get(stats, 'estados.volver_llamar', 0)),
+        parseInt(get(stats, 'estados.no_interesado', 0))
     ];
 
     // 2. "Volver a llamar" Bar Chart Data
@@ -381,8 +383,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // 4. "Citas" Bar Chart Data
     const citasLabels = ['Con Pack', 'Sin Pack'];
     const citasValues = [
-        get(stats, 'estados.cita_con_pack', 0),
-        get(stats, 'estados.cita_sin_pack', 0)
+        parseInt(get(stats, 'estados.cita_con_pack', 0)),
+        parseInt(get(stats, 'estados.cita_sin_pack', 0))
     ];
 
     // --- Chart Initialization ---
