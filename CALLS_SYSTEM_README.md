@@ -119,25 +119,257 @@ python call_manager.py
 ```http
 GET /api/calls/status
 ```
+Obtiene el estado completo del sistema de llamadas, estadísticas de leads y conexión con Pearl AI.
 
 ### **Control de Llamadas**
 ```http
 POST /api/calls/start
 POST /api/calls/stop
 ```
+- **POST /start**: Inicia el sistema de llamadas automáticas
+  - Body (opcional): `{"max_concurrent": 3, "selected_leads": [1,2,3], "override_phone": "+34600000000"}`
+- **POST /stop**: Detiene todas las llamadas activas
 
 ### **Gestión de Leads**
 ```http
-GET /api/calls/leads?city=Madrid&status=selected&limit=50
+GET /api/calls/leads?city=Madrid&status=selected&limit=50&offset=0&priority=1
 POST /api/calls/leads/select
+POST /api/calls/leads/manual-management
 POST /api/calls/leads/reset
 ```
+- **GET /leads**: Obtiene leads con filtros avanzados (ciudad, estado, prioridad, paginación)
+- **POST /select**: Selecciona leads para llamadas
+  - Body: `{"lead_ids": [1,2,3], "action": "select|deselect", "filters": {...}}`
+- **POST /manual-management**: Marca leads para gestión manual/automática
+  - Body: `{"lead_ids": [1,2,3], "manual": true|false}`
+- **POST /reset**: Reinicia estados de llamadas de leads seleccionados
+
+### **Configuración del Sistema**
+```http
+GET /api/calls/configuration
+POST /api/calls/configuration
+```
+- **GET /configuration**: Obtiene la configuración actual del sistema
+- **POST /configuration**: Actualiza la configuración
+  - Body: `{"maxConcurrentCalls": 5, "retryAttempts": 3, "retryDelay": 300, "overridePhone": null}`
 
 ### **Pearl AI**
 ```http
 GET /api/calls/pearl/campaigns
 GET /api/calls/test/connection
+GET /api/calls/test-connection
 ```
+- **GET /pearl/campaigns**: Lista todas las campañas disponibles en Pearl AI
+- **GET /test/connection**: Prueba detallada de conexión con Pearl AI
+- **GET /test-connection**: Prueba simple de conexión con Pearl AI
+
+### **Administración**
+```http
+POST /api/calls/admin/cleanup-selected
+```
+- **POST /admin/cleanup-selected**: Limpia leads seleccionados huérfanos (uso administrativo)
+
+### **API de Resultado de Llamadas** ⭐
+```http
+GET /api/status
+POST /api/actualizar_resultado
+GET /api/leads_reserva_automatica
+GET /api/obtener_resultados
+POST /api/marcar_reserva_automatica
+```
+
+- **GET /api/status**: Estado de la API general del sistema
+- **POST /api/actualizar_resultado**: Actualiza el resultado de una llamada específica
+  - Body: `{"telefono": "699106495", "volverALlamar": true, "razonvueltaallamar": "Cliente ocupado", "codigoVolverLlamar": "ocupado", "buzon": false}`
+- **GET /api/leads_reserva_automatica**: Obtiene leads marcados para reserva automática
+- **GET /api/obtener_resultados**: Obtiene contactos filtrados por resultado de llamada
+  - Query params: `?resultado=exitoso&limit=50&offset=0`
+- **POST /api/marcar_reserva_automatica**: Marca/desmarca leads para reserva automática
+  - Body: `{"telefono": "699106495", "reserva_automatica": true}`
+
+> **IMPORTANTE**: Esta API es utilizada por sistemas externos (como Pearl AI) para actualizar los resultados de las llamadas realizadas automáticamente.
+
+### **Ejemplos de Respuesta**
+
+**GET /api/calls/status** - Respuesta:
+```json
+{
+  "success": true,
+  "timestamp": "2025-09-03T16:30:45.123456",
+  "system_status": {
+    "call_manager": {
+      "is_running": false,
+      "active_calls": 0,
+      "total_calls_made": 0,
+      "max_concurrent_calls": 3
+    },
+    "pearl_connection": true,
+    "default_outbound_id": "686294f10d5921f7a531653a"
+  },
+  "leads_summary": {
+    "total_leads": 848,
+    "selected_for_calling": 0,
+    "status_breakdown": [
+      {"call_status": "no_selected", "count": 848, "selected_count": 0}
+    ]
+  }
+}
+```
+
+**GET /api/calls/leads** - Respuesta:
+```json
+{
+  "leads": [
+    {
+      "id": 645,
+      "telefono": "699106495",
+      "call_status": "no_selected",
+      "call_priority": 3,
+      "selected_for_calling": false,
+      "nombre": "Juan",
+      "apellidos": "Pérez",
+      "ciudad": "Madrid"
+    }
+  ],
+  "pagination": {
+    "current_page": 1,
+    "total_pages": 170,
+    "total_count": 848,
+    "per_page": 5
+  },
+  "filters_applied": {
+    "city": null,
+    "status": null,
+    "priority": null,
+    "selected_only": false
+  }
+}
+```
+
+**POST /api/calls/start** - Respuesta exitosa:
+```json
+{
+  "success": true,
+  "message": "Sistema de llamadas iniciado correctamente",
+  "leads_queued": 15,
+  "configuration": {
+    "max_concurrent_calls": 3,
+    "override_phone": null
+  }
+}
+```
+
+**GET /api/calls/configuration** - Respuesta:
+```json
+{
+  "configuration": {
+    "maxConcurrentCalls": 3,
+    "retryAttempts": 3,
+    "retryDelay": 300,
+    "overridePhone": null
+  }
+}
+```
+
+**GET /api/status** - Respuesta:
+```json
+{
+  "service": "API Centros TuoTempo",
+  "status": "online",
+  "timestamp": "2025-09-03 18:17:06"
+}
+```
+
+**POST /api/actualizar_resultado** - Body de ejemplo:
+```json
+{
+  "telefono": "699106495",
+  "volverALlamar": true,
+  "razonvueltaallamar": "Cliente ocupado, solicita llamar mañana",
+  "codigoVolverLlamar": "ocupado",
+  "buzon": false,
+  "codigoNoInteres": null,
+  "resultado": "pendiente_contacto",
+  "observaciones": "Cliente interesado pero no disponible ahora"
+}
+```
+
+**GET /api/leads_reserva_automatica** - Respuesta:
+```json
+{
+  "success": true,
+  "count": 2,
+  "leads": [
+    {
+      "id": 123,
+      "telefono": "699106495",
+      "nombre": "Juan",
+      "apellidos": "Pérez",
+      "reserva_automatica": true,
+      "fecha_marcado": "2025-09-03T16:30:00"
+    }
+  ]
+}
+```
+
+**GET /api/obtener_resultados** - Respuesta:
+```json
+{
+  "contactos": [
+    {
+      "id": 645,
+      "nombre": "CARLOS",
+      "apellidos": "PEÑA PULIDO",
+      "telefono": "699106495",
+      "resultado": "exitoso",
+      "fecha_llamada": "2025-09-03T15:30:00",
+      "observaciones": "Cliente interesado en el producto"
+    }
+  ],
+  "total_count": 150,
+  "filtered_count": 25
+}
+```
+
+### **Códigos de Estado HTTP**
+
+| Código | Descripción | Cuándo se usa |
+|--------|-------------|---------------|
+| `200` | OK | Operación exitosa |
+| `400` | Bad Request | Datos de entrada inválidos o sistema ya en ejecución |
+| `404` | Not Found | Recurso no encontrado |
+| `405` | Method Not Allowed | Método HTTP incorrecto |
+| `500` | Internal Server Error | Error interno del servidor |
+| `502` | Bad Gateway | Error de conexión con Pearl AI |
+| `503` | Service Unavailable | Servicio temporalmente no disponible |
+
+### **Manejo de Errores**
+
+Todos los endpoints devuelven errores en formato JSON consistente:
+
+```json
+{
+  "success": false,
+  "error": "Descripción del error",
+  "timestamp": "2025-09-03T16:30:45.123456",
+  "details": {
+    "error_code": "PEARL_CONNECTION_ERROR",
+    "suggestion": "Verifica las credenciales de Pearl AI"
+  }
+}
+```
+
+### **Parámetros de Query Comunes**
+
+**GET /api/calls/leads** admite:
+- `limit`: Número de resultados por página (default: 50, max: 500)
+- `offset`: Número de registros a saltar (default: 0)  
+- `city`: Filtro por ciudad
+- `status`: Filtro por estado de llamada (`no_selected`, `selected`, `calling`, `completed`, `error`)
+- `priority`: Filtro por prioridad (1-5)
+- `selected_only`: Solo leads seleccionados (`true`/`false`)
+
+**Ejemplo**: `/api/calls/leads?city=Madrid&status=selected&limit=100&priority=1`
 
 ## 🏗️ Arquitectura del Sistema
 
@@ -193,6 +425,60 @@ class CallTask:
     max_attempts: int = 3
     timeout: int = 30
 ```
+
+## 🧪 Testing y Validación
+
+### **Testing Manual de APIs**
+
+Ejecuta las pruebas automatizadas de endpoints:
+```bash
+cd /ruta/a/tuotempo
+python test_calls_endpoints.py
+```
+
+### **Prueba Individual de Endpoints**
+
+```bash
+# Verificar estado del sistema
+curl -X GET http://localhost:8080/api/calls/status
+
+# Obtener leads con filtros
+curl -X GET "http://localhost:8080/api/calls/leads?limit=5&city=Madrid"
+
+# Probar conexión Pearl AI
+curl -X GET http://localhost:8080/api/calls/test/connection
+
+# Obtener configuración
+curl -X GET http://localhost:8080/api/calls/configuration
+
+# Probar API de resultado de llamadas
+curl -X GET http://localhost:8080/api/status
+curl -X GET http://localhost:8080/api/leads_reserva_automatica
+curl -X GET "http://localhost:8080/api/obtener_resultados?limit=5"
+
+# Actualizar resultado de llamada (POST)
+curl -X POST http://localhost:8080/api/actualizar_resultado \
+  -H "Content-Type: application/json" \
+  -d '{"telefono":"699106495","volverALlamar":true,"razonvueltaallamar":"Cliente ocupado"}'
+```
+
+### **Testing del Actualizador de Llamadas**
+
+```bash
+# Ejecutar un ciclo manual del actualizador
+python -c "from calls_updater import update_calls_from_pearl; update_calls_from_pearl()"
+
+# Verificar logs del actualizador
+tail -f logs/calls_updater.log
+```
+
+### **Validación del Sistema Completo**
+
+1. **Servidor activo**: `python start.py`
+2. **APIs respondiendo**: Ejecutar `test_calls_endpoints.py`
+3. **Pearl AI conectado**: Verificar `/api/calls/test/connection`
+4. **Base de datos sincronizada**: Revisar campos `call_*` en tabla leads
+5. **Interfaz funcional**: Acceder a `http://localhost:8080/calls-manager`
 
 ## 🔧 Troubleshooting
 

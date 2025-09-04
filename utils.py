@@ -334,7 +334,7 @@ def get_statistics(filtro_origen_archivo=None):
 
             # Definir todos los posibles subestados según la tabla proporcionada
             subestados_volver_posibles = [
-                'buzón', 'no disponible cliente', 'Interesado. Problema técnico'
+                'buzón', 'no disponible cliente', 'Interesado. Problema técnico', 'cortado'
             ]
             
             subestados_no_interes_posibles = [

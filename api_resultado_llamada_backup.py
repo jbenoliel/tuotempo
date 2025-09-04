@@ -93,7 +93,7 @@ def actualizar_resultado():
         codigo_no_interes = codigo_no_interes[0] if codigo_no_interes else None
     codigo_volver_llamar = data.get('codigoVolverLlamar')
 
-    # Mapas de traducción de códigos compactos → descripciones (LEGACY - mantener compatibilidad)
+    # Mapas de traducción de códigos compactos → descripciones
     mapa_no_interes = {
         'no disponibilidad': 'no disponibilidad cliente',
         'descontento': 'Descontento con Adeslas',
@@ -107,45 +107,6 @@ def actualizar_resultado():
         'proble tecnico': 'Interesado. Problema técnico',
         'proble_tecnico': 'Interesado. Problema técnico'
     }
-    
-    # NUEVOS MAPAS para estados específicos de Pearl AI
-    mapa_utiles_positivos = {
-        'cita_sin_pack': {
-            'status_level_1': 'Cita Agendada',
-            'status_level_2': 'Sin Pack'
-        },
-        'cita_con_pack': {
-            'status_level_1': 'Cita Agendada', 
-            'status_level_2': 'Con Pack'
-        }
-    }
-    
-    mapa_utiles_negativos = {
-        'paciente_con_tratamiento': {
-            'status_level_1': 'No Interesado',
-            'status_level_2': 'Paciente con tratamiento'
-        },
-        'paciente_con_tratamiento_particular': {
-            'status_level_1': 'No Interesado',
-            'status_level_2': 'Paciente con tratamiento particular'
-        },
-        'llamara_cuando_este_interesado': {
-            'status_level_1': 'Volver a llamar',
-            'status_level_2': 'Llamará cuando esté interesado'
-        },
-        'solicita_baja_poliza': {
-            'status_level_1': 'No Interesado',
-            'status_level_2': 'Solicita baja póliza'
-        },
-        'no_quiere_ser_molestado': {
-            'status_level_1': 'No Interesado',
-            'status_level_2': 'No quiere ser molestado / no colabora'
-        },
-        'no_colabora': {
-            'status_level_1': 'No Interesado',
-            'status_level_2': 'No quiere ser molestado / no colabora'
-        }
-    }
 
     # -------------------------------------------------------------
     # 2. Deducción automática de status_level_1 y status_level_2
@@ -153,52 +114,9 @@ def actualizar_resultado():
     status_level_1 = None
     status_level_2 = None
 
-    # NUEVA LÓGICA: Usar parámetros existentes del JSON para mapear a nuevos estados
-    
-    # Identificar si es útil positivo usando parámetros existentes
-    if data.get('nuevaCita') or data.get('conPack'):
-        # ÚTILES POSITIVOS - acepta cita
-        if data.get('conPack'):
-            status_level_1 = 'Cita Agendada'
-            status_level_2 = 'Con Pack'
-            logger.info(f"Estado útil positivo: Cita con pack")
-        else:
-            status_level_1 = 'Cita Agendada'
-            status_level_2 = 'Sin Pack'
-            logger.info(f"Estado útil positivo: Cita sin pack")
-            
-    # Identificar si es útil negativo usando códigos existentes
-    elif data.get('noInteresado') or codigo_no_interes:
-        # ÚTILES NEGATIVOS - mapear códigos existentes a nuevos estados específicos
-        if codigo_no_interes == 'paciente_tratamiento':
-            status_level_1 = 'No Interesado'
-            status_level_2 = 'Paciente con tratamiento'
-        elif codigo_no_interes == 'paciente_tratamiento_particular':
-            status_level_1 = 'No Interesado'
-            status_level_2 = 'Paciente con tratamiento particular'
-        elif codigo_no_interes == 'solicita_baja':
-            status_level_1 = 'No Interesado'
-            status_level_2 = 'Solicita baja póliza'
-        elif codigo_no_interes == 'no_colabora':
-            status_level_1 = 'No Interesado'
-            status_level_2 = 'No quiere ser molestado / no colabora'
-        else:
-            # Usar mapeo legacy existente
-            status_level_1 = 'No Interesado'
-            status_level_2 = mapa_no_interes.get(codigo_no_interes, data.get('razonNoInteres', 'No da motivos'))
-        
-        logger.info(f"Estado útil negativo aplicado: {codigo_no_interes} -> {status_level_1} / {status_level_2}")
-    
-    # Caso especial: "Llamará cuando esté interesado" 
-    elif data.get('llamaraInteresado'):
-        status_level_1 = 'Volver a llamar'
-        status_level_2 = 'Llamará cuando esté interesado'
-        logger.info(f"Estado especial: Llamará cuando esté interesado")
-        
-    # LÓGICA LEGACY (mantener compatibilidad con versiones anteriores)
-    elif data.get('nuevaCita'):
+    if data.get('nuevaCita'):
         # Una nueva cita siempre se considera un Éxito
-        status_level_1 = 'Cita Agendada'
+        status_level_1 = 'Éxito'
         status_level_2 = 'Cita programada'
     elif buzon:
         status_level_1 = 'Volver a llamar'
@@ -221,8 +139,11 @@ def actualizar_resultado():
         status_level_1 = 'Volver a llamar'
         status_level_2 = mapa_volver_llamar[codigo_volver_llamar]
     elif data.get('conPack'):
-        status_level_1 = 'Cita Agendada'
-        status_level_2 = 'Con Pack'
+        status_level_1 = 'Éxito'
+        status_level_2 = 'Contratado'
+    elif data.get('errorTecnico'):
+        status_level_1 = 'Volver a llamar'
+        status_level_2 = 'Interesado. Problema técnico'
 
     # -------------------------------------------------------------
     # 3. Construcción de diccionario de actualización
@@ -345,40 +266,11 @@ def actualizar_resultado():
     # 5. Control de Intentos y Cierre Automático
     # -------------------------------------------------------------
     
-    # Determinar si se debe incrementar intentos según parámetros existentes del JSON
-    should_increment_attempts = False
-    
-    # ÚTILES POSITIVOS: NO incrementar intentos (llamada exitosa - cita conseguida)
-    if data.get('nuevaCita') or data.get('conPack'):
-        should_increment_attempts = False
-        logger.info(f"Lead {telefono}: Útil positivo (cita conseguida) - NO se incrementan intentos")
-        
-    # ÚTILES NEGATIVOS: NO incrementar intentos (contacto exitoso, pero no acepta cita)
-    elif data.get('noInteresado') or codigo_no_interes:
-        should_increment_attempts = False
-        logger.info(f"Lead {telefono}: Útil negativo (contacto exitoso, no acepta cita) - NO se incrementan intentos")
-        
-    # CASOS ESPECIALES QUE NO INCREMENTAN INTENTOS
-    elif data.get('llamaraInteresado'):
-        should_increment_attempts = False
-        logger.info(f"Lead {telefono}: Llamará cuando esté interesado - NO se incrementan intentos")
-        
-    # CASOS QUE SÍ INCREMENTAN INTENTOS (no se logró contacto útil)
-    elif data.get('volverALlamar') or buzon or data.get('errorTecnico'):
-        should_increment_attempts = True
-        logger.info(f"Lead {telefono}: Volver a llamar (no contacto útil) - SÍ se incrementan intentos")
-        
-    elif not update_data:  # Solo teléfono (llamada cortada)
-        should_increment_attempts = True
-        logger.info(f"Lead {telefono}: Solo teléfono (llamada cortada) - SÍ se incrementan intentos")
-        
-    else:
-        # OTROS CASOS (legacy): Mantener lógica anterior
-        should_increment_attempts = (
-            update_data.get('status_level_1') == 'Volver a llamar' or 
-            not update_data
-        )
-        logger.info(f"Lead {telefono}: Caso legacy - decisión: {'SÍ' if should_increment_attempts else 'NO'} incrementar intentos")
+    # Solo aplicar control de intentos si se marca como "Volver a llamar" o si es llamada fallida
+    should_increment_attempts = (
+        update_data.get('status_level_1') == 'Volver a llamar' or 
+        not update_data  # Solo teléfono (llamada cortada)
+    )
     
     # Conectar a la BD antes de usar
     conn = get_db_connection()
@@ -423,16 +315,18 @@ def actualizar_resultado():
                 if new_attempts >= max_attempts:
                     logger.info(f"Lead {telefono} alcanzó máximo de intentos ({new_attempts}/{max_attempts}). Cerrando automáticamente.")
                     
-                    # NUEVO: Asignar estado "No útil" al alcanzar máximo de intentos
-                    update_data['status_level_1'] = 'No Interesado'
-                    update_data['status_level_2'] = 'No útil'
-                    
                     # Solo actualizar lead_status si existe el campo
                     if has_lead_status:
                         update_data['lead_status'] = 'closed'
                     
-                    # Razón de cierre específica para máximo de intentos
-                    closure_reason = 'No disponible (incluir cerrados por máximo de intentos)'
+                    # Determinar razón de cierre según el último estado
+                    closure_reason = 'Máximo intentos alcanzado'
+                    if update_data.get('status_level_2') == 'buzón':
+                        closure_reason = 'Ilocalizable'
+                    elif update_data.get('status_level_2') == 'cortado':
+                        closure_reason = 'No colabora'
+                    elif 'no disponible' in str(update_data.get('status_level_2', '')).lower():
+                        closure_reason = 'Ilocalizable'
                         
                     # Solo actualizar closure_reason si existe el campo
                     try:
@@ -449,7 +343,7 @@ def actualizar_resultado():
                     update_data['call_status'] = 'completed'
                     update_data['selected_for_calling'] = False
                     
-                    logger.info(f"Lead {telefono} marcado como 'No útil' por máximo de intentos y cerrado con razón: {closure_reason}")
+                    logger.info(f"Lead {telefono} cerrado con razón: {closure_reason}")
                 else:
                     logger.info(f"Lead {telefono} marcado para reintento. Intentos: {new_attempts}/{max_attempts}")
                     # Asegurar que sigue abierto para futuros intentos si existe el campo
