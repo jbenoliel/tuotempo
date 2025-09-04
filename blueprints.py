@@ -295,6 +295,74 @@ def exportar_datos_completos_endpoint():
             
     return redirect(url_for('main.recargar_datos'))
 
+@bp.route('/eliminar-archivo-origen', methods=['POST'])
+@login_required
+def eliminar_archivo_origen():
+    """Endpoint para eliminar todos los leads de un archivo origen específico."""
+    archivo_origen = request.form.get('archivo_origen')
+    confirmar = request.form.get('confirmar')
+    
+    if not archivo_origen:
+        flash('Debe especificar el archivo origen a eliminar', 'danger')
+        return redirect(url_for('main.recargar_datos'))
+    
+    if confirmar != 'ELIMINAR':
+        flash('Debe escribir ELIMINAR para confirmar la acción', 'danger')
+        return redirect(url_for('main.recargar_datos'))
+    
+    try:
+        connection = get_connection()
+        if not connection:
+            flash("No se pudo conectar a la base de datos.", "danger")
+            return redirect(url_for('main.recargar_datos'))
+
+        cursor = connection.cursor()
+        
+        # Primero contar cuántos leads se van a eliminar
+        cursor.execute("SELECT COUNT(*) FROM leads WHERE origen_archivo = %s", (archivo_origen,))
+        leads_count = cursor.fetchone()[0]
+        
+        if leads_count == 0:
+            flash(f'No se encontraron leads del archivo "{archivo_origen}"', 'warning')
+            return redirect(url_for('main.recargar_datos'))
+        
+        # Eliminar leads del archivo origen
+        cursor.execute("DELETE FROM leads WHERE origen_archivo = %s", (archivo_origen,))
+        eliminados = cursor.rowcount
+        
+        # Marcar archivo origen como inactivo
+        cursor.execute("""
+            UPDATE archivos_origen 
+            SET activo = FALSE, 
+                descripcion = CONCAT(IFNULL(descripcion, ''), ' - ELIMINADO el ', NOW())
+            WHERE nombre_archivo = %s
+        """, (archivo_origen,))
+        
+        connection.commit()
+        
+        # Registrar en el historial
+        mensaje = f"Eliminados {eliminados} leads del archivo '{archivo_origen}'"
+        cursor.execute(
+            "INSERT INTO recargas (usuario_id, archivo, registros_importados, resultado, mensaje) VALUES (%s, %s, %s, %s, %s)",
+            (session['user_id'], archivo_origen, eliminados, 'delete', mensaje)
+        )
+        connection.commit()
+        
+        flash(f'Se eliminaron exitosamente {eliminados} leads del archivo "{archivo_origen}"', 'success')
+        logger.warning(f"Usuario {session.get('username')} eliminó {eliminados} leads del archivo {archivo_origen}")
+        
+    except Exception as e:
+        error_message = f"Error eliminando archivo {archivo_origen}: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        if connection:
+            connection.rollback()
+        flash(error_message, 'danger')
+    finally:
+        if 'connection' in locals() and connection and connection.is_connected():
+            connection.close()
+    
+    return redirect(url_for('main.recargar_datos'))
+
 @bp.route('/leads')
 @login_required
 def leads():

@@ -92,9 +92,20 @@ def actualizar_resultado():
     if isinstance(codigo_no_interes, list):
         codigo_no_interes = codigo_no_interes[0] if codigo_no_interes else None
     codigo_volver_llamar = data.get('codigoVolverLlamar')
+    
+    # Nuevos campos de preferencia del paciente
+    preferencia_mt = data.get('preferenciaMT')      # MORNING o AFTERNOON
+    preferencia_fecha = data.get('preferenciaFecha')  # Fecha deseada por el paciente
 
-    # Mapas de traducción de códigos compactos → descripciones (LEGACY - mantener compatibilidad)
+    # Mapas de traducción de códigos compactos → descripciones (ACTUALIZADOS)
     mapa_no_interes = {
+        # Nuevas razones de no interés de Pearl AI
+        'paciente_con_tratamiento': 'Paciente con tratamiento',
+        'paciente_con_tratamiento_particular': 'Paciente con tratamiento particular', 
+        'llamara_cuando_este_interesado': 'Llamará cuando esté interesado',
+        'solicitan_baja_poliza': 'Solicitan baja póliza',
+        'no_desea_informar_motivo': 'No desea informar motivo / no colabora',
+        # LEGACY - mantener compatibilidad con códigos anteriores
         'no disponibilidad': 'no disponibilidad cliente',
         'descontento': 'Descontento con Adeslas',
         'bajaProxima': 'Próxima baja',
@@ -245,7 +256,39 @@ def actualizar_resultado():
     }
 
     # -------------------------------------------------------------
-    # 3.1. Manejo de parámetros de reservas automáticas
+    # 3.1. Manejo de preferencias de Pearl AI
+    # -------------------------------------------------------------
+    
+    # Mapear preferenciaMT (MORNING/AFTERNOON) a preferencia_horario (mañana/tarde) 
+    if preferencia_mt:
+        if preferencia_mt.upper() == 'MORNING':
+            update_fields['preferencia_horario'] = 'mañana'
+        elif preferencia_mt.upper() == 'AFTERNOON':
+            update_fields['preferencia_horario'] = 'tarde'
+        logger.info(f"Preferencia de horario mapeada: {preferencia_mt} -> {update_fields.get('preferencia_horario')}")
+    
+    # Procesar preferenciaFecha si está presente
+    if preferencia_fecha:
+        try:
+            # Validar y convertir formato de fecha
+            if '/' in preferencia_fecha:
+                # Formato DD/MM/YYYY
+                dia, mes, anio = preferencia_fecha.split('/')
+                fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+            elif '-' in preferencia_fecha and len(preferencia_fecha) == 10:
+                # Formato YYYY-MM-DD (ya válido)
+                fecha_formateada = preferencia_fecha
+            else:
+                raise ValueError(f"Formato de fecha no reconocido: {preferencia_fecha}")
+            
+            update_fields['fecha_minima_reserva'] = fecha_formateada
+            logger.info(f"Fecha de preferencia establecida: {preferencia_fecha} -> {fecha_formateada}")
+            
+        except Exception as e:
+            logger.warning(f"Error procesando preferenciaFecha '{preferencia_fecha}': {e}")
+
+    # -------------------------------------------------------------
+    # 3.2. Manejo de parámetros de reservas automáticas
     # -------------------------------------------------------------
     # Procesar parámetros de reserva automática si están presentes
     if 'reservaAutomatica' in data:

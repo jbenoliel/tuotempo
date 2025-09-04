@@ -69,6 +69,11 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">Historial de Recargas</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link text-danger" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage" type="button" role="tab">
+                    <i class="fas fa-trash-alt"></i> Gestionar Archivos
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="myTabContent">
@@ -216,6 +221,105 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Pestaña de gestión de archivos -->
+            <div class="tab-pane fade" id="manage" role="tabpanel">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            Gestión de Archivos - ZONA PELIGROSA
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-danger">
+                            <strong>⚠️ ATENCIÓN:</strong> Esta acción eliminará permanentemente todos los leads asociados al archivo seleccionado. 
+                            <strong>No se puede deshacer.</strong>
+                        </div>
+
+                        <form method="POST" action="{{ url_for('main.eliminar_archivo_origen') }}" id="deleteForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="archivo_origen_delete" class="form-label">
+                                            <strong>Archivo a eliminar:</strong>
+                                        </label>
+                                        <select class="form-select" id="archivo_origen_delete" name="archivo_origen" required>
+                                            <option value="">-- Seleccionar archivo --</option>
+                                            {% for archivo in historial %}
+                                                {% if archivo.resultado != 'delete' %}
+                                                <option value="{{ archivo.archivo }}">
+                                                    {{ archivo.archivo }} ({{ archivo.registros_importados }} registros)
+                                                </option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                        <div class="form-text">Solo se muestran archivos que no han sido eliminados previamente.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="confirmar" class="form-label">
+                                            <strong>Para confirmar, escriba "ELIMINAR":</strong>
+                                        </label>
+                                        <input type="text" class="form-control" id="confirmar" name="confirmar" 
+                                               placeholder="Escriba ELIMINAR para confirmar" required>
+                                        <div class="form-text">Debe escribir exactamente "ELIMINAR" (mayúsculas).</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <button type="button" class="btn btn-secondary" onclick="resetDeleteForm()">
+                                        <i class="fas fa-undo"></i> Resetear
+                                    </button>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                                        <i class="fas fa-trash-alt"></i> Eliminar Archivo y Todos sus Leads
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <hr class="my-4">
+
+                        <!-- Información de archivos existentes -->
+                        <h6>Resumen de archivos cargados:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Archivo</th>
+                                        <th>Registros</th>
+                                        <th>Fecha de carga</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for archivo in historial %}
+                                        {% if archivo.resultado in ['ok', 'delete'] %}
+                                        <tr class="{% if archivo.resultado == 'delete' %}table-secondary text-muted{% endif %}">
+                                            <td>{{ archivo.archivo }}</td>
+                                            <td>{{ archivo.registros_importados }}</td>
+                                            <td>{{ archivo.fecha.strftime('%d/%m/%Y %H:%M') if archivo.fecha else 'N/A' }}</td>
+                                            <td>
+                                                {% if archivo.resultado == 'ok' %}
+                                                    <span class="badge bg-success">Activo</span>
+                                                {% elif archivo.resultado == 'delete' %}
+                                                    <span class="badge bg-secondary">Eliminado</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -235,6 +339,44 @@
                 // Añadir clase selected a la tarjeta actual
                 this.classList.add('selected');
             });
+        });
+
+        // Funcionalidad para la gestión de archivos
+        function resetDeleteForm() {
+            document.getElementById('deleteForm').reset();
+            document.getElementById('deleteBtn').disabled = true;
+        }
+
+        // Validar formulario de eliminación
+        function validateDeleteForm() {
+            const archivoSelect = document.getElementById('archivo_origen_delete');
+            const confirmarInput = document.getElementById('confirmar');
+            const deleteBtn = document.getElementById('deleteBtn');
+            
+            const hasArchivo = archivoSelect.value !== '';
+            const hasConfirmacion = confirmarInput.value === 'ELIMINAR';
+            
+            deleteBtn.disabled = !(hasArchivo && hasConfirmacion);
+        }
+
+        // Añadir listeners cuando el documento esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            const archivoSelect = document.getElementById('archivo_origen_delete');
+            const confirmarInput = document.getElementById('confirmar');
+            const deleteForm = document.getElementById('deleteForm');
+            
+            if (archivoSelect && confirmarInput && deleteForm) {
+                archivoSelect.addEventListener('change', validateDeleteForm);
+                confirmarInput.addEventListener('input', validateDeleteForm);
+                
+                // Confirmar antes de enviar
+                deleteForm.addEventListener('submit', function(e) {
+                    const archivo = archivoSelect.options[archivoSelect.selectedIndex].text;
+                    if (!confirm(`¿Está ABSOLUTAMENTE SEGURO de que desea eliminar "${archivo}" y todos sus leads?\\n\\nEsta acción NO SE PUEDE DESHACER.`)) {
+                        e.preventDefault();
+                    }
+                });
+            }
         });
     </script>
 </body>

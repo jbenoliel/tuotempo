@@ -140,7 +140,38 @@ body { margin: 0; padding: 0; }
 
 
 
-<!-- Fila 2: Métricas secundarias -->
+<!-- Fila 2: Nuevas métricas de call outcomes -->
+<div class="row text-center g-2 mt-1">
+  <div class="col-6 col-md-4">
+    <div class="card h-100 dashboard-card-green" style="background: #28a745 !important; color: white !important;">
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Útiles Positivos</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.utiles_positivos }}</h4>
+        <small class="text-muted" style="color: rgba(255,255,255,0.8) !important;">Citas agendadas</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card h-100 dashboard-card-yellow" style="background: #ffc107 !important; color: #333 !important;">
+      <div class="card-body p-2">
+        <h6 class="mb-1 small" style="color: #333 !important; font-weight: bold !important;">Útiles Negativos</h6>
+        <h4 class="mb-0" style="color: #333 !important; font-weight: bold !important;">{{ stats.estados.utiles_negativos }}</h4>
+        <small class="text-muted" style="color: rgba(51,51,51,0.7) !important;">Volver a llamar</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card h-100 dashboard-card-red" style="background: #dc3545 !important; color: white !important;">
+      <div class="card-body p-2">
+        <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">No Útil</h6>
+        <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.no_util }}</h4>
+        <small class="text-muted" style="color: rgba(255,255,255,0.8) !important;">Max intentos alcanzado</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fila 3: Detalles tradicionales -->
 <div class="row text-center g-2 mt-1">
   <div class="col-6 col-md-4">
     <div class="card h-100 dashboard-card-blue" style="background: #35C0F1 !important; color: white !important;">
@@ -152,7 +183,7 @@ body { margin: 0; padding: 0; }
     </div>
   </div>
   <div class="col-6 col-md-4">
-    <div class="card h-100 dashboard-card-yellow" style="background: #ffc107 !important; color: #333 !important;">
+    <div class="card h-100" style="background: #ffc107 !important; color: #333 !important;">
       <div class="card-body p-2">
         <h6 class="mb-1 small" style="color: #333 !important; font-weight: bold !important;">Volver a llamar</h6>
         <h4 class="mb-0" style="color: #333 !important; font-weight: bold !important;">{{ stats.estados.volver_llamar }}</h4>
@@ -160,7 +191,7 @@ body { margin: 0; padding: 0; }
     </div>
   </div>
   <div class="col-6 col-md-4">
-    <div class="card h-100 dashboard-card-red" style="background: #dc3545 !important; color: white !important;">
+    <div class="card h-100" style="background: #dc3545 !important; color: white !important;">
       <div class="card-body p-2">
         <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">No interesados</h6>
         <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.no_interesado }}</h4>
@@ -181,7 +212,7 @@ body { margin: 0; padding: 0; }
   <div class="col-lg-3 col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h6 class="text-center card-title">Distribución Estados</h6>
+        <h6 class="text-center card-title">Call Outcomes</h6>
         <div class="chart-container">
           <canvas id="estadoChart"></canvas>
         </div>
@@ -191,7 +222,7 @@ body { margin: 0; padding: 0; }
   <div class="col-lg-3 col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h6 class="text-center card-title">Volver a llamar</h6>
+        <h6 class="text-center card-title">Útiles Negativos</h6>
         <div class="chart-container">
           <canvas id="chartVolver"></canvas>
         </div>
@@ -201,7 +232,7 @@ body { margin: 0; padding: 0; }
   <div class="col-lg-3 col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h6 class="text-center card-title">No interesado</h6>
+        <h6 class="text-center card-title">No Interesado (Detalle)</h6>
         <div class="chart-container">
           <canvas id="chartNoInteresado"></canvas>
         </div>
@@ -211,7 +242,7 @@ body { margin: 0; padding: 0; }
   <div class="col-lg-3 col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h6 class="text-center card-title">Citas</h6>
+        <h6 class="text-center card-title">Útiles Positivos (Detalle)</h6>
         <div class="chart-container">
           <canvas id="chartCitas"></canvas>
         </div>
@@ -281,9 +312,12 @@ function forceDashboardColors() {
         {bg: '#92D050', text: '#000000'}, // Leads contactados - Verde con texto NEGRO  
         {bg: '#646762', text: '#FFFFFF'}, // Tasa contacto - Gris con texto BLANCO
         {bg: '#37ADE2', text: '#000000'}, // % Citas - Azul claro con texto NEGRO
-        {bg: '#35C0F1', text: '#000000'}, // Citas agendadas - Azul con texto NEGRO
-        {bg: '#ffc107', text: '#000000'}, // Volver a llamar - Amarillo con texto NEGRO
-        {bg: '#dc3545', text: '#FFFFFF'}, // No interesados - Rojo con texto BLANCO
+        {bg: '#28a745', text: '#FFFFFF'}, // Útiles Positivos - Verde con texto BLANCO
+        {bg: '#ffc107', text: '#000000'}, // Útiles Negativos - Amarillo con texto NEGRO
+        {bg: '#dc3545', text: '#FFFFFF'}, // No Útil - Rojo con texto BLANCO
+        {bg: '#35C0F1', text: '#000000'}, // Citas agendadas (detalles) - Azul con texto NEGRO
+        {bg: '#ffc107', text: '#000000'}, // Volver a llamar (detalles) - Amarillo con texto NEGRO
+        {bg: '#dc3545', text: '#FFFFFF'}, // No interesados (detalles) - Rojo con texto BLANCO
         {bg: '#35C0F1', text: '#000000'}, // Gráficos adicionales
         {bg: '#35C0F1', text: '#000000'},
         {bg: '#35C0F1', text: '#000000'},
@@ -363,12 +397,12 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // --- Chart Data Extraction ---
 
-    // 1. Pie Chart Data
-    const pieLabels = ['Citas Agendadas', 'Volver a llamar', 'No Interesado'];
+    // 1. Pie Chart Data - New Call Outcomes
+    const pieLabels = ['Útiles Positivos', 'Útiles Negativos', 'No Útil'];
     const pieData = [
-        parseInt(get(stats, 'estados.cita_con_pack', 0)) + parseInt(get(stats, 'estados.cita_sin_pack', 0)),
-        parseInt(get(stats, 'estados.volver_llamar', 0)),
-        parseInt(get(stats, 'estados.no_interesado', 0))
+        parseInt(get(stats, 'estados.utiles_positivos', 0)),
+        parseInt(get(stats, 'estados.utiles_negativos', 0)),
+        parseInt(get(stats, 'estados.no_util', 0))
     ];
 
     // 2. "Volver a llamar" Bar Chart Data
@@ -420,8 +454,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Create all charts
     createChart('estadoChart', {
       type: 'pie',
-      data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: ['#4CAF50', '#FFC107', '#F44336'] }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Distribución Estados' }, legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+      data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: ['#28a745', '#ffc107', '#dc3545'] }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Call Outcomes' }, legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
     });
 
     createChart('chartVolver', {

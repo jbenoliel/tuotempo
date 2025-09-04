@@ -266,7 +266,10 @@ def get_statistics(filtro_origen_archivo=None):
             'volver_llamar': 0,
             'no_interesado': 0,
             'cita_sin_pack': 0,
-            'cita_con_pack': 0
+            'cita_con_pack': 0,
+            'utiles_positivos': 0,
+            'utiles_negativos': 0,
+            'no_util': 0
         },
         'filtro_origen': filtro_origen_archivo,  # Incluir info del filtro aplicado
         'archivos_disponibles': []  # Lista de archivos disponibles para el selector
@@ -304,14 +307,17 @@ def get_statistics(filtro_origen_archivo=None):
             # Llamadas de hoy (temporalmente deshabilitado)
             stats['llamadas_hoy'] = 0
 
-            # Resumen de estados solicitados (status_level_1 + conPack) con filtro
+            # Resumen de estados actualizados para las nuevas opciones de llamadas
             query_estados = f"""
                 SELECT
                     IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END), 0) AS contactados,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS volver_llamar,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END), 0) AS no_interesado,
-                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND (conPack IS NULL OR conPack = 0) THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
-                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND conPack = 1 THEN 1 ELSE 0 END), 0) AS cita_con_pack
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Sin Pack' THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Con Pack' THEN 1 ELSE 0 END), 0) AS cita_con_pack,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' THEN 1 ELSE 0 END), 0) AS utiles_positivos,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' AND TRIM(status_level_2) = 'No útil' THEN 1 ELSE 0 END), 0) AS no_util
                 FROM leads {where_clause}
             """
             cursor.execute(query_estados, params)
@@ -321,7 +327,10 @@ def get_statistics(filtro_origen_archivo=None):
                 'volver_llamar': row_states['volver_llamar'],
                 'no_interesado': row_states['no_interesado'],
                 'cita_sin_pack': row_states['cita_sin_pack'],
-                'cita_con_pack': row_states['cita_con_pack']
+                'cita_con_pack': row_states['cita_con_pack'],
+                'utiles_positivos': row_states['utiles_positivos'],
+                'utiles_negativos': row_states['utiles_negativos'],
+                'no_util': row_states['no_util']
             }
 
             # Calcular total de citas y tasa sobre contactados
@@ -337,10 +346,21 @@ def get_statistics(filtro_origen_archivo=None):
                 'buzón', 'no disponible cliente', 'Interesado. Problema técnico', 'cortado'
             ]
             
+            # Nuevas razones de no interés actualizadas
             subestados_no_interes_posibles = [
-                'no disponibilidad cliente', 'a corto plazo (vac. Trab...)..)', 
-                'Descontento con Adeslas', 'No da motivos', 'Próxima baja'
+                'Paciente con tratamiento',
+                'Paciente con tratamiento particular', 
+                'Llamará cuando esté interesado',
+                'Solicitan baja póliza',
+                'No desea informar motivo / no colabora',
+                # LEGACY - mantener compatibilidad
+                'no disponibilidad cliente',
+                'Descontento con Adeslas', 
+                'No da motivos',
+                'Próxima baja'
             ]
+            
+            # "No útil" se maneja por separado como estado automático, no como razón seleccionable
             
             # Subestados para CONFIRMADO (Citas)
             subestados_confirmado = ['Con Pack', 'Sin Pack']
