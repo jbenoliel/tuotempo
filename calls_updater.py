@@ -5,6 +5,7 @@ Este script se ejecuta en segundo plano para sincronizar la base de datos local 
 
 import os
 import logging
+import json
 from datetime import datetime, timedelta, timezone
 import time
 from dotenv import load_dotenv
@@ -18,6 +19,107 @@ logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
+
+def insert_call_record(cursor, call_details: dict, lead_id: int, outbound_id: str) -> bool:
+    """
+    Inserta un registro detallado de la llamada en la tabla pearl_calls.
+    
+    Args:
+        cursor: Cursor de la base de datos
+        call_details: Detalles completos de la llamada de Pearl AI
+        lead_id: ID del lead asociado
+        outbound_id: ID de la campaña outbound
+        
+    Returns:
+        bool: True si la inserción fue exitosa
+    """
+    try:
+        # Verificar si la llamada ya existe para evitar duplicados
+        cursor.execute("SELECT COUNT(*) FROM pearl_calls WHERE call_id = %s", (call_details.get('id'),))
+        if cursor.fetchone()[0] > 0:
+            logger.debug(f"Llamada {call_details.get('id')} ya existe en pearl_calls, actualizando...")
+            return update_call_record(cursor, call_details, lead_id, outbound_id)
+        
+        # Obtener número de teléfono de call_details o del lead
+        phone_number = call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono')
+        
+        # Preparar datos para inserción
+        call_data = {
+            'call_id': call_details.get('id'),
+            'phone_number': phone_number,
+            'lead_id': lead_id,
+            'outbound_id': outbound_id,
+            'call_time': call_details.get('startTime'),
+            'start_time': call_details.get('startTime'),
+            'end_time': call_details.get('endTime'),
+            'duration': call_details.get('duration'),
+            'status': call_details.get('status'),
+            'outcome': call_details.get('outcome', call_details.get('status')),
+            'summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
+            'transcription': call_details.get('transcription'),
+            'recording_url': call_details.get('recordingUrl'),
+            'collected_info': json.dumps(call_details.get('callData', {})),
+            'cost': call_details.get('cost')
+        }
+        
+        # Filtrar valores None para evitar problemas con campos NOT NULL
+        call_data = {k: v for k, v in call_data.items() if v is not None}
+        
+        # Crear query de inserción dinámico
+        columns = ', '.join(call_data.keys())
+        placeholders = ', '.join(['%s'] * len(call_data))
+        
+        insert_sql = f"""
+            INSERT INTO pearl_calls ({columns})
+            VALUES ({placeholders})
+        """
+        
+        cursor.execute(insert_sql, tuple(call_data.values()))
+        
+        logger.info(f"📞 Registro de llamada insertado: {call_details.get('id')} -> Lead {lead_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error insertando registro de llamada {call_details.get('id')}: {e}")
+        return False
+
+def update_call_record(cursor, call_details: dict, lead_id: int, outbound_id: str) -> bool:
+    """
+    Actualiza un registro existente de llamada en pearl_calls.
+    """
+    try:
+        update_data = {
+            'phone_number': call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono'),
+            'lead_id': lead_id,
+            'outbound_id': outbound_id,
+            'call_time': call_details.get('startTime'),
+            'start_time': call_details.get('startTime'),
+            'end_time': call_details.get('endTime'),
+            'duration': call_details.get('duration'),
+            'status': call_details.get('status'),
+            'outcome': call_details.get('outcome', call_details.get('status')),
+            'summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
+            'transcription': call_details.get('transcription'),
+            'recording_url': call_details.get('recordingUrl'),
+            'collected_info': json.dumps(call_details.get('callData', {})),
+            'cost': call_details.get('cost')
+        }
+        
+        # Filtrar valores None
+        update_data = {k: v for k, v in update_data.items() if v is not None}
+        
+        if update_data:
+            set_clause = ', '.join([f"{k} = %s" for k in update_data.keys()])
+            update_sql = f"UPDATE pearl_calls SET {set_clause} WHERE call_id = %s"
+            
+            cursor.execute(update_sql, tuple(update_data.values()) + (call_details.get('id'),))
+            logger.info(f"📞 Registro de llamada actualizado: {call_details.get('id')}")
+            
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error actualizando registro de llamada {call_details.get('id')}: {e}")
+        return False
 
 def get_last_sync_time(db_conn) -> datetime:
     """
@@ -120,30 +222,35 @@ def update_calls_from_pearl():
                     logger.warning(f"Llamada con ID {call_details.get('id')} no tiene 'orden' (lead_id). Se omite.")
                     continue
 
-                # Mapeo de datos de la llamada a columnas de la BD
+                # 1. INSERTAR/ACTUALIZAR EN PEARL_CALLS (registro detallado)
+                call_inserted = insert_call_record(cursor, call_details, lead_id, outbound_id)
+                
+                # 2. ACTUALIZAR EN LEADS (resumen en tabla principal)
                 update_data = {
                     'call_id': call_details.get('id'),
                     'call_time': call_details.get('startTime'),
-                    'status_call': call_details.get('status'),
+                    'call_status': call_details.get('status'),
                     'call_duration': call_details.get('duration'),
-                    'call_summary': call_details.get('summary', {}).get('text'),
-                    'last_updated_at': datetime.now(timezone.utc)
+                    'call_summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
+                    'call_recording_url': call_details.get('recordingUrl'),
+                    'pearl_call_response': json.dumps(call_details) if call_details else None,
+                    'updated_at': datetime.now()
                 }
 
                 # Filtrar valores nulos para no sobrescribir datos existentes con nada
                 update_fields = {k: v for k, v in update_data.items() if v is not None}
                 
-                if not update_fields:
-                    continue
-
-                set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
-                sql = f"UPDATE leads SET {set_clause} WHERE id = %s"
-                params = list(update_fields.values()) + [lead_id]
-                
-                cursor.execute(sql, tuple(params))
-                if cursor.rowcount > 0:
+                if update_fields:
+                    set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
+                    sql = f"UPDATE leads SET {set_clause} WHERE id = %s"
+                    params = list(update_fields.values()) + [lead_id]
+                    
+                    cursor.execute(sql, tuple(params))
+                    
+                if cursor.rowcount > 0 or call_inserted:
                     updated_count += 1
-                    logger.info(f"Lead {lead_id} actualizado con datos de la llamada {call_details.get('id')}.")
+                    status_msg = "✅ COMPLETO" if call_inserted else "⚠️ PARCIAL (solo leads)"
+                    logger.info(f"{status_msg} - Lead {lead_id} procesado con llamada {call_details.get('id')}")
 
             except Exception as e:
                 call_id_log = call_details.get('id') if call_details else call_item

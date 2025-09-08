@@ -972,6 +972,206 @@ def cleanup_selected_leads():
             cursor.close()
             conn.close()
 
+@api_pearl_calls.route('/history', methods=['GET'])
+def get_calls_history():
+    """
+    Obtiene el historial detallado de llamadas desde la tabla pearl_calls.
+    
+    Parámetros de query:
+    - limit: Número máximo de registros (default 50, max 200)
+    - offset: Número de registros a saltar para paginación (default 0)
+    - lead_id: Filtrar por ID de lead específico
+    - status: Filtrar por status de llamada
+    - from_date: Fecha desde (YYYY-MM-DD)
+    - to_date: Fecha hasta (YYYY-MM-DD)
+    """
+    try:
+        # Parámetros de consulta
+        limit = min(int(request.args.get('limit', 50)), 200)
+        offset = int(request.args.get('offset', 0))
+        lead_id = request.args.get('lead_id')
+        status = request.args.get('status')
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        
+        conn = get_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+            
+        cursor = conn.cursor(dictionary=True)
+        
+        # Construir query base
+        base_query = """
+            SELECT 
+                pc.id,
+                pc.call_id,
+                pc.phone_number,
+                pc.lead_id,
+                l.nombre,
+                l.apellidos,
+                pc.outbound_id,
+                pc.call_time,
+                pc.start_time,
+                pc.end_time,
+                pc.duration,
+                pc.status,
+                pc.outcome,
+                pc.summary,
+                pc.transcription,
+                pc.recording_url,
+                pc.cost,
+                pc.created_at,
+                pc.updated_at
+            FROM pearl_calls pc
+            LEFT JOIN leads l ON pc.lead_id = l.id
+        """
+        
+        # Construir filtros WHERE
+        where_conditions = []
+        params = []
+        
+        if lead_id:
+            where_conditions.append("pc.lead_id = %s")
+            params.append(lead_id)
+            
+        if status:
+            where_conditions.append("pc.status = %s")
+            params.append(status)
+            
+        if from_date:
+            where_conditions.append("DATE(pc.call_time) >= %s")
+            params.append(from_date)
+            
+        if to_date:
+            where_conditions.append("DATE(pc.call_time) <= %s")
+            params.append(to_date)
+        
+        # Añadir WHERE si hay condiciones
+        if where_conditions:
+            base_query += " WHERE " + " AND ".join(where_conditions)
+            
+        # Ordenar y paginar
+        base_query += " ORDER BY pc.call_time DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        
+        # Ejecutar query principal
+        cursor.execute(base_query, params)
+        calls = cursor.fetchall()
+        
+        # Query para contar total (sin paginación) - excluir LIMIT y OFFSET
+        count_query = "SELECT COUNT(*) as total FROM pearl_calls pc"
+        if where_conditions:
+            count_query += " WHERE " + " AND ".join(where_conditions)
+            count_params = params[:-2]  # Remover limit y offset
+        else:
+            count_params = []
+            
+        cursor.execute(count_query, count_params)
+        total_count = cursor.fetchone()['total']
+        
+        # Formatear respuesta
+        response = {
+            'calls': calls,
+            'pagination': {
+                'total': total_count,
+                'limit': limit,
+                'offset': offset,
+                'count': len(calls)
+            },
+            'filters': {
+                'lead_id': lead_id,
+                'status': status,
+                'from_date': from_date,
+                'to_date': to_date
+            }
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo historial de llamadas: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@api_pearl_calls.route('/history/stats', methods=['GET'])
+def get_calls_stats():
+    """
+    Obtiene estadísticas resumidas del historial de llamadas.
+    """
+    try:
+        conn = get_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+            
+        cursor = conn.cursor(dictionary=True)
+        
+        # Estadísticas generales
+        stats_query = """
+            SELECT 
+                COUNT(*) as total_calls,
+                COUNT(DISTINCT lead_id) as unique_leads,
+                AVG(duration) as avg_duration,
+                SUM(cost) as total_cost,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_calls,
+                COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_calls,
+                COUNT(CASE WHEN outcome = 'answered' THEN 1 END) as answered_calls,
+                COUNT(CASE WHEN outcome = 'no_answer' THEN 1 END) as no_answer_calls
+            FROM pearl_calls
+        """
+        
+        cursor.execute(stats_query)
+        stats = cursor.fetchone()
+        
+        # Estadísticas por día (últimos 7 días)
+        daily_stats_query = """
+            SELECT 
+                DATE(call_time) as call_date,
+                COUNT(*) as calls_count,
+                AVG(duration) as avg_duration
+            FROM pearl_calls 
+            WHERE call_time >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)
+            GROUP BY DATE(call_time)
+            ORDER BY call_date DESC
+        """
+        
+        cursor.execute(daily_stats_query)
+        daily_stats = cursor.fetchall()
+        
+        # Estadísticas por resultado
+        outcome_stats_query = """
+            SELECT 
+                outcome,
+                COUNT(*) as count
+            FROM pearl_calls 
+            WHERE outcome IS NOT NULL
+            GROUP BY outcome
+            ORDER BY count DESC
+        """
+        
+        cursor.execute(outcome_stats_query)
+        outcome_stats = cursor.fetchall()
+        
+        response = {
+            'general': stats,
+            'daily': daily_stats,
+            'outcomes': outcome_stats
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas de llamadas: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 # Función para registrar el blueprint en la app principal
 def register_calls_api(app: Flask):
     """Registra la API de llamadas en la aplicación Flask."""

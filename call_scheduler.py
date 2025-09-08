@@ -163,8 +163,8 @@ class CallScheduler:
                 if attempts >= max_attempts:
                     return self._close_lead(cursor, lead_id, outcome, attempts)
                 
-                # Calcular fecha de reprogramación (30 horas después)
-                reschedule_hours = int(self.config.get('reschedule_hours', 30))
+                # Calcular fecha de reprogramación (configurable en horas)
+                reschedule_hours = float(self.config.get('reschedule_hours', 30))
                 next_attempt_time = datetime.now() + timedelta(hours=reschedule_hours)
                 
                 # Ajustar al siguiente horario laboral
