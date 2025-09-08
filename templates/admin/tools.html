@@ -19,9 +19,14 @@
                             </div>
                             <h5 class="card-title text-corporate-secondary">Llamadas Automáticas</h5>
                             <p class="card-text text-corporate-secondary">Sistema automatizado de llamadas con IA para contactar leads de forma eficiente.</p>
-                            <a href="{{ url_for('main.calls_manager') }}" class="btn btn-primary">
-                                <i class="fas fa-rocket me-1"></i> Iniciar Llamadas
-                            </a>
+                            <div class="d-grid gap-2">
+                                <a href="{{ url_for('main.calls_manager') }}" class="btn btn-primary">
+                                    <i class="fas fa-rocket me-1"></i> Iniciar Llamadas
+                                </a>
+                                <a href="#" onclick="window.open('/api/calls/status', '_blank')" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye me-1"></i> Estado en Tiempo Real
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -95,6 +100,52 @@
                             <p class="card-text text-corporate-secondary">Verifica el estado de todos los servicios desplegados en Railway y detecta problemas.</p>
                             <a href="{{ url_for('main.railway_verification') }}" class="btn btn-purple" style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
                                 <i class="fas fa-check-circle me-1"></i> Verificar Servicios
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tercera fila - Monitoreo de Llamadas -->
+            <div class="row g-4 mt-2">
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center admin-card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-history fa-3x" style="color: #28a745;"></i>
+                            </div>
+                            <h5 class="card-title text-corporate-secondary">Historial de Llamadas</h5>
+                            <p class="card-text text-corporate-secondary">Consulta el historial completo de llamadas realizadas con detalles, transcripciones y costos.</p>
+                            <a href="#" onclick="window.open('/api/calls/history', '_blank')" class="btn btn-success">
+                                <i class="fas fa-chart-line me-1"></i> Ver Historial
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center admin-card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-clock fa-3x" style="color: #fd7e14;"></i>
+                            </div>
+                            <h5 class="card-title text-corporate-secondary">Llamadas Programadas</h5>
+                            <p class="card-text text-corporate-secondary">Monitorea las llamadas programadas automáticamente por el scheduler del sistema.</p>
+                            <a href="#" onclick="window.open('/api/calls/schedule', '_blank')" class="btn btn-warning">
+                                <i class="fas fa-calendar-alt me-1"></i> Ver Programadas
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm text-center admin-card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <i class="fas fa-chart-bar fa-3x" style="color: #e83e8c;"></i>
+                            </div>
+                            <h5 class="card-title text-corporate-secondary">Estadísticas de Llamadas</h5>
+                            <p class="card-text text-corporate-secondary">Visualiza estadísticas detalladas y métricas del rendimiento del sistema de llamadas.</p>
+                            <a href="#" onclick="window.open('/api/calls/history/stats', '_blank')" class="btn" style="background-color: #e83e8c; border-color: #e83e8c; color: white;">
+                                <i class="fas fa-analytics me-1"></i> Ver Estadísticas
                             </a>
                         </div>
                     </div>

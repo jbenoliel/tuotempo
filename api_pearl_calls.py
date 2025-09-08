@@ -1172,6 +1172,140 @@ def get_calls_stats():
             cursor.close()
             conn.close()
 
+@api_pearl_calls.route('/schedule', methods=['GET'])
+def get_scheduled_calls():
+    """
+    Obtiene las llamadas programadas desde la tabla call_schedule.
+    
+    Parámetros de query:
+    - limit: Número máximo de registros (default 50, max 200)
+    - offset: Número de registros a saltar para paginación (default 0)
+    - status: Filtrar por status ('pending', 'completed', 'failed', 'cancelled')
+    - lead_id: Filtrar por ID de lead específico
+    - from_date: Fecha desde (YYYY-MM-DD)
+    - to_date: Fecha hasta (YYYY-MM-DD)
+    """
+    try:
+        # Parámetros de consulta
+        limit = min(int(request.args.get('limit', 50)), 200)
+        offset = int(request.args.get('offset', 0))
+        status = request.args.get('status')
+        lead_id = request.args.get('lead_id')
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        
+        conn = get_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+            
+        cursor = conn.cursor(dictionary=True)
+        
+        # Construir query base
+        base_query = """
+            SELECT 
+                cs.id,
+                cs.lead_id,
+                l.nombre,
+                l.apellidos,
+                l.telefono,
+                l.ciudad,
+                cs.scheduled_at,
+                cs.attempt_number,
+                cs.status,
+                cs.last_outcome,
+                cs.created_at,
+                cs.updated_at,
+                l.call_attempts_count,
+                l.lead_status,
+                l.closure_reason
+            FROM call_schedule cs
+            LEFT JOIN leads l ON cs.lead_id = l.id
+        """
+        
+        # Construir filtros WHERE
+        where_conditions = []
+        params = []
+        
+        if status:
+            where_conditions.append("cs.status = %s")
+            params.append(status)
+            
+        if lead_id:
+            where_conditions.append("cs.lead_id = %s")
+            params.append(lead_id)
+            
+        if from_date:
+            where_conditions.append("DATE(cs.scheduled_at) >= %s")
+            params.append(from_date)
+            
+        if to_date:
+            where_conditions.append("DATE(cs.scheduled_at) <= %s")
+            params.append(to_date)
+        
+        # Añadir WHERE si hay condiciones
+        if where_conditions:
+            base_query += " WHERE " + " AND ".join(where_conditions)
+            
+        # Ordenar y paginar
+        base_query += " ORDER BY cs.scheduled_at ASC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        
+        # Ejecutar query principal
+        cursor.execute(base_query, params)
+        scheduled_calls = cursor.fetchall()
+        
+        # Query para contar total (sin paginación)
+        count_query = "SELECT COUNT(*) as total FROM call_schedule cs"
+        if where_conditions:
+            count_query += " WHERE " + " AND ".join(where_conditions)
+            count_params = params[:-2]  # Remover limit y offset
+        else:
+            count_params = []
+            
+        cursor.execute(count_query, count_params)
+        total_count = cursor.fetchone()['total']
+        
+        # Estadísticas adicionales
+        stats_query = """
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM call_schedule 
+            GROUP BY status
+            ORDER BY status
+        """
+        cursor.execute(stats_query)
+        status_stats = cursor.fetchall()
+        
+        # Formatear respuesta
+        response = {
+            'scheduled_calls': scheduled_calls,
+            'pagination': {
+                'total': total_count,
+                'limit': limit,
+                'offset': offset,
+                'count': len(scheduled_calls)
+            },
+            'status_breakdown': status_stats,
+            'filters': {
+                'status': status,
+                'lead_id': lead_id,
+                'from_date': from_date,
+                'to_date': to_date
+            }
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo llamadas programadas: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 # Función para registrar el blueprint en la app principal
 def register_calls_api(app: Flask):
     """Registra la API de llamadas en la aplicación Flask."""

@@ -163,6 +163,21 @@ GET /api/calls/test-connection
 - **GET /test/connection**: Prueba detallada de conexión con Pearl AI
 - **GET /test-connection**: Prueba simple de conexión con Pearl AI
 
+### **Historial y Monitoreo de Llamadas**
+```http
+GET /api/calls/history
+GET /api/calls/history/stats
+GET /api/calls/schedule
+```
+- **GET /history**: Obtiene historial detallado de llamadas desde pearl_calls
+  - Parámetros: `limit`, `offset`, `lead_id`, `status`, `from_date`, `to_date`
+  - Respuesta: Historial completo con información de leads, duración, costos, transcripciones
+- **GET /history/stats**: Estadísticas resumidas del historial de llamadas
+  - Respuesta: Estadísticas generales, por día, y por resultado
+- **GET /schedule**: Obtiene llamadas programadas desde call_schedule
+  - Parámetros: `limit`, `offset`, `status`, `lead_id`, `from_date`, `to_date`
+  - Respuesta: Llamadas programadas con información de leads y estado
+
 ### **Administración**
 ```http
 POST /api/calls/admin/cleanup-selected
@@ -331,6 +346,97 @@ POST /api/marcar_reserva_automatica
 }
 ```
 
+**GET /api/calls/history** - Respuesta:
+```json
+{
+  "calls": [
+    {
+      "id": 1,
+      "call_id": "call_67890abcd",
+      "phone_number": "600111111",
+      "lead_id": 5,
+      "nombre": "Juan",
+      "apellidos": "Pérez",
+      "outbound_id": "686294f10d5921f7a531653a",
+      "call_time": "2025-09-08T09:40:00",
+      "duration": 45,
+      "status": "completed",
+      "outcome": "no_answer",
+      "summary": "Cliente no respondió la llamada",
+      "cost": 0.15,
+      "recording_url": "https://...",
+      "created_at": "2025-09-08T09:40:04"
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "limit": 50,
+    "offset": 0,
+    "count": 25
+  }
+}
+```
+
+**GET /api/calls/schedule** - Respuesta:
+```json
+{
+  "scheduled_calls": [
+    {
+      "id": 5,
+      "lead_id": 3,
+      "nombre": "TestUser1",
+      "apellidos": "Apellido1",
+      "telefono": "600111111",
+      "ciudad": "TestCity1",
+      "scheduled_at": "2025-09-08T10:00:00",
+      "attempt_number": 2,
+      "status": "pending",
+      "last_outcome": "invalid_phone",
+      "call_attempts_count": 2,
+      "lead_status": "open",
+      "closure_reason": null
+    }
+  ],
+  "pagination": {
+    "total": 5,
+    "limit": 50,
+    "offset": 0,
+    "count": 5
+  },
+  "status_breakdown": [
+    {"status": "pending", "count": 1},
+    {"status": "cancelled", "count": 4}
+  ]
+}
+```
+
+**GET /api/calls/history/stats** - Respuesta:
+```json
+{
+  "general": {
+    "total_calls": 127,
+    "unique_leads": 85,
+    "avg_duration": 42.5,
+    "total_cost": 19.05,
+    "completed_calls": 98,
+    "failed_calls": 29,
+    "answered_calls": 67,
+    "no_answer_calls": 60
+  },
+  "daily": [
+    {
+      "call_date": "2025-09-08",
+      "calls_count": 15,
+      "avg_duration": 38.2
+    }
+  ],
+  "outcomes": [
+    {"outcome": "no_answer", "count": 60},
+    {"outcome": "answered", "count": 67}
+  ]
+}
+```
+
 ### **Códigos de Estado HTTP**
 
 | Código | Descripción | Cuándo se usa |
@@ -460,6 +566,21 @@ curl -X GET "http://localhost:8080/api/obtener_resultados?limit=5"
 curl -X POST http://localhost:8080/api/actualizar_resultado \
   -H "Content-Type: application/json" \
   -d '{"telefono":"699106495","volverALlamar":true,"razonvueltaallamar":"Cliente ocupado"}'
+
+# Obtener historial de llamadas
+curl -X GET http://localhost:8080/api/calls/history
+
+# Obtener estadísticas de llamadas
+curl -X GET http://localhost:8080/api/calls/history/stats
+
+# Obtener llamadas programadas
+curl -X GET http://localhost:8080/api/calls/schedule
+
+# Filtrar llamadas programadas por estado
+curl -X GET "http://localhost:8080/api/calls/schedule?status=pending"
+
+# Obtener historial filtrado por fechas
+curl -X GET "http://localhost:8080/api/calls/history?from_date=2025-09-08&limit=10"
 ```
 
 ### **Testing del Actualizador de Llamadas**
