@@ -77,7 +77,7 @@ def load_excel_data(connection, source, origen_archivo=None):
         'telefono': ['teléfono', 'telefono', 'telefono1', 'teléfono1', 'phone', 'mobile', 'phone number', 'tel', 'teléfono móvil', 'teléfono principal', 'teléfono contacto', 'teléfono cliente', 'número', 'número teléfono'],
         'telefono2': ['teléfono2', 'telefono2', 'telefono 2', 'teléfono 2', 'phone2', 'mobile2', 'telefono secundario', 'tel2', 'teléfono alternativo', 'otro teléfono'],
         'nif': ['nif', 'dni', 'documento'],
-        'fecha_nacimiento': ['fecha nacimiento', 'fecha_nacimiento', 'birth date'],
+        'fecha_nacimiento': ['fecha nacimiento', 'fecha_nacimiento', 'fechanacimiento', 'birth date'],
         'sexo': ['sexo', 'gender'],
         'certificado': ['certificado', 'certificate'],
         'clinica_id': ['clinica id', 'clinica_id', 'clinic id'],
@@ -86,10 +86,11 @@ def load_excel_data(connection, source, origen_archivo=None):
         'segmento': ['segmento', 'segment'],
         'email': ['email', 'correo electronico'],
         'cita': ['cita', 'fecha_cita', 'fecha cita', 'appointment date'],
-        'nombre_clinica': ['nombre_clinica', 'nombre clinica', 'clinic name'],
-        'direccion_clinica': ['direccion_clinica', 'direccion clinica', 'clinic address'],
-        'codigo_postal': ['codigo_postal', 'codigo postal', 'postal code'],
+        'nombre_clinica': ['nombre_clinica', 'nombre clinica', 'clinic name', 'nombreclinica'],
+        'direccion_clinica': ['direccion_clinica', 'direccion clinica', 'clinic address', 'direccionclinica'],
+        'codigo_postal': ['codigo_postal', 'codigo postal', 'postal code', 'codigopostal'],
         'ciudad': ['ciudad', 'city'],
+        'orden': ['orden', 'order', 'id'],
     }
 
     normalized_excel_cols = {re.sub(r'[^a-z0-9]+', '', str(col).lower().strip()): str(col) for col in df.columns}

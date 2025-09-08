@@ -10,6 +10,14 @@ import mysql.connector
 # Cargar variables de entorno si existe un archivo .env
 load_dotenv()
 
+# Importar scheduler para integración
+try:
+    from call_scheduler import CallScheduler
+    SCHEDULER_AVAILABLE = True
+except ImportError:
+    logger.warning("CallScheduler no disponible")
+    SCHEDULER_AVAILABLE = False
+
 # El logger será configurado por la aplicación principal
 logger = logging.getLogger(__name__)
 
@@ -533,6 +541,96 @@ def actualizar_resultado():
 
         conn.commit()
         logger.info(f"Lead con teléfono {telefono} actualizado correctamente. {cursor.rowcount} fila(s) afectada(s).")
+
+        # -------------------------------------------------------------
+        # 6. Integración con Call Scheduler para hora_rellamada
+        # -------------------------------------------------------------
+        hora_rellamada = data.get('horaRellamada')
+        if hora_rellamada and SCHEDULER_AVAILABLE:
+            try:
+                # Obtener el ID del lead actualizado
+                cursor_id = conn.cursor()
+                cursor_id.execute("SELECT id FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s LIMIT 1", (telefono,))
+                lead_result = cursor_id.fetchone()
+                cursor_id.close()
+                
+                if lead_result:
+                    lead_id = lead_result[0]
+                    
+                    # Procesar la fecha/hora de rellamada
+                    scheduled_datetime = None
+                    
+                    # Intentar parsear diferentes formatos de fecha/hora
+                    try:
+                        # Formato 1: "DD/MM/YYYY HH:MM" o "DD/MM/YYYY HH:MM:SS"
+                        if '/' in hora_rellamada and (' ' in hora_rellamada or ':' in hora_rellamada):
+                            # Separar fecha y hora
+                            if ' ' in hora_rellamada:
+                                fecha_part, hora_part = hora_rellamada.split(' ', 1)
+                            else:
+                                # Solo fecha proporcionada, usar hora por defecto (10:00)
+                                fecha_part = hora_rellamada
+                                hora_part = '10:00'
+                            
+                            # Procesar fecha DD/MM/YYYY
+                            dia, mes, anio = fecha_part.split('/')
+                            fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                            
+                            # Procesar hora HH:MM o HH:MM:SS
+                            if hora_part.count(':') == 1:
+                                hora_part += ':00'
+                            
+                            # Crear datetime completo
+                            scheduled_datetime = datetime.strptime(f"{fecha_formateada} {hora_part}", '%Y-%m-%d %H:%M:%S')
+                        
+                        # Formato 2: "YYYY-MM-DD HH:MM:SS" (formato SQL)
+                        elif '-' in hora_rellamada and ':' in hora_rellamada:
+                            scheduled_datetime = datetime.strptime(hora_rellamada, '%Y-%m-%d %H:%M:%S')
+                        
+                        # Formato 3: Solo fecha "DD/MM/YYYY" - usar hora por defecto
+                        elif '/' in hora_rellamada:
+                            dia, mes, anio = hora_rellamada.split('/')
+                            fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                            scheduled_datetime = datetime.strptime(f"{fecha_formateada} 10:00:00", '%Y-%m-%d %H:%M:%S')
+                        
+                        # Formato 4: Solo fecha "YYYY-MM-DD" - usar hora por defecto
+                        elif '-' in hora_rellamada and hora_rellamada.count('-') == 2:
+                            scheduled_datetime = datetime.strptime(f"{hora_rellamada} 10:00:00", '%Y-%m-%d %H:%M:%S')
+                        
+                    except ValueError as e:
+                        logger.warning(f"No se pudo parsear hora_rellamada '{hora_rellamada}': {e}")
+                    
+                    # Si se pudo parsear la fecha/hora, programar la llamada
+                    if scheduled_datetime:
+                        # Verificar que la fecha sea futura
+                        if scheduled_datetime > datetime.now():
+                            # Insertar directamente en call_schedule
+                            cursor_schedule = conn.cursor()
+                            cursor_schedule.execute("""
+                                INSERT INTO call_schedule 
+                                (lead_id, scheduled_at, attempt_number, status, last_outcome, created_at, updated_at)
+                                VALUES (%s, %s, %s, 'pending', 'callback_requested', NOW(), NOW())
+                            """, (
+                                lead_id, 
+                                scheduled_datetime, 
+                                (update_data.get('call_attempts_count', 0) or 0) + 1
+                            ))
+                            cursor_schedule.close()
+                            conn.commit()
+                            
+                            logger.info(f"Lead {lead_id} programado para llamada de callback el {scheduled_datetime}")
+                        else:
+                            logger.warning(f"Fecha de callback {scheduled_datetime} está en el pasado, ignorando")
+                    
+                else:
+                    logger.warning(f"No se pudo obtener ID del lead con teléfono {telefono} para programar callback")
+                    
+            except Exception as e:
+                logger.error(f"Error integrando con scheduler para callback: {e}")
+                # No fallar la actualización principal por error en scheduling
+        
+        elif hora_rellamada and not SCHEDULER_AVAILABLE:
+            logger.warning(f"hora_rellamada proporcionada pero CallScheduler no está disponible")
 
         return jsonify({
             "success": True,
