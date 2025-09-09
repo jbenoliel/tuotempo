@@ -1277,20 +1277,29 @@ class CallsManager {
             // Actualizar el contador de leads seleccionados
             this.updateSelectedCount();
             
-            // Actualizar filtros si es "Volver a llamar" para mostrar solo esos leads
-            if (autoSelect) {
-                // Establecer filtro para mostrar solo leads con estado "Volver a llamar"
-                this.state.filters.estado1 = 'Volver a llamar';
+            // Actualizar filtros para mostrar solo esos leads
+            if (statusField === 'status_level_1') {
+                // Establecer filtro para mostrar solo leads con ese estado
+                this.state.filters.estado1 = statusValue;
                 
                 // Actualizar la interfaz de filtros si existe
-                const filterEstado1 = document.getElementById('filterEstado1');
+                const filterEstado1 = document.getElementById('estado1Filter');
                 if (filterEstado1) {
-                    filterEstado1.value = 'Volver a llamar';
+                    filterEstado1.value = statusValue;
                 }
+            } else if (statusField === 'call_status') {
+                // Establecer filtro para call_status
+                this.state.filters.status = statusValue;
                 
-                // Re-renderizar tabla con el nuevo filtro aplicado
-                this.renderTable();
+                // Actualizar la interfaz de filtros si existe
+                const filterStatus = document.getElementById('statusFilter');
+                if (filterStatus) {
+                    filterStatus.value = statusValue;
+                }
             }
+            
+            // Re-renderizar tabla con el nuevo filtro aplicado
+            this.renderTable();
             
             this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}" (${notSelected} nuevos)`, 'success');
             console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
@@ -2341,6 +2350,8 @@ class CallsManager {
 
 // Instancia global del CallsManager
 window.CallsManager = new CallsManager();
+// Crear variable global para acceso desde HTML onclick
+window.callsManager = window.CallsManager;
 
 // Inicialización cuando el DOM esté listo
 if (document.readyState === 'loading') {
