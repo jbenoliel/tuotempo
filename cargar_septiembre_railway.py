@@ -64,7 +64,7 @@ def procesar_datos(df):
     columnas_mapeo = {
         'nombre': ['nombre', 'Nombre', 'NOMBRE'],
         'apellidos': ['apellidos', 'Apellidos', 'APELLIDOS'],
-        'telefono': ['telefono', 'Telefono', 'TELEFONO', 'teléfono'],
+        'telefono': ['telefono', 'Telefono', 'TELEFONO', 'teléfono', 'TELEFONO1'],
         'telefono2': ['telefono2', 'Telefono2', 'TELEFONO2', 'teléfono2'],
         'email': ['email', 'Email', 'EMAIL', 'correo'],
         'nif': ['nif', 'NIF', 'dni', 'DNI'],

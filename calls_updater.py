@@ -219,7 +219,7 @@ def update_calls_from_pearl():
 
                 lead_id = call_details.get('callData', {}).get('orden')
                 if not lead_id:
-                    logger.warning(f"Llamada con ID {call_details.get('id')} no tiene 'orden' (lead_id). Se omite.")
+                    logger.debug(f"Llamada con ID {call_details.get('id')} no tiene 'orden' (lead_id) - llamada externa. Se omite.")
                     continue
 
                 # 1. INSERTAR/ACTUALIZAR EN PEARL_CALLS (registro detallado)

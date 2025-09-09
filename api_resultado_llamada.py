@@ -292,9 +292,19 @@ def actualizar_resultado():
                 # Formato DD/MM/YYYY
                 dia, mes, anio = preferencia_fecha.split('/')
                 fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
-            elif '-' in preferencia_fecha and len(preferencia_fecha) == 10:
-                # Formato YYYY-MM-DD (ya válido)
-                fecha_formateada = preferencia_fecha
+            elif '-' in preferencia_fecha:
+                # Detectar si es DD-MM-YYYY o YYYY-MM-DD
+                parts = preferencia_fecha.split('-')
+                if len(parts) == 3:
+                    if len(parts[0]) == 4:
+                        # Formato YYYY-MM-DD (ya válido)
+                        fecha_formateada = preferencia_fecha
+                    else:
+                        # Formato DD-MM-YYYY
+                        dia, mes, anio = parts
+                        fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                else:
+                    raise ValueError(f"Formato de fecha no válido: {preferencia_fecha}")
             else:
                 raise ValueError(f"Formato de fecha no reconocido: {preferencia_fecha}")
             
@@ -332,6 +342,19 @@ def actualizar_resultado():
                         # Formato DD/MM/YYYY
                         dia, mes, anio = fecha_minima.split('/')
                         fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                    elif '-' in fecha_minima:
+                        # Detectar si es DD-MM-YYYY o YYYY-MM-DD
+                        parts = fecha_minima.split('-')
+                        if len(parts) == 3:
+                            if len(parts[0]) == 4:
+                                # Formato YYYY-MM-DD (ya válido)
+                                fecha_formateada = fecha_minima
+                            else:
+                                # Formato DD-MM-YYYY
+                                dia, mes, anio = parts
+                                fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+                        else:
+                            raise ValueError(f"Formato de fecha no válido: {fecha_minima}")
                     else:
                         # Asumir formato YYYY-MM-DD
                         fecha_formateada = fecha_minima
