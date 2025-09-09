@@ -319,7 +319,9 @@ def get_statistics(filtro_origen_archivo=None):
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' THEN 1 ELSE 0 END), 0) AS utiles_positivos,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos,
                     IFNULL(SUM(CASE 
-                        WHEN lead_status = 'closed' AND closure_reason IS NOT NULL THEN 1 
+                        WHEN lead_status = 'closed' AND closure_reason IS NOT NULL THEN 1
+                        WHEN call_attempts_count >= 6 AND status_level_1 = 'Volver a llamar' THEN 1
+                        WHEN TRIM(status_level_1) = 'No Interesado' AND TRIM(status_level_2) = 'No útil' THEN 1 
                         ELSE 0 
                     END), 0) AS no_util
                 FROM leads {where_clause}
