@@ -10,6 +10,9 @@ import mysql.connector
 # Cargar variables de entorno si existe un archivo .env
 load_dotenv()
 
+# Configurar logger PRIMERO
+logger = logging.getLogger(__name__)
+
 # Importar scheduler para integración
 try:
     from call_scheduler import CallScheduler
@@ -18,8 +21,14 @@ except ImportError:
     logger.warning("CallScheduler no disponible")
     SCHEDULER_AVAILABLE = False
 
-# El logger será configurado por la aplicación principal
-logger = logging.getLogger(__name__)
+# Importar sistema de notificaciones
+try:
+    from email_notifications import send_cita_notification
+    EMAIL_NOTIFICATIONS_AVAILABLE = True
+    logger.info("Sistema de notificaciones por email disponible")
+except ImportError:
+    logger.warning("Sistema de notificaciones por email no disponible")
+    EMAIL_NOTIFICATIONS_AVAILABLE = False
 
 # Crear un Blueprint en lugar de una app. Todas las rutas aquí definidas
 # colgarán del prefijo /api que se registra en la app principal.
@@ -543,7 +552,50 @@ def actualizar_resultado():
         logger.info(f"Lead con teléfono {telefono} actualizado correctamente. {cursor.rowcount} fila(s) afectada(s).")
 
         # -------------------------------------------------------------
-        # 6. Integración con Call Scheduler para hora_rellamada
+        # 6. Enviar notificación por email si se agendó una cita
+        # -------------------------------------------------------------
+        if (data.get('nuevaCita') or status_level_1 == 'Cita Agendada') and EMAIL_NOTIFICATIONS_AVAILABLE:
+            try:
+                # Obtener los datos del lead actualizado para la notificación
+                cursor_email = conn.cursor()
+                cursor_email.execute("""
+                    SELECT nombre, apellidos, telefono, cita, hora_cita, preferencia_horario, 
+                           nombre_clinica, conPack, status_level_1, status_level_2
+                    FROM leads 
+                    WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s 
+                    LIMIT 1
+                """, (telefono,))
+                
+                lead_data = cursor_email.fetchone()
+                cursor_email.close()
+                
+                if lead_data:
+                    # Crear diccionario con los datos del lead
+                    lead_info = {
+                        'nombre': lead_data[0],
+                        'apellidos': lead_data[1], 
+                        'telefono': lead_data[2],
+                        'cita': lead_data[3],
+                        'hora_cita': lead_data[4],
+                        'preferencia_horario': lead_data[5],
+                        'nombre_clinica': lead_data[6],
+                        'conPack': lead_data[7],
+                        'status_level_1': lead_data[8],
+                        'status_level_2': lead_data[9]
+                    }
+                    
+                    # Enviar notificación
+                    email_sent = send_cita_notification(lead_info)
+                    if email_sent:
+                        logger.info(f"Notificación de cita enviada exitosamente para {telefono}")
+                    else:
+                        logger.warning(f"Error enviando notificación de cita para {telefono}")
+                
+            except Exception as e:
+                logger.error(f"Error enviando notificación de cita para {telefono}: {e}")
+
+        # -------------------------------------------------------------
+        # 7. Integración con Call Scheduler para hora_rellamada
         # -------------------------------------------------------------
         hora_rellamada = data.get('horaRellamada')
         if hora_rellamada and SCHEDULER_AVAILABLE:
