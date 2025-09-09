@@ -398,6 +398,35 @@
                             </div>
                         </div>
 
+                        <!-- Filtro por archivo origen -->
+                        <div class="row mb-2">
+                            <div class="col-12">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <div class="d-flex align-items-center">
+                                        <label for="archivoSelector" class="form-label me-2 mb-0 small" style="white-space: nowrap;">
+                                            <i class="bi bi-filter"></i> Filtrar por archivo:
+                                        </label>
+                                        <select class="form-select form-select-sm" id="archivoSelector" name="origen_archivo" multiple style="min-width: 200px;">
+                                            <option value="">📊 Todos los archivos</option>
+                                            {% for archivo in filter_data.archivos_disponibles %}
+                                            <option value="{{ archivo.nombre_archivo }}">
+                                                📁 {{ archivo.nombre_archivo }} ({{ archivo.total_registros }} leads)
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary btn-sm px-2" id="aplicarFiltroArchivo">
+                                        <i class="bi bi-arrow-clockwise"></i> Aplicar
+                                    </button>
+                                    
+                                    <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="limpiarFiltroArchivo">
+                                        <i class="bi bi-x"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Filtros -->
                         <div class="row mb-3 stats-row">
                             <div class="col-md-2">

@@ -240,6 +240,7 @@ def get_leads_for_calling():
         - estado1: Filtrar por status_level_1 (estado)
         - estado2: Filtrar por status_level_2 (subestado)
         - selected_only: true/false - Solo leads seleccionados
+        - origen_archivo: Filtrar por archivo de origen (puede ser múltiple)
         - limit: Número máximo de resultados (default: 100)
         - offset: Offset para paginación (default: 0)
     
@@ -254,6 +255,7 @@ def get_leads_for_calling():
         estado1 = request.args.get('estado1')
         estado2 = request.args.get('estado2')
         selected_only = request.args.get('selected_only', 'false').lower() == 'true'
+        origen_archivos = request.args.getlist('origen_archivo')  # Múltiples valores
         limit = int(request.args.get('limit', 25))
         offset = int(request.args.get('offset', 0))
         
@@ -293,6 +295,14 @@ def get_leads_for_calling():
         
         if selected_only:
             conditions.append("selected_for_calling = TRUE")
+        
+        # Filtro por archivo de origen (múltiple)
+        if origen_archivos:
+            origen_archivos = [archivo for archivo in origen_archivos if archivo.strip()]  # Filtrar vacíos
+            if origen_archivos:
+                placeholders = ', '.join(['%s'] * len(origen_archivos))
+                conditions.append(f"origen_archivo IN ({placeholders})")
+                params.extend(origen_archivos)
         
         # Query principal
         where_clause = " AND ".join(conditions)

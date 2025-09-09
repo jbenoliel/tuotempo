@@ -572,10 +572,21 @@ def calls_manager():
             'error': status_counts.get('error', 0)
         }
         
+        # Obtener archivos disponibles para el filtro
+        cursor.execute("""
+            SELECT origen_archivo as nombre_archivo, COUNT(*) as total_registros 
+            FROM leads 
+            WHERE origen_archivo IS NOT NULL 
+            GROUP BY origen_archivo 
+            ORDER BY total_registros DESC
+        """)
+        archivos_disponibles = cursor.fetchall()
+
         # Añadir los filtros a los datos que se pasan al template
         filter_data = {
             'estados1': estados1,
-            'estados2': estados2
+            'estados2': estados2,
+            'archivos_disponibles': archivos_disponibles
         }
 
     except Exception as e:

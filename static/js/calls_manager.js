@@ -29,7 +29,8 @@ class CallsManager {
                 estado2: '',
                 status: '',
                 priority: '',
-                selected: ''
+                selected: '',
+                archivoOrigen: []
             },
             // Sistema de caché para reducir solicitudes redundantes
             apiCache: {},
@@ -205,6 +206,10 @@ class CallsManager {
             priorityFilter: document.getElementById('priorityFilter'),
             selectedFilter: document.getElementById('selectedFilter'),
             clearFiltersBtn: document.getElementById('clearFiltersBtn'),
+            // Filtro de archivo origen
+            archivoSelector: document.getElementById('archivoSelector'),
+            aplicarFiltroArchivo: document.getElementById('aplicarFiltroArchivo'),
+            limpiarFiltroArchivo: document.getElementById('limpiarFiltroArchivo'),
             // Modales
             configModal: document.getElementById('configModal'),
             maxConcurrentCalls: document.getElementById('maxConcurrentCalls'),
@@ -242,6 +247,9 @@ class CallsManager {
         this.elements.priorityFilter?.addEventListener('change', () => this.applyFilters());
         this.elements.selectedFilter?.addEventListener('change', () => this.applyFilters());
         this.elements.clearFiltersBtn?.addEventListener('click', () => this.clearFilters());
+        // Event listeners para filtro de archivo origen
+        this.elements.aplicarFiltroArchivo?.addEventListener('click', () => this.applyArchivoFilter());
+        this.elements.limpiarFiltroArchivo?.addEventListener('click', () => this.clearArchivoFilter());
         this.elements.selectAllBtn?.addEventListener('click', () => this.selectAllLeads(true));
         this.elements.deselectAllBtn?.addEventListener('click', () => this.selectAllLeads(false));
         this.elements.resetLeadsBtn?.addEventListener('click', () => this.resetLeads());
@@ -542,6 +550,12 @@ class CallsManager {
                             if (this.state.filters.status) params.append('status', this.state.filters.status);
                             if (this.state.filters.priority) params.append('priority', this.state.filters.priority);
                             if (this.state.filters.selected === 'true') params.append('selected_only', 'true');
+                            // Añadir filtro de archivo origen
+                            if (this.state.filters.archivoOrigen && this.state.filters.archivoOrigen.length > 0) {
+                                this.state.filters.archivoOrigen.forEach(archivo => {
+                                    params.append('origen_archivo', archivo);
+                                });
+                            }
                             
                             // Agregar parámetros de paginación
                             params.append('limit', this.state.pagination.limit || this.state.itemsPerPage);
@@ -1437,6 +1451,7 @@ class CallsManager {
         this.state.filters.status = this.elements.statusFilter?.value || '';
         this.state.filters.priority = this.elements.priorityFilter?.value || '';
         this.state.filters.selected = this.elements.selectedFilter?.value || '';
+        // No actualizar archivoOrigen aquí, se maneja por separado
         
         console.log('Filtros aplicados:', this.state.filters);
         
@@ -1921,6 +1936,7 @@ class CallsManager {
         if (this.elements.statusFilter) this.elements.statusFilter.value = '';
         if (this.elements.priorityFilter) this.elements.priorityFilter.value = '';
         if (this.elements.selectedFilter) this.elements.selectedFilter.value = '';
+        // No limpiar archivoOrigen aquí, tiene sus propios botones
         
         // Reset to first page
         this.state.currentPage = 1;
@@ -2107,6 +2123,49 @@ class CallsManager {
         } finally {
             this.showLoader(button, false);
         }
+    }
+
+    // Métodos para el filtro de archivo origen
+    applyArchivoFilter() {
+        if (!this.elements.archivoSelector) return;
+        
+        // Obtener valores seleccionados
+        const selectedOptions = Array.from(this.elements.archivoSelector.selectedOptions);
+        const selectedValues = selectedOptions
+            .map(option => option.value)
+            .filter(value => value !== ''); // Filtrar opción vacía "Todos los archivos"
+        
+        this.state.filters.archivoOrigen = selectedValues;
+        
+        console.log('Filtro de archivo aplicado:', selectedValues);
+        
+        // Reset to first page y recargar datos
+        this.state.currentPage = 1;
+        this.loadLeads();
+        
+        // Mostrar feedback visual
+        this.showToast('Filtro de archivo aplicado', 'success');
+    }
+
+    clearArchivoFilter() {
+        if (!this.elements.archivoSelector) return;
+        
+        // Limpiar selección
+        Array.from(this.elements.archivoSelector.options).forEach(option => {
+            option.selected = false;
+        });
+        
+        // Limpiar filtro interno
+        this.state.filters.archivoOrigen = [];
+        
+        console.log('Filtro de archivo limpiado');
+        
+        // Reset to first page y recargar datos
+        this.state.currentPage = 1;
+        this.loadLeads();
+        
+        // Mostrar feedback visual
+        this.showToast('Filtro de archivo limpiado', 'info');
     }
 }
 
