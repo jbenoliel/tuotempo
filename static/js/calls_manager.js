@@ -962,9 +962,13 @@ class CallsManager {
             <td>${lead.call_attempts_count || 0}</td>
             <td>${lastCallTime}</td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" title="Ver Detalles" onclick="window.callsManager.showLeadDetails('${lead.id}')" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
-                    <i class="bi bi-eye"></i>
-                </button>
+                <div style="font-size: 0.7rem; text-align: center;">
+                    <div><strong>${lead.call_count || 0} llamadas</strong></div>
+                    <div style="color: #6c757d;">${lead.total_duration ? Math.round(lead.total_duration / 60) + 'min' : 'N/A'}</div>
+                    <button class="btn btn-sm btn-outline-info mt-1" title="Ver historial de llamadas" onclick="window.callsManager.showCallHistory('${lead.id}')" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">
+                        <i class="bi bi-telephone-fill"></i> Historial
+                    </button>
+                </div>
             </td>
         `;
         
@@ -1857,7 +1861,7 @@ class CallsManager {
 
     async goToPage(page) {
         this.state.pagination.offset = (page - 1) * this.state.pagination.limit;
-        await this.loadLeads();
+        await this.loadInitialData();
     }
 
     async testConnection() {
@@ -1909,7 +1913,7 @@ class CallsManager {
         this.stopAutoRefresh();
         if (this.config.autoRefresh) {
             this.intervals.status = setInterval(() => this.updateSystemStatus(), this.config.refreshInterval);
-            this.intervals.leads = setInterval(() => this.loadLeads(), this.config.refreshInterval * 2);
+            this.intervals.leads = setInterval(() => this.loadInitialData(), this.config.refreshInterval * 2);
         }
     }
 
@@ -2141,7 +2145,7 @@ class CallsManager {
         
         // Reset to first page y recargar datos
         this.state.currentPage = 1;
-        this.loadLeads();
+        this.loadInitialData();
         
         // Mostrar feedback visual
         this.showToast('Filtro de archivo aplicado', 'success');
@@ -2162,10 +2166,176 @@ class CallsManager {
         
         // Reset to first page y recargar datos
         this.state.currentPage = 1;
-        this.loadLeads();
+        this.loadInitialData();
         
         // Mostrar feedback visual
         this.showToast('Filtro de archivo limpiado', 'info');
+    }
+
+    // Función para mostrar historial de llamadas
+    async showCallHistory(leadId) {
+        try {
+            console.log(`📞 Obteniendo historial de llamadas para lead ${leadId}`);
+            
+            // Mostrar modal de carga
+            const modal = document.getElementById('callHistoryModal');
+            if (!modal) {
+                console.error('Modal de historial de llamadas no encontrado');
+                return;
+            }
+            
+            const modalBody = modal.querySelector('.modal-body');
+            modalBody.innerHTML = '<div class="text-center"><i class="bi bi-hourglass-split"></i> Cargando historial...</div>';
+            
+            // Mostrar modal
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+            
+            // Obtener historial desde la API
+            const response = await this.apiCall('GET', `/call-history/${leadId}`);
+            
+            if (response.success && response.calls) {
+                this.renderCallHistory(response.calls, response.lead_info);
+            } else {
+                modalBody.innerHTML = '<div class="text-center text-muted">No se encontraron llamadas para este lead.</div>';
+            }
+            
+        } catch (error) {
+            console.error('Error obteniendo historial de llamadas:', error);
+            this.showToast('Error cargando historial de llamadas', 'error');
+        }
+    }
+
+    // Renderizar historial de llamadas en el modal
+    renderCallHistory(calls, leadInfo) {
+        const modal = document.getElementById('callHistoryModal');
+        const modalBody = modal.querySelector('.modal-body');
+        const modalTitle = modal.querySelector('.modal-title');
+        
+        // Actualizar título del modal
+        modalTitle.innerHTML = `<i class="bi bi-telephone-fill"></i> Historial de Llamadas - ${leadInfo.nombre || ''} ${leadInfo.apellidos || ''}`;
+        
+        if (calls.length === 0) {
+            modalBody.innerHTML = '<div class="text-center text-muted">No hay llamadas registradas para este lead.</div>';
+            return;
+        }
+
+        let historyHtml = `
+            <div class="mb-3">
+                <div class="row text-center">
+                    <div class="col">
+                        <small class="text-muted">Total Llamadas</small>
+                        <div class="h5">${calls.length}</div>
+                    </div>
+                    <div class="col">
+                        <small class="text-muted">Duración Total</small>
+                        <div class="h5">${Math.round(calls.reduce((sum, call) => sum + (call.duration || 0), 0) / 60)}min</div>
+                    </div>
+                    <div class="col">
+                        <small class="text-muted">Teléfono</small>
+                        <div class="h5">${leadInfo.telefono || 'N/A'}</div>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="timeline">
+        `;
+        
+        calls.forEach((call, index) => {
+            const callDate = new Date(call.call_time).toLocaleString('es-ES');
+            const duration = call.duration ? `${Math.round(call.duration / 60)}min ${call.duration % 60}s` : 'N/A';
+            const status = call.status || 'N/A';
+            
+            let statusBadge = 'secondary';
+            if (status.includes('completed')) statusBadge = 'success';
+            else if (status.includes('failed')) statusBadge = 'danger';
+            else if (status.includes('busy') || status.includes('no_answer')) statusBadge = 'warning';
+            
+            historyHtml += `
+                <div class="timeline-item mb-3">
+                    <div class="card">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">Llamada ${calls.length - index}</h6>
+                                    <small class="text-muted">${callDate}</small>
+                                </div>
+                                <span class="badge bg-${statusBadge}">${status}</span>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <small><strong>Duración:</strong> ${duration}</small>
+                                </div>
+                                <div class="col-6">
+                                    <small><strong>ID:</strong> ${call.call_id || 'N/A'}</small>
+                                </div>
+                            </div>
+                            ${call.summary ? `
+                            <div class="mt-2">
+                                <small><strong>Resumen:</strong></small>
+                                <div class="border rounded p-2 mt-1" style="background-color: #f8f9fa; font-size: 0.8rem;">
+                                    ${call.summary}
+                                </div>
+                            </div>
+                            ` : ''}
+                            ${call.transcription ? `
+                            <div class="mt-2">
+                                <small><strong>Transcripción:</strong></small>
+                                <div class="border rounded p-2 mt-1" style="background-color: #fff3cd; font-size: 0.8rem; max-height: 200px; overflow-y: auto;">
+                                    ${call.transcription}
+                                </div>
+                            </div>
+                            ` : ''}
+                            ${call.collected_info ? `
+                            <div class="mt-2">
+                                <small><strong>Información Recopilada:</strong></small>
+                                <div class="border rounded p-2 mt-1" style="background-color: #d1ecf1; font-size: 0.8rem;">
+                                    <pre style="margin: 0; white-space: pre-wrap; font-family: inherit;">${typeof call.collected_info === 'string' ? call.collected_info : JSON.stringify(call.collected_info, null, 2)}</pre>
+                                </div>
+                            </div>
+                            ` : ''}
+                            ${call.recording_url ? `
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="window.callsManager.playRecording('${call.recording_url}', '${call.call_id}')">
+                                    <i class="bi bi-play-circle"></i> Reproducir Grabación
+                                </button>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        historyHtml += '</div>';
+        modalBody.innerHTML = historyHtml;
+    }
+
+    // Función para reproducir grabación
+    playRecording(recordingUrl, callId) {
+        console.log(`🎵 Reproduciendo grabación: ${callId}`);
+        
+        // Crear modal de reproductor de audio
+        const audioModal = document.getElementById('audioPlayerModal');
+        if (!audioModal) {
+            console.error('Modal de reproductor de audio no encontrado');
+            return;
+        }
+        
+        const audioPlayer = audioModal.querySelector('#audioPlayer');
+        const audioTitle = audioModal.querySelector('#audioTitle');
+        
+        audioTitle.textContent = `Grabación - ${callId}`;
+        audioPlayer.src = recordingUrl;
+        
+        // Mostrar modal de reproductor
+        const bootstrapModal = new bootstrap.Modal(audioModal);
+        bootstrapModal.show();
+        
+        // Auto-reproducir cuando se abre el modal
+        audioModal.addEventListener('shown.bs.modal', () => {
+            audioPlayer.play().catch(e => console.log('No se pudo reproducir automáticamente:', e));
+        });
     }
 }
 

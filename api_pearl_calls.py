@@ -264,44 +264,44 @@ def get_leads_for_calling():
         params = []
         
         # Filtro base: al menos un teléfono válido (telefono o telefono2)
-        conditions.append("((telefono IS NOT NULL AND telefono != '') OR (telefono2 IS NOT NULL AND telefono2 != ''))")
+        conditions.append("((l.telefono IS NOT NULL AND l.telefono != '') OR (l.telefono2 IS NOT NULL AND l.telefono2 != ''))")
         
         # Filtro: excluir leads gestionados manualmente
-        conditions.append("(manual_management IS NULL OR manual_management = FALSE)")
+        conditions.append("(l.manual_management IS NULL OR l.manual_management = FALSE)")
         
         if city:
-            conditions.append("ciudad LIKE %s")
+            conditions.append("l.ciudad LIKE %s")
             params.append(f"%{city}%")
         
         if status and status != 'todos':
-            conditions.append("call_status = %s")
+            conditions.append("l.call_status = %s")
             params.append(status)
         
         if priority not in (None, '', 'todos'):
             try:
                 priority_int = int(priority)
-                conditions.append("call_priority = %s")
+                conditions.append("l.call_priority = %s")
                 params.append(priority_int)
             except ValueError:
                 logger.warning(f"Parámetro 'priority' inválido: {priority}")
         
         if estado1 and estado1 != '':
-            conditions.append("status_level_1 = %s")
+            conditions.append("l.status_level_1 = %s")
             params.append(estado1)
         
         if estado2 and estado2 != '':
-            conditions.append("status_level_2 = %s")
+            conditions.append("l.status_level_2 = %s")
             params.append(estado2)
         
         if selected_only:
-            conditions.append("selected_for_calling = TRUE")
+            conditions.append("l.selected_for_calling = TRUE")
         
         # Filtro por archivo de origen (múltiple)
         if origen_archivos:
             origen_archivos = [archivo for archivo in origen_archivos if archivo.strip()]  # Filtrar vacíos
             if origen_archivos:
                 placeholders = ', '.join(['%s'] * len(origen_archivos))
-                conditions.append(f"origen_archivo IN ({placeholders})")
+                conditions.append(f"l.origen_archivo IN ({placeholders})")
                 params.extend(origen_archivos)
         
         # Query principal
@@ -309,27 +309,41 @@ def get_leads_for_calling():
         
         query = f"""
             SELECT 
-                id, nombre, apellidos, telefono, telefono2, ciudad, codigo_postal, 
-                nombre_clinica, 
-                call_status, 
-                call_priority, 
-                selected_for_calling, 
-                last_call_attempt, 
-                call_attempts_count, 
-                call_error_message, 
-                status_level_1, 
-                status_level_2,
-                manual_management,
-                updated_at
-            FROM leads 
+                l.id, l.nombre, l.apellidos, l.telefono, l.telefono2, l.ciudad, l.codigo_postal, 
+                l.nombre_clinica, 
+                l.call_status, 
+                l.call_priority, 
+                l.selected_for_calling, 
+                l.last_call_attempt, 
+                l.call_attempts_count, 
+                l.call_error_message, 
+                l.status_level_1, 
+                l.status_level_2,
+                l.manual_management,
+                l.updated_at,
+                COALESCE(pc.call_count, 0) as call_count,
+                COALESCE(pc.total_duration, 0) as total_duration,
+                pc.last_call_time,
+                pc.calls_with_recording
+            FROM leads l
+            LEFT JOIN (
+                SELECT 
+                    lead_id,
+                    COUNT(*) as call_count,
+                    SUM(duration) as total_duration,
+                    MAX(call_time) as last_call_time,
+                    COUNT(CASE WHEN recording_url IS NOT NULL THEN 1 END) as calls_with_recording
+                FROM pearl_calls 
+                GROUP BY lead_id
+            ) pc ON l.id = pc.lead_id
             WHERE {where_clause}
-            ORDER BY call_priority ASC, updated_at DESC
+            ORDER BY l.call_priority ASC, l.updated_at DESC
             LIMIT %s OFFSET %s
         """
         params.extend([limit, offset])
         
         # Query para contar total
-        count_query = f"SELECT COUNT(*) as total FROM leads WHERE {where_clause}"
+        count_query = f"SELECT COUNT(*) as total FROM leads l WHERE {where_clause}"
         count_params = params[:-2]  # Excluir limit y offset
         
         conn = get_connection()
@@ -1309,6 +1323,103 @@ def get_scheduled_calls():
         
     except Exception as e:
         logger.error(f"Error obteniendo llamadas programadas: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@api_pearl_calls.route('/call-history/<int:lead_id>', methods=['GET'])
+def get_call_history(lead_id):
+    """
+    Obtiene el historial completo de llamadas para un lead específico.
+    
+    Args:
+        lead_id: ID del lead
+        
+    Returns:
+        JSON: Historial de llamadas con grabaciones, resúmenes y transcripciones
+    """
+    try:
+        logger.info(f"Obteniendo historial de llamadas para lead {lead_id}")
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener información del lead
+        cursor.execute("""
+            SELECT nombre, apellidos, telefono, telefono2
+            FROM leads 
+            WHERE id = %s
+        """, (lead_id,))
+        
+        lead_info = cursor.fetchone()
+        if not lead_info:
+            return jsonify({'error': 'Lead no encontrado'}), 404
+        
+        # Obtener historial de llamadas desde pearl_calls
+        cursor.execute("""
+            SELECT 
+                call_id,
+                phone_number,
+                call_time,
+                duration,
+                summary,
+                collected_info,
+                recording_url,
+                status,
+                outcome,
+                cost,
+                transcription,
+                start_time,
+                end_time,
+                created_at
+            FROM pearl_calls 
+            WHERE lead_id = %s 
+            ORDER BY call_time DESC
+        """, (lead_id,))
+        
+        calls = cursor.fetchall()
+        
+        # Convertir datetime a string para JSON
+        for call in calls:
+            for field in ['call_time', 'start_time', 'end_time', 'created_at']:
+                if call.get(field):
+                    call[field] = call[field].isoformat()
+        
+        # Obtener estadísticas adicionales
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as call_count,
+                SUM(duration) as total_duration,
+                MAX(call_time) as last_call_time,
+                COUNT(CASE WHEN recording_url IS NOT NULL THEN 1 END) as calls_with_recording
+            FROM pearl_calls 
+            WHERE lead_id = %s
+        """, (lead_id,))
+        
+        stats = cursor.fetchone()
+        if stats:
+            for field in ['last_call_time']:
+                if stats.get(field):
+                    stats[field] = stats[field].isoformat()
+        
+        logger.info(f"Historial obtenido: {len(calls)} llamadas para lead {lead_id}")
+        
+        return jsonify({
+            'success': True,
+            'lead_info': lead_info,
+            'calls': calls,
+            'stats': stats,
+            'count': len(calls)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo historial de llamadas para lead {lead_id}: {e}")
         return jsonify({'error': str(e)}), 500
         
     finally:
