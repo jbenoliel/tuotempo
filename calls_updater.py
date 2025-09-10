@@ -40,8 +40,8 @@ def insert_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
             logger.debug(f"Llamada {call_details.get('id')} ya existe en pearl_calls, actualizando...")
             return update_call_record(cursor, call_details, lead_id, outbound_id)
         
-        # Obtener número de teléfono de call_details o del lead
-        phone_number = call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono')
+        # Obtener número de teléfono de call_details
+        phone_number = call_details.get('to') or call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono')
         
         # Preparar datos para inserción
         call_data = {
@@ -89,7 +89,7 @@ def update_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
     """
     try:
         update_data = {
-            'phone_number': call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono'),
+            'phone_number': call_details.get('to') or call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono'),
             'lead_id': lead_id,
             'outbound_id': outbound_id,
             'call_time': call_details.get('startTime'),
@@ -174,22 +174,46 @@ def update_calls_from_pearl():
         from_date_str = from_date_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         to_date_str = to_date_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        # 2. Obtener llamadas de la API de Pearl
+        # 2. Obtener llamadas de la API de Pearl (con paginación)
         logger.info(f"Buscando llamadas para outbound {outbound_id} desde {from_date_str} hasta {to_date_str}")
-        try:
-            response_data = pearl_client.search_calls(outbound_id, from_date_str, to_date_str)
-        except PearlAPIError as e:
-            logger.error(f"Error al buscar llamadas en la API de Pearl: {e}")
-            return # No continuar si la API falla
+        all_calls = []
+        skip = 0
+        limit = 100  # Máximo permitido por Pearl AI
+        
+        while True:
+            try:
+                # Obtener página de llamadas
+                response_data = pearl_client.search_calls_paginated(outbound_id, from_date_str, to_date_str, skip, limit)
+                
+                if isinstance(response_data, dict):
+                    total_count = response_data.get('count', 0)
+                    page_calls = response_data.get('results', [])
+                else:
+                    page_calls = response_data if isinstance(response_data, list) else []
+                    total_count = len(page_calls)
+                
+                if not page_calls:
+                    break
+                    
+                all_calls.extend(page_calls)
+                logger.info(f"Obtenidas {len(page_calls)} llamadas (página {skip//limit + 1}). Total: {len(all_calls)}/{total_count}")
+                
+                # Si obtenimos menos del límite, es la última página
+                if len(page_calls) < limit:
+                    break
+                    
+                skip += limit
+                
+                # Seguridad: no más de 20 páginas (2000 llamadas)
+                if skip >= 2000:
+                    logger.warning("Límite de paginación alcanzado (2000 llamadas)")
+                    break
+                    
+            except PearlAPIError as e:
+                logger.error(f"Error al buscar llamadas en la API de Pearl (skip={skip}): {e}")
+                break
 
-        # La API devuelve un dict con 'count' y 'results'. Usamos 'results'.
-        calls = []
-        if isinstance(response_data, dict) and 'results' in response_data:
-            calls = response_data.get('results', [])
-        elif isinstance(response_data, list):
-            # Si en el futuro la API devuelve una lista directamente, también funcionará
-            calls = response_data
-
+        calls = all_calls
         if not calls:
             logger.info("No se encontraron nuevas llamadas para actualizar.")
             return
@@ -217,40 +241,80 @@ def update_calls_from_pearl():
                     logger.warning(f"No se pudieron obtener detalles para la llamada: {call_item}")
                     continue
 
-                lead_id = call_details.get('callData', {}).get('orden')
-                if not lead_id:
-                    logger.debug(f"Llamada con ID {call_details.get('id')} no tiene 'orden' (lead_id) - llamada externa. Se omite.")
+                # Buscar lead_id por teléfono en lugar de por campo 'orden'
+                phone_number = call_details.get('to')
+                if not phone_number:
+                    logger.debug(f"Llamada con ID {call_details.get('id')} no tiene teléfono. Se omite.")
                     continue
+                
+                # Normalizar teléfono: quitar +34 y espacios para buscar en BD
+                phone_normalized = phone_number.replace('+34', '').replace(' ', '').replace('-', '')
+                
+                # Buscar el lead por teléfono normalizado
+                cursor.execute("SELECT id FROM leads WHERE telefono = %s LIMIT 1", (phone_normalized,))
+                lead_result = cursor.fetchone()
+                
+                if not lead_result:
+                    logger.debug(f"No se encontró lead para el teléfono {phone_number} (normalizado: {phone_normalized}) en llamada {call_details.get('id')}. Se omite.")
+                    continue
+                    
+                lead_id = lead_result[0]
+                logger.info(f"📞 Procesando llamada {call_details.get('id')} para lead {lead_id} (teléfono: {phone_number} -> {phone_normalized})")
 
                 # 1. INSERTAR/ACTUALIZAR EN PEARL_CALLS (registro detallado)
                 call_inserted = insert_call_record(cursor, call_details, lead_id, outbound_id)
                 
-                # 2. ACTUALIZAR EN LEADS (resumen en tabla principal)
-                update_data = {
-                    'call_id': call_details.get('id'),
-                    'call_time': call_details.get('startTime'),
-                    'call_status': call_details.get('status'),
-                    'call_duration': call_details.get('duration'),
-                    'call_summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
-                    'call_recording_url': call_details.get('recordingUrl'),
-                    'pearl_call_response': json.dumps(call_details) if call_details else None,
-                    'updated_at': datetime.now()
-                }
-
-                # Filtrar valores nulos para no sobrescribir datos existentes con nada
-                update_fields = {k: v for k, v in update_data.items() if v is not None}
-                
-                if update_fields:
-                    set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
-                    sql = f"UPDATE leads SET {set_clause} WHERE id = %s"
-                    params = list(update_fields.values()) + [lead_id]
+                # 2. PROCESAR RESULTADO CON EL SCHEDULER INTEGRADO
+                try:
+                    from call_manager_scheduler_integration import enhanced_process_call_result
                     
-                    cursor.execute(sql, tuple(params))
+                    # Mapear el resultado de Pearl AI al formato esperado por enhanced_process_call_result
+                    call_result = {
+                        'success': call_details.get('conversationStatus') == 100,  # 100 = Success
+                        'status': map_pearl_status_to_result(call_details.get('conversationStatus'), call_details.get('status')),
+                        'duration': call_details.get('duration', 0),
+                        'error_message': get_error_message_from_pearl_status(call_details.get('conversationStatus'), call_details.get('status')),
+                        'lead_id': lead_id,
+                        'phone_number': call_details.get('to')
+                    }
                     
-                if cursor.rowcount > 0 or call_inserted:
+                    # Procesar el resultado con la integración del scheduler
+                    enhanced_process_call_result(lead_id, call_result, call_details)
+                    
                     updated_count += 1
-                    status_msg = "✅ COMPLETO" if call_inserted else "⚠️ PARCIAL (solo leads)"
-                    logger.info(f"{status_msg} - Lead {lead_id} procesado con llamada {call_details.get('id')}")
+                    logger.info(f"✅ COMPLETO - Lead {lead_id} procesado con scheduler integration para llamada {call_details.get('id')}")
+                    
+                except ImportError:
+                    logger.warning("⚠️ Módulo de integración scheduler no disponible, usando método básico")
+                    
+                    # Fallback al método original
+                    update_data = {
+                        'call_id': call_details.get('id'),
+                        'call_time': call_details.get('startTime'),
+                        'call_status': call_details.get('status'),
+                        'call_duration': call_details.get('duration'),
+                        'call_summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
+                        'call_recording_url': call_details.get('recordingUrl'),
+                        'pearl_call_response': json.dumps(call_details) if call_details else None,
+                        'updated_at': datetime.now()
+                    }
+
+                    update_fields = {k: v for k, v in update_data.items() if v is not None}
+                    
+                    if update_fields:
+                        set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
+                        sql = f"UPDATE leads SET {set_clause} WHERE id = %s"
+                        params = list(update_fields.values()) + [lead_id]
+                        cursor.execute(sql, tuple(params))
+                        
+                    if cursor.rowcount > 0 or call_inserted:
+                        updated_count += 1
+                        status_msg = "✅ COMPLETO" if call_inserted else "⚠️ PARCIAL (solo leads)"
+                        logger.info(f"{status_msg} - Lead {lead_id} procesado con llamada {call_details.get('id')}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error en integración scheduler para lead {lead_id}: {e}")
+                    # Continuar con el procesamiento básico en caso de error
 
             except Exception as e:
                 call_id_log = call_details.get('id') if call_details else call_item
@@ -275,6 +339,45 @@ def run_scheduler():
         update_calls_from_pearl()
         logger.info("Esperando 60 segundos para el próximo ciclo de actualización...")
         time.sleep(60)
+
+def map_pearl_status_to_result(conversation_status: int, status: int) -> str:
+    """
+    Mapea los códigos de estado de Pearl AI a strings comprensibles.
+    
+    conversationStatus:
+    - 1: New
+    - 10: Need Retry
+    - 100: Success
+    - 110: Not Successful  
+    - 130: Completed
+    - 150: Unreachable
+    """
+    if conversation_status == 100:
+        return 'success'
+    elif conversation_status == 110:
+        return 'not_successful'
+    elif conversation_status == 130:
+        return 'completed'
+    elif conversation_status == 150:
+        return 'unreachable'
+    elif conversation_status == 10:
+        return 'need_retry'
+    else:
+        return 'failed'
+
+def get_error_message_from_pearl_status(conversation_status: int, status: int) -> str:
+    """
+    Genera un mensaje de error basado en los códigos de estado de Pearl AI.
+    """
+    status_messages = {
+        110: "Llamada no exitosa",
+        150: "Número inalcanzable", 
+        10: "Necesita reintento",
+        130: "Llamada completada (posible busy/hang up)",
+        1: "Nueva llamada"
+    }
+    
+    return status_messages.get(conversation_status, f"Estado desconocido: conversationStatus={conversation_status}, status={status}")
 
 if __name__ == "__main__":
     logger.info("Iniciando el scheduler de actualización de llamadas en modo standalone.")

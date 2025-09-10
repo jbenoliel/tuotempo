@@ -232,7 +232,8 @@ class PearlCaller:
         try:
             search_payload = {
                 "fromDate": from_date,
-                "toDate": to_date
+                "toDate": to_date,
+                "limit": 100  # Máximo permitido por Pearl AI
             }
             logger.info(f"Buscando llamadas para outbound {outbound_id} de {from_date} a {to_date}")
             response = requests.post(
@@ -254,6 +255,37 @@ class PearlCaller:
 
         except requests.RequestException as e:
             error_msg = f"Error de conexión al buscar llamadas: {str(e)}"
+            logger.error(error_msg)
+            raise PearlAPIError(error_msg)
+
+    def search_calls_paginated(self, outbound_id: str, from_date: str, to_date: str, skip: int = 0, limit: int = 100) -> List[Dict]:
+        """
+        Busca llamadas con paginación.
+        """
+        try:
+            search_payload = {
+                "fromDate": from_date,
+                "toDate": to_date,
+                "skip": skip,
+                "limit": limit
+            }
+            response = requests.post(
+                f"{self.api_url}/Outbound/{outbound_id}/Calls",
+                headers=self.headers,
+                json=search_payload,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                calls = response.json()
+                return calls
+            else:
+                error_msg = f"Error al buscar llamadas paginadas: {response.status_code} - {response.text}"
+                logger.error(error_msg)
+                raise PearlAPIError(error_msg)
+
+        except requests.RequestException as e:
+            error_msg = f"Error de conexión al buscar llamadas paginadas: {str(e)}"
             logger.error(error_msg)
             raise PearlAPIError(error_msg)
 

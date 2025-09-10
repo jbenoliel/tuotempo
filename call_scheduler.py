@@ -180,12 +180,36 @@ class CallScheduler:
                     WHERE id = %s
                 """, (attempts, lead_id))
                 
-                # Insertar en call_schedule
+                # Verificar si ya existe una llamada pendiente para este lead
                 cursor.execute("""
-                    INSERT INTO call_schedule 
-                    (lead_id, scheduled_at, attempt_number, status, last_outcome)
-                    VALUES (%s, %s, %s, 'pending', %s)
-                """, (lead_id, scheduled_time, attempts, outcome))
+                    SELECT id FROM call_schedule 
+                    WHERE lead_id = %s AND status = 'pending'
+                    LIMIT 1
+                """, (lead_id,))
+                
+                existing_schedule = cursor.fetchone()
+                
+                if existing_schedule:
+                    # Actualizar la llamada existente
+                    cursor.execute("""
+                        UPDATE call_schedule SET
+                            scheduled_at = %s,
+                            attempt_number = %s,
+                            last_outcome = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (scheduled_time, attempts, outcome, existing_schedule['id']))
+                    
+                    logger.info(f"📅 Actualizada llamada programada existente para lead {lead_id}")
+                else:
+                    # Crear nueva llamada programada
+                    cursor.execute("""
+                        INSERT INTO call_schedule 
+                        (lead_id, scheduled_at, attempt_number, status, last_outcome)
+                        VALUES (%s, %s, %s, 'pending', %s)
+                    """, (lead_id, scheduled_time, attempts, outcome))
+                    
+                    logger.info(f"📅 Nueva llamada programada creada para lead {lead_id}")
                 
                 conn.commit()
                 
@@ -278,6 +302,40 @@ class CallScheduler:
         finally:
             conn.close()
     
+    def cleanup_invalid_schedules(self) -> int:
+        """
+        Limpia llamadas programadas para leads que ya no son válidos.
+        Retorna el número de llamadas canceladas.
+        """
+        conn = get_connection()
+        if not conn:
+            return 0
+        
+        try:
+            with conn.cursor() as cursor:
+                # Cancelar llamadas para leads cerrados
+                cursor.execute("""
+                    UPDATE call_schedule cs
+                    JOIN leads l ON cs.lead_id = l.id
+                    SET cs.status = 'cancelled', cs.updated_at = NOW()
+                    WHERE cs.status = 'pending'
+                        AND l.lead_status = 'closed'
+                """)
+                
+                cancelled_count = cursor.rowcount
+                conn.commit()
+                
+                if cancelled_count > 0:
+                    logger.info(f"🧹 Canceladas {cancelled_count} llamadas programadas para leads no válidos")
+                
+                return cancelled_count
+                
+        except Error as e:
+            logger.error(f"Error en limpieza de schedule: {e}")
+            return 0
+        finally:
+            conn.close()
+
     def mark_call_completed(self, schedule_id: int, success: bool = True) -> bool:
         """Marca una llamada programada como completada."""
         conn = get_connection()
@@ -369,6 +427,8 @@ def schedule_failed_call(lead_id: int, outcome: str) -> bool:
 def get_next_scheduled_calls(limit: int = 10) -> List[Dict]:
     """Función de conveniencia para obtener próximas llamadas."""
     scheduler = CallScheduler()
+    # Ejecutar limpieza automática cada vez que se soliciten llamadas
+    scheduler.cleanup_invalid_schedules()
     return scheduler.get_pending_calls(limit)
 
 if __name__ == "__main__":
