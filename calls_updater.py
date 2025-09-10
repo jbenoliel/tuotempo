@@ -269,11 +269,12 @@ def update_calls_from_pearl():
                     from call_manager_scheduler_integration import enhanced_process_call_result
                     
                     # Mapear el resultado de Pearl AI al formato esperado por enhanced_process_call_result
+                    pearl_status = call_details.get('status')
                     call_result = {
-                        'success': call_details.get('conversationStatus') == 100,  # 100 = Success
-                        'status': map_pearl_status_to_result(call_details.get('conversationStatus'), call_details.get('status')),
+                        'success': pearl_status == 4,  # 4 = Completed/Success
+                        'status': map_pearl_status_to_result(None, pearl_status),
                         'duration': call_details.get('duration', 0),
-                        'error_message': get_error_message_from_pearl_status(call_details.get('conversationStatus'), call_details.get('status')),
+                        'error_message': get_error_message_from_pearl_status(None, pearl_status),
                         'lead_id': lead_id,
                         'phone_number': call_details.get('to')
                     }
@@ -370,32 +371,44 @@ def map_pearl_status_to_result(conversation_status: int, status: int) -> str:
     - 130: Completed
     - 150: Unreachable
     """
-    if conversation_status == 100:
-        return 'success'
-    elif conversation_status == 110:
-        return 'not_successful'
-    elif conversation_status == 130:
-        return 'completed'
-    elif conversation_status == 150:
-        return 'unreachable'
-    elif conversation_status == 10:
-        return 'need_retry'
+    # Pearl AI status oficial (documentación):
+    # 3 - InProgress
+    # 4 - Completed (EXITOSA)
+    # 5 - Busy (OCUPADO - REPROGRAMAR)
+    # 6 - Failed (FALLO - REPROGRAMAR) 
+    # 7 - NoAnswer (NO CONTESTA - REPROGRAMAR)
+    # 8 - Cancelled
+    
+    if status == 4:
+        return 'success'  # Completed - Exitosa
+    elif status == 5:
+        return 'busy'  # Busy - REPROGRAMAR
+    elif status == 6:
+        return 'error'  # Failed - REPROGRAMAR  
+    elif status == 7:
+        return 'no_answer'  # NoAnswer - REPROGRAMAR
+    elif status == 3:
+        return 'in_progress'  # InProgress
+    elif status == 8:
+        return 'cancelled'  # Cancelled
     else:
-        return 'failed'
+        return f'unknown_status_{status}'
 
 def get_error_message_from_pearl_status(conversation_status: int, status: int) -> str:
     """
     Genera un mensaje de error basado en los códigos de estado de Pearl AI.
     """
+    # Mapear status oficiales de Pearl AI
     status_messages = {
-        110: "Llamada no exitosa",
-        150: "Número inalcanzable", 
-        10: "Necesita reintento",
-        130: "Llamada completada (posible busy/hang up)",
-        1: "Nueva llamada"
+        3: "Llamada en progreso",
+        4: None,  # Completed - success, no error message
+        5: "Línea ocupada",
+        6: "Llamada fallida", 
+        7: "No contesta",
+        8: "Llamada cancelada"
     }
     
-    return status_messages.get(conversation_status, f"Estado desconocido: conversationStatus={conversation_status}, status={status}")
+    return status_messages.get(status, f"Estado desconocido: status={status}")
 
 if __name__ == "__main__":
     logger.info("Iniciando el scheduler de actualización de llamadas en modo standalone.")
