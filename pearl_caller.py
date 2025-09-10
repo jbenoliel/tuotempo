@@ -231,8 +231,8 @@ class PearlCaller:
         """
         try:
             search_payload = {
-                "from": from_date,
-                "to": to_date
+                "fromDate": from_date,
+                "toDate": to_date
             }
             logger.info(f"Buscando llamadas para outbound {outbound_id} de {from_date} a {to_date}")
             response = requests.post(
@@ -244,7 +244,8 @@ class PearlCaller:
 
             if response.status_code == 200:
                 calls = response.json()
-                logger.info(f"✅ Encontradas {len(calls)} llamadas.")
+                call_count = calls.get('count', 0) if isinstance(calls, dict) else len(calls)
+                logger.info(f"✅ Encontradas {call_count} llamadas.")
                 return calls
             else:
                 error_msg = f"Error al buscar llamadas: {response.status_code} - {response.text}"

@@ -233,6 +233,12 @@ def main():
     else: # Servicio web principal (web, dashboard, tuotempo-apis, etc.)
         logging.info("Iniciando la aplicación web principal (Dashboard + API)...")
         
+        # Iniciar scheduler de actualización de llamadas Pearl AI
+        logging.info("Iniciando scheduler de actualización de llamadas Pearl AI en segundo plano...")
+        from calls_updater import run_scheduler
+        scheduler_thread = threading.Thread(target=run_scheduler, name="CallsUpdaterThread", daemon=True)
+        scheduler_thread.start()
+        
         # Iniciar daemon de reservas automáticas como hilo en segundo plano
         logging.info("Iniciando daemon de reservas automáticas en segundo plano...")
         reservas_thread = threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasAutomaticasThread", daemon=True)

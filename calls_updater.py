@@ -137,13 +137,13 @@ def get_last_sync_time(db_conn) -> datetime:
             # Asegurarse de que la fecha tenga timezone para la comparación
             return result['last_call'].replace(tzinfo=timezone.utc)
         else:
-            # Si no hay llamadas, empezamos desde hace 24 horas
-            logger.info("No se encontró una última sincronización. Se usarán las últimas 24 horas.")
-            return datetime.now(timezone.utc) - timedelta(days=1)
+            # Si no hay llamadas, empezamos desde hace 7 días para asegurar que capturamos todas
+            logger.info("No se encontró una última sincronización. Se usarán los últimos 7 días.")
+            return datetime.now(timezone.utc) - timedelta(days=7)
     except Exception as e:
         logger.error(f"Error al obtener el último tiempo de sincronización: {e}")
         # Fallback seguro en caso de error
-        return datetime.now(timezone.utc) - timedelta(days=1)
+        return datetime.now(timezone.utc) - timedelta(days=7)
 
 def update_calls_from_pearl():
     """Función principal que se encarga de obtener y actualizar las llamadas."""
