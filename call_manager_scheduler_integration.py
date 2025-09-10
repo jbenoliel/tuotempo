@@ -151,7 +151,7 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
                 import json
                 pearl_response_json = json.dumps(pearl_response)
             
-            cursor.execute(sql, (status, error_message, pearl_response_json, lead_id))
+            cursor.execute(sql, (str(status)[:50], error_message, pearl_response_json, lead_id))
             
             # Si es una llamada exitosa y hay confirmación de cita, actualizar status_level_1
             if outcome == 'success':
@@ -323,7 +323,7 @@ def close_lead_immediately(lead_id: int, outcome: str, closure_reason: str):
                     updated_at = NOW(),
                     selected_for_calling = FALSE
                 WHERE id = %s
-            """, (closure_reason, outcome, lead_id))
+            """, (closure_reason, str(outcome)[:50], lead_id))
             
             # Cancelar cualquier llamada programada pendiente
             cursor.execute("""

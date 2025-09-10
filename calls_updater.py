@@ -43,18 +43,18 @@ def insert_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
         # Obtener número de teléfono de call_details
         phone_number = call_details.get('to') or call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono')
         
-        # Preparar datos para inserción
+        # Preparar datos para inserción con formato corregido
         call_data = {
             'call_id': call_details.get('id'),
             'phone_number': phone_number,
             'lead_id': lead_id,
             'outbound_id': outbound_id,
-            'call_time': call_details.get('startTime'),
-            'start_time': call_details.get('startTime'),
-            'end_time': call_details.get('endTime'),
+            'call_time': convert_pearl_datetime(call_details.get('startTime')),
+            'start_time': convert_pearl_datetime(call_details.get('startTime')),
+            'end_time': convert_pearl_datetime(call_details.get('endTime')),
             'duration': call_details.get('duration'),
-            'status': call_details.get('status'),
-            'outcome': call_details.get('outcome', call_details.get('status')),
+            'status': str(call_details.get('status', ''))[:50],  # Limitar longitud
+            'outcome': str(call_details.get('outcome', call_details.get('status', '')))[:100],
             'summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
             'transcription': call_details.get('transcription'),
             'recording_url': call_details.get('recordingUrl'),
@@ -92,12 +92,12 @@ def update_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
             'phone_number': call_details.get('to') or call_details.get('phoneNumber') or call_details.get('callData', {}).get('telefono'),
             'lead_id': lead_id,
             'outbound_id': outbound_id,
-            'call_time': call_details.get('startTime'),
-            'start_time': call_details.get('startTime'),
-            'end_time': call_details.get('endTime'),
+            'call_time': convert_pearl_datetime(call_details.get('startTime')),
+            'start_time': convert_pearl_datetime(call_details.get('startTime')),
+            'end_time': convert_pearl_datetime(call_details.get('endTime')),
             'duration': call_details.get('duration'),
-            'status': call_details.get('status'),
-            'outcome': call_details.get('outcome', call_details.get('status')),
+            'status': str(call_details.get('status', ''))[:50],
+            'outcome': str(call_details.get('outcome', call_details.get('status', '')))[:100],
             'summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
             'transcription': call_details.get('transcription'),
             'recording_url': call_details.get('recordingUrl'),
@@ -290,8 +290,8 @@ def update_calls_from_pearl():
                     # Fallback al método original
                     update_data = {
                         'call_id': call_details.get('id'),
-                        'call_time': call_details.get('startTime'),
-                        'call_status': call_details.get('status'),
+                        'call_time': convert_pearl_datetime(call_details.get('startTime')),
+                        'call_status': str(call_details.get('status', ''))[:50],
                         'call_duration': call_details.get('duration'),
                         'call_summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
                         'call_recording_url': call_details.get('recordingUrl'),
@@ -339,6 +339,24 @@ def run_scheduler():
         update_calls_from_pearl()
         logger.info("Esperando 60 segundos para el próximo ciclo de actualización...")
         time.sleep(60)
+
+def convert_pearl_datetime(datetime_str: str) -> str:
+    """
+    Convierte datetime de Pearl AI (formato ISO con Z) a formato MySQL.
+    Ejemplo: '2025-09-09T10:26:47.961Z' -> '2025-09-09 10:26:47'
+    """
+    if not datetime_str:
+        return None
+    
+    try:
+        # Remover la 'Z' y microsegundos si existen
+        dt_clean = datetime_str.replace('Z', '').split('.')[0]
+        # Convertir T a espacio para MySQL
+        mysql_datetime = dt_clean.replace('T', ' ')
+        return mysql_datetime
+    except Exception as e:
+        logger.warning(f"Error convirtiendo datetime {datetime_str}: {e}")
+        return None
 
 def map_pearl_status_to_result(conversation_status: int, status: int) -> str:
     """
