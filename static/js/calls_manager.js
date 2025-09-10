@@ -197,6 +197,7 @@ class CallsManager {
             startCallsBtn: document.getElementById('startCallsBtn'),
             stopCallsBtn: document.getElementById('stopCallsBtn'),
             refreshBtn: document.getElementById('refreshBtn'),
+            fixNoInteresadosBtn: document.getElementById('fixNoInteresadosBtn'),
             systemStatus: document.getElementById('systemStatus'),
             connectionStatus: document.getElementById('connectionStatus'),
             leadsTableBody: document.getElementById('leadsTableBody'),
@@ -250,6 +251,7 @@ class CallsManager {
         this.elements.startCallsBtn?.addEventListener('click', () => this.startCalling());
         this.elements.stopCallsBtn?.addEventListener('click', () => this.stopCalling());
         this.elements.refreshBtn?.addEventListener('click', () => this.loadInitialData());
+        this.elements.fixNoInteresadosBtn?.addEventListener('click', () => this.fixNoInteresados());
         this.elements.estado1Filter?.addEventListener('change', () => this.applyFilters());
         this.elements.estado2Filter?.addEventListener('change', () => this.applyFilters());
         this.elements.statusFilter?.addEventListener('change', () => this.applyFilters());
@@ -1639,6 +1641,34 @@ class CallsManager {
             console.error('❌ Error en deselectAllLeads:', error);
             // Temporalmente usar alert en lugar de toast
             alert('❌ Error al deseleccionar leads: ' + error.message);
+        }
+    }
+
+    async fixNoInteresados() {
+        console.log('🔧 Cerrando leads "No Interesado"...');
+        
+        // Confirmar la acción
+        if (!confirm('¿Está seguro de que desea cerrar todos los leads "No Interesado"?')) {
+            return;
+        }
+        
+        try {
+            const response = await this.apiCall('POST', '/leads/fix-no-interesados');
+            
+            if (response.success) {
+                console.log(`✅ Se actualizaron ${response.updated_count} leads "No Interesado"`);
+                
+                // Recargar datos para reflejar los cambios
+                await this.loadInitialData();
+                
+                alert(`✅ ${response.message}`);
+            } else {
+                console.error('❌ Error del servidor:', response.error);
+                alert('❌ Error al cerrar leads "No Interesado": ' + response.error);
+            }
+        } catch (error) {
+            console.error('❌ Error en fixNoInteresados:', error);
+            alert('❌ Error al cerrar leads: ' + error.message);
         }
     }
 

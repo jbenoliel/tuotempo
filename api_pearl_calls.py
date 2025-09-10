@@ -1660,6 +1660,50 @@ def select_leads_without_status():
             conn.close()
 
 
+@api_pearl_calls.route('/leads/fix-no-interesados', methods=['POST'])
+def fix_no_interesados_status():
+    """
+    Actualiza el lead_status a 'closed' para todos los leads con status_level_1 = 'No Interesado'
+    que actualmente tienen lead_status = 'open' o NULL.
+    
+    Returns:
+        JSON: {success: bool, updated_count: int, message: str}
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Actualizar leads "No Interesado" que están 'open' o NULL a 'closed'
+        update_query = """
+            UPDATE leads 
+            SET lead_status = 'closed',
+                updated_at = NOW()
+            WHERE TRIM(status_level_1) = 'No Interesado'
+            AND (lead_status IS NULL OR TRIM(lead_status) != 'closed')
+        """
+        
+        cursor.execute(update_query)
+        updated_count = cursor.rowcount
+        conn.commit()
+        
+        logger.info(f"Se actualizaron {updated_count} leads 'No Interesado' a estado 'closed'")
+        
+        return jsonify({
+            'success': True,
+            'updated_count': updated_count,
+            'message': f'Se actualizaron {updated_count} leads "No Interesado" a estado cerrado'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error actualizando leads 'No Interesado': {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+
 @api_pearl_calls.route('/leads/deselect-all', methods=['POST'])
 def deselect_all_leads():
     """
