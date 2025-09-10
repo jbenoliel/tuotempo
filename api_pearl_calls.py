@@ -129,6 +129,19 @@ def start_calling_system():
         # Configurar callbacks para eventos en tiempo real
         def on_call_started(lead_id, phone_number):
             logger.info(f"📞 Llamada iniciada: Lead {lead_id} -> {phone_number}")
+            
+            # Deseleccionar el lead en la base de datos
+            try:
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "UPDATE leads SET selected_for_calling = FALSE WHERE id = %s",
+                        (lead_id,)
+                    )
+                    conn.commit()
+                    logger.info(f"✅ Lead {lead_id} deseleccionado automáticamente tras iniciar llamada")
+            except Exception as e:
+                logger.error(f"❌ Error al deseleccionar lead {lead_id}: {e}")
         
         def on_call_completed(lead_id, phone_number, response):
             logger.info(f"✅ Llamada completada: Lead {lead_id}")
@@ -1426,6 +1439,288 @@ def get_call_history(lead_id):
         if 'conn' in locals() and conn and conn.is_connected():
             cursor.close()
             conn.close()
+
+@api_pearl_calls.route('/leads/count-by-status', methods=['GET'])
+def count_leads_by_status():
+    """
+    Cuenta leads que coincidan con un estado específico y filtros de archivo origen.
+    
+    Query parameters:
+        status_field: Campo de estado (ej: 'status_level_1', 'call_status')
+        status_value: Valor del estado (ej: 'Volver a llamar')
+        archivo_origen: Lista de archivos origen para filtrar
+    
+    Returns:
+        JSON: {total_count: int, selected_count: int}
+    """
+    try:
+        status_field = request.args.get('status_field', 'status_level_1')
+        status_value = request.args.get('status_value', '')
+        archivo_origen = request.args.getlist('archivo_origen')
+        
+        if not status_value:
+            return jsonify({'error': 'status_value es requerido'}), 400
+        
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Construir query base
+        where_conditions = [f"TRIM({status_field}) = %s"]
+        params = [status_value]
+        
+        # CRÍTICO: Solo leads OPEN - NO contar leads cerrados
+        where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        
+        # CRÍTICO: Excluir leads con cita programada - NO deben contarse para selección
+        where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+        
+        # Agregar filtro de archivo origen si se especifica
+        if archivo_origen:
+            placeholders = ','.join(['%s'] * len(archivo_origen))
+            where_conditions.append(f"origen_archivo IN ({placeholders})")
+            params.extend(archivo_origen)
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Contar total que coincide con el filtro
+        query_total = f"SELECT COUNT(*) as total FROM leads WHERE {where_clause}"
+        cursor.execute(query_total, params)
+        total_count = cursor.fetchone()['total']
+        
+        # Contar cuántos ya están seleccionados
+        where_conditions.append("selected_for_calling = 1")
+        where_clause_selected = ' AND '.join(where_conditions)
+        query_selected = f"SELECT COUNT(*) as selected FROM leads WHERE {where_clause_selected}"
+        cursor.execute(query_selected, params)
+        selected_count = cursor.fetchone()['selected']
+        
+        return jsonify({
+            'success': True,
+            'total_count': total_count,
+            'selected_count': selected_count,
+            'not_selected_count': total_count - selected_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error contando leads por estado: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+
+@api_pearl_calls.route('/leads/select-by-status', methods=['POST'])
+def select_leads_by_status():
+    """
+    Selecciona/deselecciona TODOS los leads que coincidan con un estado específico.
+    
+    Body JSON:
+        status_field: Campo de estado (ej: 'status_level_1', 'call_status') 
+        status_value: Valor del estado (ej: 'Volver a llamar')
+        archivo_origen: Lista de archivos origen para filtrar (opcional)
+        selected: boolean - true para seleccionar, false para deseleccionar
+    
+    Returns:
+        JSON: {success: bool, selected_count: int, message: str}
+    """
+    try:
+        data = request.get_json()
+        status_field = data.get('status_field', 'status_level_1')
+        status_value = data.get('status_value', '')
+        archivo_origen = data.get('archivo_origen', [])
+        selected = data.get('selected', True)
+        
+        if not status_value:
+            return jsonify({'error': 'status_value es requerido'}), 400
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Construir query para actualizar
+        where_conditions = [f"TRIM({status_field}) = %s"]
+        params = [status_value]
+        
+        # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
+        where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        
+        # CRÍTICO: Excluir leads con cita programada - NO deben seleccionarse para llamadas
+        where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+        
+        # Agregar filtro de archivo origen si se especifica
+        if archivo_origen:
+            placeholders = ','.join(['%s'] * len(archivo_origen))
+            where_conditions.append(f"origen_archivo IN ({placeholders})")
+            params.extend(archivo_origen)
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Actualizar leads que coincidan
+        update_query = f"""
+            UPDATE leads 
+            SET selected_for_calling = %s, 
+                updated_at = NOW()
+            WHERE {where_clause}
+        """
+        
+        cursor.execute(update_query, [1 if selected else 0] + params)
+        affected_count = cursor.rowcount
+        
+        conn.commit()
+        
+        action = "seleccionados" if selected else "deseleccionados"
+        origenMsg = f" (origen: {', '.join(archivo_origen)})" if archivo_origen else ""
+        
+        logger.info(f"Leads {action} por estado: {affected_count} con {status_field}={status_value}{origenMsg}")
+        
+        return jsonify({
+            'success': True,
+            'selected_count': affected_count,
+            'message': f'{affected_count} leads {action} con {status_field}="{status_value}"{origenMsg}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error seleccionando leads por estado: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+
+@api_pearl_calls.route('/leads/select-without-status', methods=['POST'])
+def select_leads_without_status():
+    """
+    Selecciona TODOS los leads que NO tienen status_level_1 asignado (aparecen como N/A).
+    Solo selecciona leads que están OPEN y sin cita programada.
+    
+    Body JSON:
+        archivo_origen: Lista de archivos origen para filtrar (opcional)
+    
+    Returns:
+        JSON: {success: bool, selected_count: int, message: str}
+    """
+    try:
+        data = request.get_json() or {}
+        archivo_origen = data.get('archivo_origen', [])
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Construir query para seleccionar leads sin estado
+        where_conditions = [
+            "(status_level_1 IS NULL OR TRIM(status_level_1) = '' OR status_level_1 = 'None')"
+        ]
+        params = []
+        
+        # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
+        where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        
+        # CRÍTICO: Excluir leads con cita programada
+        where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+        
+        # Agregar filtro de archivo origen si se especifica
+        if archivo_origen:
+            placeholders = ','.join(['%s'] * len(archivo_origen))
+            where_conditions.append(f"origen_archivo IN ({placeholders})")
+            params.extend(archivo_origen)
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Actualizar leads sin estado que coincidan
+        update_query = f"""
+            UPDATE leads 
+            SET selected_for_calling = TRUE,
+                updated_at = NOW()
+            WHERE {where_clause}
+        """
+        
+        cursor.execute(update_query, params)
+        affected_count = cursor.rowcount
+        conn.commit()
+        
+        origenMsg = f" (origen: {', '.join(archivo_origen)})" if archivo_origen else ""
+        logger.info(f"Leads sin estado seleccionados: {affected_count}{origenMsg}")
+        
+        return jsonify({
+            'success': True,
+            'selected_count': affected_count,
+            'message': f'{affected_count} leads sin estado seleccionados para llamadas{origenMsg}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error seleccionando leads sin estado: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+
+@api_pearl_calls.route('/leads/deselect-all', methods=['POST'])
+def deselect_all_leads():
+    """
+    Deselecciona TODOS los leads en la base de datos, respetando filtros de archivo origen.
+    
+    Body JSON:
+        archivo_origen: Lista de archivos origen para filtrar (opcional)
+    
+    Returns:
+        JSON: {success: bool, deselected_count: int, message: str}
+    """
+    try:
+        data = request.get_json() or {}
+        archivo_origen = data.get('archivo_origen', [])
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Construir query para deseleccionar
+        where_conditions = ["1=1"]  # Base condition
+        params = []
+        
+        # Agregar filtro de archivo origen si se especifica
+        if archivo_origen:
+            placeholders = ','.join(['%s'] * len(archivo_origen))
+            where_conditions.append(f"origen_archivo IN ({placeholders})")
+            params.extend(archivo_origen)
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Actualizar todos los leads que coincidan con los filtros
+        update_query = f"""
+            UPDATE leads 
+            SET selected_for_calling = FALSE,
+                updated_at = NOW()
+            WHERE {where_clause}
+            AND selected_for_calling = TRUE
+        """
+        
+        cursor.execute(update_query, params)
+        affected_count = cursor.rowcount
+        conn.commit()
+        
+        origenMsg = f" filtrados por archivo origen: {', '.join(archivo_origen)}" if archivo_origen else ""
+        logger.info(f"Leads deseleccionados: {affected_count}{origenMsg}")
+        
+        return jsonify({
+            'success': True,
+            'deselected_count': affected_count,
+            'message': f'{affected_count} leads deseleccionados{origenMsg}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deseleccionando todos los leads: {e}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 
 # Función para registrar el blueprint en la app principal
 def register_calls_api(app: Flask):

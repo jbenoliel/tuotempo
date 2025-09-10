@@ -127,8 +127,14 @@ class CallsManager {
             const dropdown = document.querySelector('#selectByStatusDropdown + .dropdown-menu');
             if (!dropdown) return;
             
+            // Opciones básicas que siempre deben aparecer
+            const basicStates = ['Volver a llamar', 'No Interesado', 'Éxito'];
+            
+            // Combinar estados básicos con los dinámicos, evitando duplicados
+            const allStates = [...new Set([...basicStates, ...estados1])];
+            
             // Actualizar dinámicamente las opciones del dropdown
-            const statusOptions = estados1.map(estado => {
+            const statusOptions = allStates.map(estado => {
                 let icon = 'bi-circle';
                 if (estado.includes('Volver')) icon = 'bi-telephone';
                 else if (estado.includes('No Interesado')) icon = 'bi-x-circle';
@@ -143,6 +149,9 @@ class CallsManager {
             dropdown.innerHTML = `
                 <li><h6 class="dropdown-header">Estado 1 (Principal)</h6></li>
                 ${statusOptions}
+                <li><a class="dropdown-item" href="#" onclick="callsManager.selectLeadsWithoutStatus()">
+                    <i class="bi bi-question-circle"></i> Sin Estado (N/A)
+                </a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Estado Llamada</h6></li>
                 <li><a class="dropdown-item" href="#" onclick="callsManager.selectByStatus('call_status', 'no_selected')">
@@ -251,7 +260,7 @@ class CallsManager {
         this.elements.aplicarFiltroArchivo?.addEventListener('click', () => this.applyArchivoFilter());
         this.elements.limpiarFiltroArchivo?.addEventListener('click', () => this.clearArchivoFilter());
         this.elements.selectAllBtn?.addEventListener('click', () => this.selectAllLeads(true));
-        this.elements.deselectAllBtn?.addEventListener('click', () => this.selectAllLeads(false));
+        this.elements.deselectAllBtn?.addEventListener('click', () => this.deselectAllLeads());
         this.elements.resetLeadsBtn?.addEventListener('click', () => this.resetLeads());
         this.elements.itemsPerPageSelect?.addEventListener('change', (e) => this.changeItemsPerPage(parseInt(e.target.value)));
         this.elements.masterCheckbox?.addEventListener('change', (e) => this.toggleAllCheckboxes(e.target.checked));
@@ -263,6 +272,9 @@ class CallsManager {
                 this.elements.testPhoneContainer.style.display = e.target.checked ? 'block' : 'none';
             });
         }
+
+        // Inicializar modal de llamadas programadas
+        this.initScheduledCallsModal();
     }
 
 
@@ -987,6 +999,12 @@ class CallsManager {
         const index = this.state.leads.findIndex(l => l.id === lead.id);
         if (index !== -1) {
             this.state.leads[index] = { ...this.state.leads[index], ...lead };
+            
+            // Si la llamada está completada, deseleccionar automáticamente el lead
+            if (lead.call_status === 'completed' && this.state.leads[index].selected_for_calling) {
+                console.log(`🔄 Deseleccionando lead ${lead.id} después de completar llamada`);
+                this.deselectLead(lead.id);
+            }
         }
         this.renderTable();
     }
@@ -1217,92 +1235,130 @@ class CallsManager {
         console.log(`🔥 [DEBUG] Estado final - Total seleccionados: ${selectedCount}`);
     }
 
-    selectByStatus(statusField, statusValue) {
+    async selectByStatus(statusField, statusValue) {
         console.log(`🎯 Seleccionando leads por ${statusField} = "${statusValue}"`);
         
-        // Filtrar leads que coincidan con el estado especificado
-        const matchingLeads = this.state.leads.filter(lead => {
-            return lead[statusField] === statusValue;
-        });
+        // Construir filtros incluyendo archivos de origen seleccionados
+        const filters = {
+            [statusField]: statusValue
+        };
         
-        if (matchingLeads.length === 0) {
-            this.showToast(`No se encontraron leads con ${statusField} = "${statusValue}"`, 'warning');
-            return;
+        // Aplicar filtros de archivo origen si están seleccionados
+        if (this.state.filters.archivoOrigen && this.state.filters.archivoOrigen.length > 0) {
+            filters.archivo_origen = this.state.filters.archivoOrigen;
         }
         
-        // Contar cuántos ya están seleccionados
-        const alreadySelected = matchingLeads.filter(lead => lead.selected_for_calling).length;
-        const notSelected = matchingLeads.length - alreadySelected;
-        
-        // Caso especial para "Volver a llamar" - seleccionar automáticamente sin confirmación
-        const autoSelect = (statusField === 'status_level_1' && statusValue === 'Volver a llamar');
-        
-        // Para otros estados, mostrar mensaje de confirmación
-        let confirmed = autoSelect;
-        
-        if (!autoSelect) {
-            // Mensaje más informativo
-            let message = `Encontrados ${matchingLeads.length} leads con ${statusField} = "${statusValue}":\n\n`;
-            message += `• ${alreadySelected} ya seleccionados\n`;
-            message += `• ${notSelected} sin seleccionar\n\n`;
-            message += `¿Seleccionar TODOS los ${matchingLeads.length} leads?`;
+        try {
+            // Consultar TODOS los leads del servidor que coincidan con los filtros
+            this.showToast('Consultando todos los leads que coinciden...', 'info');
             
-            confirmed = confirm(message);
-        }
-        
-        if (confirmed) {
-            const leadIds = [];
-            
-            // Actualizar estado local - seleccionar todos independientemente de su estado previo
-            matchingLeads.forEach(lead => {
-                lead.selected_for_calling = true;
-                lead.selected = true;
-                leadIds.push(lead.id);
+            const response = await this.apiCall('GET', '/leads/count-by-status', {
+                status_field: statusField,
+                status_value: statusValue,
+                archivo_origen: filters.archivo_origen
             });
             
-            // Enviar al servidor sin recargar datos
-            if (leadIds.length > 0) {
-                this.apiCall('POST', '/leads/select', {
-                    lead_ids: leadIds,
-                    selected: true
-                }).catch(error => {
-                    console.error('Error actualizando servidor:', error);
-                    this.showToast('Error actualizando selección en el servidor', 'warning');
-                });
+            const totalMatching = response.total_count;
+            const alreadySelected = response.selected_count;
+            const notSelected = totalMatching - alreadySelected;
+            
+            if (totalMatching === 0) {
+                const origenMsg = filters.archivo_origen ? ` (origen: ${filters.archivo_origen.join(', ')})` : '';
+                this.showToast(`No se encontraron leads con ${statusField} = "${statusValue}"${origenMsg}`, 'warning');
+                return;
             }
             
-            // Re-renderizar tabla
-            this.renderTable();
+            // Caso especial para "Volver a llamar" - seleccionar automáticamente sin confirmación
+            const autoSelect = (statusField === 'status_level_1' && statusValue === 'Volver a llamar');
             
-            // Actualizar el contador de leads seleccionados
-            this.updateSelectedCount();
+            // Para otros estados o confirmación manual, mostrar mensaje
+            let confirmed = autoSelect;
             
-            // Actualizar filtros para mostrar solo esos leads
-            if (statusField === 'status_level_1') {
-                // Establecer filtro para mostrar solo leads con ese estado
-                this.state.filters.estado1 = statusValue;
+            if (!autoSelect) {
+                const origenMsg = filters.archivo_origen ? ` (origen: ${filters.archivo_origen.join(', ')})` : '';
+                let message = `Encontrados ${totalMatching} leads con ${statusField} = "${statusValue}"${origenMsg}:\n\n`;
+                message += `• ${alreadySelected} ya seleccionados\n`;
+                message += `• ${notSelected} sin seleccionar\n\n`;
+                message += `¿Seleccionar TODOS los ${totalMatching} leads?`;
                 
-                // Actualizar la interfaz de filtros si existe
+                confirmed = confirm(message);
+            }
+            
+            if (confirmed) {
+                // Seleccionar TODOS los leads que coincidan en el servidor
+                const selectResponse = await this.apiCall('POST', '/leads/select-by-status', {
+                    status_field: statusField,
+                    status_value: statusValue,
+                    archivo_origen: filters.archivo_origen,
+                    selected: true
+                });
+                
+                const selectedCount = selectResponse.selected_count;
+                
+                // Actualizar filtros para mostrar solo esos leads
+                if (statusField === 'status_level_1') {
+                    this.state.filters.estado1 = statusValue;
+                    const filterEstado1 = document.getElementById('estado1Filter');
+                    if (filterEstado1) {
+                        filterEstado1.value = statusValue;
+                    }
+                } else if (statusField === 'call_status') {
+                    this.state.filters.status = statusValue;
+                    const filterStatus = document.getElementById('statusFilter');
+                    if (filterStatus) {
+                        filterStatus.value = statusValue;
+                    }
+                }
+                
+                // Recargar datos para reflejar los cambios
+                await this.loadInitialData();
+                
+                const origenMsg = filters.archivo_origen ? ` (origen: ${filters.archivo_origen.join(', ')})` : '';
+                this.showToast(`✅ Seleccionados ${selectedCount} leads con ${statusField} = "${statusValue}"${origenMsg}`, 'success');
+                console.log(`✅ Seleccionados ${selectedCount} leads por estado en servidor`);
+            }
+            
+        } catch (error) {
+            console.error('Error seleccionando por estado:', error);
+            this.showToast('Error consultando leads en el servidor', 'danger');
+        }
+    }
+
+    async selectLeadsWithoutStatus() {
+        console.log('🤷 Seleccionando leads sin estado (N/A)...');
+        
+        try {
+            // Consultar TODOS los leads sin estado en el servidor
+            const response = await this.apiCall('POST', '/leads/select-without-status', {
+                archivo_origen: this.state.filters.archivoOrigen || []
+            });
+            
+            if (response.success) {
+                const selectedCount = response.selected_count;
+                
+                if (selectedCount === 0) {
+                    alert('No se encontraron leads sin estado disponibles para seleccionar');
+                    return;
+                }
+                
+                // Actualizar filtro para mostrar solo estos leads
+                this.state.filters.estado1 = '';  // Limpiar filtro de estado
                 const filterEstado1 = document.getElementById('estado1Filter');
                 if (filterEstado1) {
-                    filterEstado1.value = statusValue;
+                    filterEstado1.value = '';
                 }
-            } else if (statusField === 'call_status') {
-                // Establecer filtro para call_status
-                this.state.filters.status = statusValue;
                 
-                // Actualizar la interfaz de filtros si existe
-                const filterStatus = document.getElementById('statusFilter');
-                if (filterStatus) {
-                    filterStatus.value = statusValue;
-                }
+                // Recargar datos para reflejar los cambios
+                await this.loadInitialData();
+                
+                alert(`✅ ${selectedCount} leads sin estado han sido seleccionados para llamadas`);
+            } else {
+                console.error('❌ Error del servidor:', response.error);
+                alert('Error al seleccionar leads sin estado: ' + response.error);
             }
-            
-            // Re-renderizar tabla con el nuevo filtro aplicado
-            this.renderTable();
-            
-            this.showToast(`✅ Seleccionados ${leadIds.length} leads con ${statusField} = "${statusValue}" (${notSelected} nuevos)`, 'success');
-            console.log(`✅ Seleccionados ${leadIds.length} leads por estado:`, leadIds);
+        } catch (error) {
+            console.error('❌ Error seleccionando leads sin estado:', error);
+            alert('Error de red al seleccionar leads sin estado: ' + error.message);
         }
     }
 
@@ -1490,6 +1546,18 @@ class CallsManager {
         }
     }
 
+    deselectLead(leadId) {
+        console.log(`❌ Deseleccionando lead ${leadId}`);
+        const lead = this.state.leads.find(l => l.id === leadId);
+        if (lead) {
+            lead.selected_for_calling = false;
+            lead.selected = false; // Para compatibilidad
+            
+            // Enviar al servidor
+            this.sendMessage('mark_lead', { lead_id: leadId, selected: false });
+        }
+    }
+
     toggleAllCheckboxes(isChecked) {
         const checkboxes = this.elements.leadsTableBody.querySelectorAll('.lead-checkbox');
         const visibleLeadIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.leadId));
@@ -1543,17 +1611,35 @@ class CallsManager {
     }
 
 
-    deselectAllLeads() {
-        // Deselect all leads in the state
-        this.state.leads.forEach(lead => {
-            lead.selected_for_calling = false;
-            lead.selected = false; // For compatibility
-        });
+    async deselectAllLeads() {
+        console.log('🚫 Deseleccionando todos los leads en la base de datos...');
         
-        // Update the UI
-        this.renderTable();
-        
-        console.log('🚫 Todos los leads deseleccionados');
+        try {
+            // Actualizar la base de datos - deseleccionar TODOS los leads
+            const response = await this.apiCall('POST', '/leads/deselect-all', {});
+            
+            if (response.success) {
+                // Actualizar el estado local
+                this.state.leads.forEach(lead => {
+                    lead.selected_for_calling = false;
+                    lead.selected = false; // For compatibility
+                });
+                
+                // Recargar datos desde el servidor para reflejar los cambios
+                await this.loadInitialData();
+                
+                console.log('✅ Todos los leads deseleccionados correctamente');
+                // Temporalmente usar alert en lugar de toast para evitar errores
+                alert('✅ Todos los leads han sido deseleccionados correctamente');
+            } else {
+                console.error('❌ Error del servidor:', response.error);
+                this.showToast('Error al deseleccionar todos los leads: ' + response.error, 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error en deselectAllLeads:', error);
+            // Temporalmente usar alert en lugar de toast
+            alert('❌ Error al deseleccionar leads: ' + error.message);
+        }
     }
 
     showLoader(element, show) {
@@ -1986,13 +2072,27 @@ class CallsManager {
         
         // Verificar que Bootstrap esté disponible
         if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
-            const toast = new bootstrap.Toast(toastElement.firstElementChild, { delay: 5000 });
-            toast.show();
-            toastElement.firstElementChild.addEventListener('hidden.bs.toast', () => toastElement.remove());
+            try {
+                const toast = new bootstrap.Toast(toastElement.firstElementChild, { delay: 5000 });
+                toast.show();
+                toastElement.firstElementChild.addEventListener('hidden.bs.toast', () => {
+                    if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
+                        toastElement.remove();
+                    }
+                });
+            } catch (error) {
+                console.warn('Error con Bootstrap Toast, usando fallback:', error);
+                // Fallback en caso de error
+                setTimeout(() => {
+                    if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
+                        toastElement.firstElementChild.parentNode.removeChild(toastElement.firstElementChild);
+                    }
+                }, 5000);
+            }
         } else {
             // Fallback: mostrar por 5 segundos sin Bootstrap
             setTimeout(() => {
-                if (toastElement.firstElementChild.parentNode) {
+                if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
                     toastElement.firstElementChild.parentNode.removeChild(toastElement.firstElementChild);
                 }
             }, 5000);
@@ -2345,6 +2445,201 @@ class CallsManager {
         audioModal.addEventListener('shown.bs.modal', () => {
             audioPlayer.play().catch(e => console.log('No se pudo reproducir automáticamente:', e));
         });
+    }
+
+    // === SCHEDULED CALLS FUNCTIONALITY ===
+    
+    initScheduledCallsModal() {
+        // Event listeners para el modal de llamadas programadas
+        const modal = document.getElementById('scheduledCallsModal');
+        const refreshBtn = document.getElementById('refreshScheduledCalls');
+        const applyFiltersBtn = document.getElementById('applyScheduleFilters');
+        const clearFiltersBtn = document.getElementById('clearScheduleFilters');
+        
+        if (modal) {
+            modal.addEventListener('shown.bs.modal', () => {
+                this.loadScheduledCalls();
+            });
+        }
+        
+        refreshBtn?.addEventListener('click', () => {
+            this.loadScheduledCalls();
+        });
+        
+        applyFiltersBtn?.addEventListener('click', () => {
+            this.loadScheduledCalls(this.getScheduleFilters());
+        });
+        
+        clearFiltersBtn?.addEventListener('click', () => {
+            this.clearScheduleFilters();
+        });
+    }
+    
+    getScheduleFilters() {
+        const statusFilter = document.getElementById('scheduleStatusFilter')?.value || '';
+        const dateFilter = document.getElementById('scheduleDateFilter')?.value || '';
+        const leadFilter = document.getElementById('scheduleLeadFilter')?.value || '';
+        
+        return {
+            status: statusFilter,
+            from_date: dateFilter,
+            to_date: dateFilter,
+            lead_id: leadFilter
+        };
+    }
+    
+    clearScheduleFilters() {
+        document.getElementById('scheduleStatusFilter').value = '';
+        document.getElementById('scheduleDateFilter').value = '';
+        document.getElementById('scheduleLeadFilter').value = '';
+        this.loadScheduledCalls();
+    }
+    
+    async loadScheduledCalls(filters = {}) {
+        console.log('📅 Cargando llamadas programadas...', filters);
+        
+        try {
+            // Construir parámetros de query
+            const queryParams = new URLSearchParams();
+            queryParams.append('limit', '50');
+            queryParams.append('offset', '0');
+            
+            if (filters.status) queryParams.append('status', filters.status);
+            if (filters.lead_id) queryParams.append('lead_id', filters.lead_id);
+            if (filters.from_date) queryParams.append('from_date', filters.from_date);
+            if (filters.to_date) queryParams.append('to_date', filters.to_date);
+            
+            const response = await this.apiCall('GET', `/schedule?${queryParams.toString()}`);
+            
+            if (response && response.scheduled_calls) {
+                this.renderScheduledCallsTable(response.scheduled_calls);
+                this.updateScheduledCallsStats(response.status_breakdown);
+                this.renderSchedulePagination(response.pagination);
+                console.log('✅ Llamadas programadas cargadas:', response.scheduled_calls.length);
+            } else {
+                console.error('❌ Error en respuesta:', response);
+                this.showToast('Error al cargar llamadas programadas', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error cargando llamadas programadas:', error);
+            this.showToast('Error de red al cargar llamadas programadas: ' + error.message, 'error');
+        }
+    }
+    
+    renderScheduledCallsTable(scheduledCalls) {
+        const tbody = document.getElementById('scheduledCallsTableBody');
+        if (!tbody) return;
+        
+        if (scheduledCalls.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No hay llamadas programadas</td></tr>';
+            return;
+        }
+        
+        const rows = scheduledCalls.map(call => {
+            const statusBadge = this.getStatusBadge(call.status);
+            const scheduledDate = new Date(call.scheduled_at).toLocaleString('es-ES');
+            const createdDate = new Date(call.created_at).toLocaleString('es-ES');
+            const leadName = `${call.nombre || ''} ${call.apellidos || ''}`.trim() || 'N/A';
+            
+            return `
+                <tr>
+                    <td>${call.id}</td>
+                    <td><strong>${leadName}</strong><br><small class="text-muted">ID: ${call.lead_id}</small></td>
+                    <td>${call.telefono || 'N/A'}</td>
+                    <td>${call.ciudad || 'N/A'}</td>
+                    <td><span class="text-primary">${scheduledDate}</span></td>
+                    <td><span class="badge bg-secondary">#${call.attempt_number || 1}</span></td>
+                    <td>${statusBadge}</td>
+                    <td><small>${call.last_outcome || 'N/A'}</small></td>
+                    <td><small class="text-muted">${createdDate}</small></td>
+                </tr>
+            `;
+        }).join('');
+        
+        tbody.innerHTML = rows;
+    }
+    
+    updateScheduledCallsStats(statusBreakdown) {
+        let totalCount = 0;
+        let pendingCount = 0;
+        let completedCount = 0;
+        let failedCount = 0;
+        
+        if (statusBreakdown && Array.isArray(statusBreakdown)) {
+            statusBreakdown.forEach(stat => {
+                totalCount += stat.count;
+                switch (stat.status) {
+                    case 'pending':
+                        pendingCount = stat.count;
+                        break;
+                    case 'completed':
+                        completedCount = stat.count;
+                        break;
+                    case 'failed':
+                        failedCount = stat.count;
+                        break;
+                }
+            });
+        }
+        
+        document.getElementById('totalScheduledBadge').textContent = `Total: ${totalCount}`;
+        document.getElementById('pendingScheduledBadge').textContent = `Pendientes: ${pendingCount}`;
+        document.getElementById('completedScheduledBadge').textContent = `Completadas: ${completedCount}`;
+        document.getElementById('failedScheduledBadge').textContent = `Fallidas: ${failedCount}`;
+    }
+    
+    renderSchedulePagination(pagination) {
+        const paginationElement = document.getElementById('schedulePagination');
+        if (!paginationElement || !pagination) return;
+        
+        const { total, limit, offset } = pagination;
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+        
+        if (totalPages <= 1) {
+            paginationElement.innerHTML = '';
+            return;
+        }
+        
+        let paginationHtml = '';
+        
+        // Botón anterior
+        const prevDisabled = currentPage === 1 ? 'disabled' : '';
+        paginationHtml += `<li class="page-item ${prevDisabled}">
+            <button class="page-link" onclick="callsManager.loadScheduledCallsPage(${currentPage - 1})">Anterior</button>
+        </li>`;
+        
+        // Páginas
+        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+            const active = i === currentPage ? 'active' : '';
+            paginationHtml += `<li class="page-item ${active}">
+                <button class="page-link" onclick="callsManager.loadScheduledCallsPage(${i})">${i}</button>
+            </li>`;
+        }
+        
+        // Botón siguiente
+        const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+        paginationHtml += `<li class="page-item ${nextDisabled}">
+            <button class="page-link" onclick="callsManager.loadScheduledCallsPage(${currentPage + 1})">Siguiente</button>
+        </li>`;
+        
+        paginationElement.innerHTML = paginationHtml;
+    }
+    
+    loadScheduledCallsPage(page) {
+        const filters = this.getScheduleFilters();
+        filters.offset = (page - 1) * 50; // 50 es el limit por defecto
+        this.loadScheduledCalls(filters);
+    }
+    
+    getStatusBadge(status) {
+        const statusMap = {
+            'pending': '<span class="badge bg-warning text-dark">Pendiente</span>',
+            'completed': '<span class="badge bg-success">Completada</span>',
+            'failed': '<span class="badge bg-danger">Fallida</span>',
+            'cancelled': '<span class="badge bg-secondary">Cancelada</span>'
+        };
+        return statusMap[status] || `<span class="badge bg-light text-dark">${status}</span>`;
     }
 }
 

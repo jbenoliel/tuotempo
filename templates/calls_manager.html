@@ -219,6 +219,9 @@
                                 <button id="refreshBtn" class="btn btn-sm btn-outline-primary" type="button">
                                     <i class="bi bi-arrow-clockwise"></i> Actualizar
                                 </button>
+                                <button id="scheduledCallsBtn" class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="modal" data-bs-target="#scheduledCallsModal">
+                                    <i class="bi bi-calendar-check"></i> Programadas
+                                </button>
                                 
                                 <!-- Estado del sistema compacto -->
                                 <span class="badge bg-secondary ms-3" id="systemStatus">Sistema llamadas: Detenido</span>
@@ -660,6 +663,100 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Llamadas Programadas -->
+    <div class="modal fade" id="scheduledCallsModal" tabindex="-1" aria-labelledby="scheduledCallsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scheduledCallsModalLabel">
+                        <i class="bi bi-calendar-check"></i> Llamadas Programadas
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Filtros y controles -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="scheduleStatusFilter" class="form-label">Estado:</label>
+                            <select class="form-select form-select-sm" id="scheduleStatusFilter">
+                                <option value="">Todos</option>
+                                <option value="pending">Pendientes</option>
+                                <option value="completed">Completadas</option>
+                                <option value="failed">Fallidas</option>
+                                <option value="cancelled">Canceladas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="scheduleDateFilter" class="form-label">Fecha:</label>
+                            <input type="date" class="form-control form-control-sm" id="scheduleDateFilter">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="scheduleLeadFilter" class="form-label">Lead ID:</label>
+                            <input type="number" class="form-control form-control-sm" id="scheduleLeadFilter" placeholder="ID del lead">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-primary btn-sm me-2" id="applyScheduleFilters">Aplicar</button>
+                            <button class="btn btn-outline-secondary btn-sm" id="clearScheduleFilters">Limpiar</button>
+                        </div>
+                    </div>
+
+                    <!-- Estadísticas -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="d-flex gap-2" id="scheduleStats">
+                                <span class="badge bg-primary" id="totalScheduledBadge">Total: 0</span>
+                                <span class="badge bg-warning text-dark" id="pendingScheduledBadge">Pendientes: 0</span>
+                                <span class="badge bg-success" id="completedScheduledBadge">Completadas: 0</span>
+                                <span class="badge bg-danger" id="failedScheduledBadge">Fallidas: 0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de llamadas programadas -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Lead</th>
+                                    <th>Teléfono</th>
+                                    <th>Ciudad</th>
+                                    <th>Programada para</th>
+                                    <th>Intento #</th>
+                                    <th>Estado</th>
+                                    <th>Último resultado</th>
+                                    <th>Creada</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduledCallsTableBody">
+                                <tr>
+                                    <td colspan="9" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación llamadas programadas">
+                        <ul class="pagination pagination-sm justify-content-center" id="schedulePagination">
+                            <!-- Paginación generada dinámicamente -->
+                        </ul>
+                    </nav>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="refreshScheduledCalls">
+                        <i class="bi bi-arrow-clockwise"></i> Actualizar
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
