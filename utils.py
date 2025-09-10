@@ -373,15 +373,27 @@ def get_statistics(filtro_origen_archivo=None):
             
             # Ya ha ido a la clínica (sin subestados)
             
-            # Subestados para volver a llamar
-            cursor.execute("SELECT IFNULL(status_level_2, 'Sin especificar') AS sub, COUNT(*) AS cnt FROM leads WHERE TRIM(status_level_1) = 'Volver a llamar' GROUP BY sub")
+            # Subestados para volver a llamar - APLICAR MISMO FILTRO
+            query_subestados_volver = f"""
+                SELECT IFNULL(status_level_2, 'Sin especificar') AS sub, COUNT(*) AS cnt 
+                FROM leads 
+                WHERE TRIM(status_level_1) = 'Volver a llamar' {where_clause.replace('WHERE', 'AND') if where_clause else ''}
+                GROUP BY sub
+            """
+            cursor.execute(query_subestados_volver, params)
             subestados_volver_actual = {r['sub']: r['cnt'] for r in cursor.fetchall()}
             
             # Asegurar que todos los posibles subestados estén incluidos
             stats['subestados_volver'] = {sub: subestados_volver_actual.get(sub, 0) for sub in subestados_volver_posibles}
             
-            # Subestados para no interesado
-            cursor.execute("SELECT IFNULL(status_level_2, 'Sin especificar') AS sub, COUNT(*) AS cnt FROM leads WHERE TRIM(status_level_1) = 'No Interesado' GROUP BY sub")
+            # Subestados para no interesado - APLICAR MISMO FILTRO
+            query_subestados_no_interes = f"""
+                SELECT IFNULL(status_level_2, 'Sin especificar') AS sub, COUNT(*) AS cnt 
+                FROM leads 
+                WHERE TRIM(status_level_1) = 'No Interesado' {where_clause.replace('WHERE', 'AND') if where_clause else ''}
+                GROUP BY sub
+            """
+            cursor.execute(query_subestados_no_interes, params)
             subestados_no_interes_actual = {r['sub']: r['cnt'] for r in cursor.fetchall()}
             
             # Asegurar que todos los posibles subestados estén incluidos

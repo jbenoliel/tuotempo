@@ -5,7 +5,9 @@
       "Bash(ls:*)",
       "Bash(.venvScriptspip install pymysql python-dotenv)",
       "Bash(./venv/Scripts/pip.exe install pymysql python-dotenv)",
-      "Read(//c//**)"
+      "Read(//c//**)",
+      "Bash(./venv/Scripts/python.exe reporte_detallado_railway.py)",
+      "Bash(./venv/Scripts/python.exe reporte_por_fichero_railway.py)"
     ],
     "deny": []
   }

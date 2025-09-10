@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, abort, current_app, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, abort, current_app, jsonify, make_response
 from functools import wraps
 import os
 import requests
@@ -84,7 +84,15 @@ def index():
     # Importamos la función get_statistics desde utils.py que tiene la estructura completa
     from utils import get_statistics as utils_get_statistics
     stats = utils_get_statistics(filtro_origen_archivo=filtro_origen)
-    return render_template('dashboard.html', stats=stats)
+    
+    response = make_response(render_template('dashboard.html', stats=stats))
+    
+    # Añadir headers anti-cache para evitar datos desactualizados
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    return response
 
 
 @bp.route('/reserve', methods=['GET', 'POST'])
