@@ -145,9 +145,49 @@ def start_calling_system():
         
         def on_call_completed(lead_id, phone_number, response):
             logger.info(f"✅ Llamada completada: Lead {lead_id}")
+            
+            # Integración con el sistema de scheduling para llamadas completadas
+            try:
+                from call_manager_scheduler_integration import process_call_result
+                
+                # Crear un resultado de llamada exitoso para el sistema de scheduling
+                call_result = {
+                    'success': True,
+                    'status': 'completed',
+                    'lead_id': lead_id,
+                    'phone_number': phone_number,
+                    'response': response
+                }
+                
+                # Procesar el resultado usando el sistema de integración
+                process_call_result(lead_id, call_result, pearl_response=response)
+                logger.info(f"✅ Sistema de scheduling procesó la llamada exitosa para lead {lead_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error integrando con scheduler para lead {lead_id}: {e}")
         
         def on_call_failed(lead_id, phone_number, error):
             logger.warning(f"❌ Llamada fallida: Lead {lead_id} - {error}")
+            
+            # Integración con el sistema de scheduling para llamadas fallidas
+            try:
+                from call_manager_scheduler_integration import process_call_result
+                
+                # Crear un resultado de llamada simulado para el sistema de scheduling
+                call_result = {
+                    'success': False,
+                    'status': 'failed',
+                    'error_message': str(error),
+                    'lead_id': lead_id,
+                    'phone_number': phone_number
+                }
+                
+                # Procesar el resultado usando el sistema de integración
+                process_call_result(lead_id, call_result)
+                logger.info(f"🔄 Sistema de scheduling procesó la llamada fallida para lead {lead_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error integrando con scheduler para lead {lead_id}: {e}")
         
         def on_stats_updated(stats):
             logger.debug(f" Stats: {stats}")

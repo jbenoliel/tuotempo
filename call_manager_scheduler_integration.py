@@ -33,17 +33,34 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         # Actualizar el lead en la BD
         update_lead_with_call_result(lead_id, status, outcome, error_message, pearl_response)
         
-        # Si la llamada no fue exitosa, usar el scheduler para reprogramar
-        if not success and outcome in ['no_answer', 'busy', 'hang_up', 'error']:
-            logger.info(f"Llamada fallida para lead {lead_id}. Usando scheduler para reprogramar.")
-            
-            # Intentar reprogramar con el scheduler
-            scheduled = schedule_failed_call(lead_id, outcome)
-            
-            if scheduled:
-                logger.info(f"Lead {lead_id} reprogramado exitosamente por el scheduler")
+        # Manejar casos según el tipo de error
+        if not success:
+            if outcome == 'invalid_phone':
+                # Teléfonos inválidos se cierran inmediatamente SIN reprogramar
+                logger.info(f"Teléfono inválido para lead {lead_id}. Cerrando directamente.")
+                close_lead_immediately(lead_id, outcome, 'Teléfono erróneo')
+                
+            elif outcome in ['no_answer', 'busy', 'hang_up']:
+                # Estos casos se reprograman
+                logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Usando scheduler para reprogramar.")
+                
+                # Intentar reprogramar con el scheduler
+                scheduled = schedule_failed_call(lead_id, outcome)
+                
+                if scheduled:
+                    logger.info(f"Lead {lead_id} reprogramado exitosamente por el scheduler")
+                else:
+                    logger.info(f"Lead {lead_id} cerrado por el scheduler (máximo intentos alcanzado)")
+                    
+            elif outcome == 'error':
+                # Errores genéricos también se cierran (podrían ser números incorrectos)
+                logger.info(f"Error genérico para lead {lead_id}. Cerrando como teléfono erróneo.")
+                close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
+                
             else:
-                logger.info(f"Lead {lead_id} cerrado por el scheduler (máximo intentos alcanzado)")
+                # Cualquier otro outcome no reconocido - cerrar por seguridad
+                logger.warning(f"Outcome no reconocido '{outcome}' para lead {lead_id}. Cerrando.")
+                close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
         
         elif success:
             # Llamada exitosa - marcar como completada y cerrar el lead si hay cita
@@ -70,15 +87,28 @@ def determine_call_outcome(call_result: Dict, pearl_response: Dict = None) -> st
     status = call_result.get('status', '').lower()
     error_message = call_result.get('error_message', '').lower()
     
-    # Análisis del error message si está disponible
-    if 'busy' in error_message or 'ocupado' in error_message:
+    # Análisis del error message si está disponible - PRIORIDAD en este orden
+    # 1. BUSY/OCUPADO - Reprogramar
+    if 'busy' in error_message or 'ocupado' in error_message or 'line busy' in error_message:
         return 'busy'
+    
+    # 2. ERRORES DE TELÉFONO - Cerrar como número incorrecto
+    elif ('invalid' in error_message or 'inválido' in error_message or 
+          'wrong number' in error_message or 'número incorrecto' in error_message or
+          'not a valid' in error_message or 'no válido' in error_message or
+          'unreachable' in error_message or 'inalcanzable' in error_message or
+          'number not found' in error_message or 'número no encontrado' in error_message or
+          'failed to connect' in error_message or 'connection failed' in error_message or
+          'network error' in error_message or 'error de red' in error_message):
+        return 'invalid_phone'
+    
+    # 3. NO ANSWER - Reprogramar  
     elif 'no answer' in error_message or 'no contest' in error_message or 'sin respuesta' in error_message:
         return 'no_answer'
+        
+    # 4. HANG UP - Reprogramar (puede que contesten la próxima vez)
     elif 'hang up' in error_message or 'colg' in error_message or 'disconnect' in error_message:
         return 'hang_up'
-    elif 'invalid' in error_message or 'inválido' in error_message or 'wrong number' in error_message:
-        return 'invalid_phone'
     
     # Mapear por status
     status_mapping = {
@@ -269,6 +299,54 @@ def get_scheduler_integration_stats():
     except Exception as e:
         logger.error(f"Error obteniendo estadísticas de integración: {e}")
         return {}
+    finally:
+        conn.close()
+
+def close_lead_immediately(lead_id: int, outcome: str, closure_reason: str):
+    """
+    Cierra un lead inmediatamente sin reprogramar.
+    Se usa para teléfonos inválidos o errores que no deben reintentarse.
+    """
+    conn = get_connection()
+    if not conn:
+        logger.error("No se pudo conectar a la BD para cerrar lead")
+        return False
+    
+    try:
+        with conn.cursor() as cursor:
+            # Cerrar el lead
+            cursor.execute("""
+                UPDATE leads 
+                SET lead_status = 'closed',
+                    closure_reason = %s,
+                    call_status = %s,
+                    updated_at = NOW(),
+                    selected_for_calling = FALSE
+                WHERE id = %s
+            """, (closure_reason, outcome, lead_id))
+            
+            # Cancelar cualquier llamada programada pendiente
+            cursor.execute("""
+                UPDATE call_schedule 
+                SET status = 'cancelled', 
+                    updated_at = NOW()
+                WHERE lead_id = %s AND status = 'pending'
+            """, (lead_id,))
+            
+            conn.commit()
+            
+            affected_rows = cursor.rowcount
+            if affected_rows > 0:
+                logger.info(f"✅ Lead {lead_id} cerrado inmediatamente: {closure_reason}")
+                return True
+            else:
+                logger.warning(f"⚠️  No se pudo cerrar lead {lead_id} (no existe o ya cerrado)")
+                return False
+                
+    except Exception as e:
+        logger.error(f"❌ Error cerrando lead {lead_id}: {e}")
+        conn.rollback()
+        return False
     finally:
         conn.close()
 
