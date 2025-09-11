@@ -384,7 +384,7 @@ def map_pearl_status_to_result(conversation_status: int, status: int) -> str:
     elif status == 5:
         return 'busy'  # Busy - REPROGRAMAR
     elif status == 6:
-        return 'error'  # Failed - REPROGRAMAR  
+        return 'no_answer'  # Failed - REPROGRAMAR (fallo temporal, no número inválido)  
     elif status == 7:
         return 'no_answer'  # NoAnswer - REPROGRAMAR
     elif status == 3:
@@ -403,7 +403,7 @@ def get_error_message_from_pearl_status(conversation_status: int, status: int) -
         3: "Llamada en progreso",
         4: None,  # Completed - success, no error message
         5: "Línea ocupada",
-        6: "Llamada fallida", 
+        6: "Fallo temporal de conexión", 
         7: "No contesta",
         8: "Llamada cancelada"
     }
