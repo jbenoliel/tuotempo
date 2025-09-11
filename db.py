@@ -13,11 +13,11 @@ def get_database_name():
 def get_connection():
     """Obtiene una conexión a MySQL usando la configuración de Settings."""
     cfg = {
-        'host': settings.DB_HOST,
-        'port': settings.DB_PORT,
-        'user': settings.DB_USER,
-        'password': settings.DB_PASSWORD,
-        'database': settings.DB_DATABASE,
+        'host': settings.DB_HOST or 'localhost',
+        'port': settings.DB_PORT or 3306,
+        'user': settings.DB_USER or 'root',
+        'password': settings.DB_PASSWORD or '',
+        'database': settings.DB_DATABASE or 'Segurcaixa',
         'ssl_disabled': True,  # Deshabilitar SSL para evitar errores de conexión
         'autocommit': True,
         'charset': 'utf8mb4',

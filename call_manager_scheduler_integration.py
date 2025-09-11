@@ -26,7 +26,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         mapped_status = map_status_to_db_enum(raw_status)
         success = call_result.get('success', False)
         duration = call_result.get('duration', 0)
-        error_message = call_result.get('error_message')
+        error_message = call_result.get('error_message') or ''
         
         # Determinar el outcome para el scheduler
         outcome = determine_call_outcome(call_result, pearl_response)
@@ -114,8 +114,8 @@ def determine_call_outcome(call_result: Dict, pearl_response: Dict = None) -> st
         return 'success'
     
     # Mapear status de Pearl AI a outcomes del scheduler
-    status = call_result.get('status', '').lower()
-    error_message = call_result.get('error_message', '').lower()
+    status = str(call_result.get('status', '')).lower()
+    error_message = str(call_result.get('error_message') or '').lower()
     
     # Análisis del error message si está disponible - PRIORIDAD en este orden
     # 1. BUSY/OCUPADO - Reprogramar
@@ -176,7 +176,7 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
                 WHERE id = %s
             """
             
-            pearl_response_json = None
+            pearl_response_json = ''
             if pearl_response:
                 import json
                 pearl_response_json = json.dumps(pearl_response)

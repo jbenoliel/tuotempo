@@ -273,10 +273,10 @@ def update_calls_from_pearl():
                     call_result = {
                         'success': pearl_status == 4,  # 4 = Completed/Success
                         'status': map_pearl_status_to_result(0, pearl_status),
-                        'duration': call_details.get('duration', 0),
+                        'duration': call_details.get('duration') or 0,
                         'error_message': get_error_message_from_pearl_status(0, pearl_status),
                         'lead_id': lead_id,
-                        'phone_number': call_details.get('to')
+                        'phone_number': call_details.get('to') or ''
                     }
                     
                     # Procesar el resultado con la integración del scheduler

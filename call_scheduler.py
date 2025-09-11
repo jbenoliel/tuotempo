@@ -213,7 +213,7 @@ class CallScheduler:
                 
                 conn.commit()
                 
-                logger.info(f"Lead {lead_id} ({lead['nombre']} {lead['apellidos']}) "
+                logger.info(f"Lead {lead_id} ({lead['nombre'] or ''} {lead['apellidos'] or ''}) "
                            f"reprogramado para {scheduled_time} (intento {attempts}/{max_attempts})")
                 
                 return True
