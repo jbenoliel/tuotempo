@@ -1318,8 +1318,18 @@ class CallsManager {
                     }
                 }
                 
+                // Establecer filtro para mostrar solo seleccionados
+                this.state.filters.selected = 'selected';
+                const selectedFilter = document.getElementById('selectedFilter');
+                if (selectedFilter) {
+                    selectedFilter.value = 'selected';
+                }
+                
                 // Aplicar filtros para mostrar solo los leads seleccionados
-                this.applyFilters();
+                // Pequeño delay para asegurar que el servidor procese la selección
+                setTimeout(() => {
+                    this.applyFilters();
+                }, 500);
                 
                 const origenMsg = filters.archivo_origen ? ` (origen: ${filters.archivo_origen.join(', ')})` : '';
                 this.showToast(`✅ Seleccionados ${selectedCount} leads con ${statusField} = "${statusValue}"${origenMsg}`, 'success');
