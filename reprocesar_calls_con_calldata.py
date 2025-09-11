@@ -95,8 +95,8 @@ def reprocesar_calls_con_calldata():
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # Buscar llamadas de los últimos 30 días con collected_info no vacío
-        logger.info("Buscando llamadas con callData de los últimos 30 días...")
+        # Buscar llamadas de los últimos 3 días con collected_info no vacío
+        logger.info("Buscando llamadas con callData de los últimos 3 días...")
         
         cursor.execute("""
             SELECT 
@@ -115,7 +115,7 @@ def reprocesar_calls_con_calldata():
             WHERE pc.collected_info IS NOT NULL 
             AND pc.collected_info != ''
             AND pc.collected_info != '{}'
-            AND pc.call_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            AND pc.call_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
             ORDER BY pc.call_time DESC
         """)
         
@@ -204,12 +204,10 @@ if __name__ == "__main__":
     print("REPROCESO DE LLAMADAS CON CALLDATA")
     print("="*60)
     print("Este script:")
-    print("1. Busca llamadas con callData de los últimos 30 días")
+    print("1. Busca llamadas con callData de los últimos 3 días")
     print("2. Identifica las que tienen fechaDeseada, preferenciaMT o callResult de cita")
     print("3. Las reenvía a la API actualizar_resultado para detectar citas perdidas")
     print()
-    
-    input("Presiona ENTER para continuar...")
     
     reprocesar_calls_con_calldata()
     
