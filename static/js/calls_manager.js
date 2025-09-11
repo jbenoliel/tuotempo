@@ -1318,8 +1318,8 @@ class CallsManager {
                     }
                 }
                 
-                // Recargar datos para reflejar los cambios
-                await this.loadInitialData();
+                // Aplicar filtros para mostrar solo los leads seleccionados
+                this.applyFilters();
                 
                 const origenMsg = filters.archivo_origen ? ` (origen: ${filters.archivo_origen.join(', ')})` : '';
                 this.showToast(`✅ Seleccionados ${selectedCount} leads con ${statusField} = "${statusValue}"${origenMsg}`, 'success');
@@ -2104,34 +2104,38 @@ class CallsManager {
         
         const toastElement = document.createElement('div');
         toastElement.innerHTML = toastHtml;
-        toastContainer.appendChild(toastElement.firstElementChild);
+        const toastNode = toastElement.firstElementChild;
+        toastContainer.appendChild(toastNode);
         
         // Verificar que Bootstrap esté disponible
-        if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Toast && toastNode) {
             try {
-                const toast = new bootstrap.Toast(toastElement.firstElementChild, { delay: 5000 });
+                const toast = new bootstrap.Toast(toastNode, { delay: 5000 });
                 toast.show();
-                toastElement.firstElementChild.addEventListener('hidden.bs.toast', () => {
-                    if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
-                        toastElement.remove();
+                toastNode.addEventListener('hidden.bs.toast', () => {
+                    if (toastNode && toastNode.parentNode) {
+                        toastNode.parentNode.removeChild(toastNode);
                     }
                 });
             } catch (error) {
                 console.warn('Error con Bootstrap Toast, usando fallback:', error);
                 // Fallback en caso de error
                 setTimeout(() => {
-                    if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
-                        toastElement.firstElementChild.parentNode.removeChild(toastElement.firstElementChild);
+                    if (toastNode && toastNode.parentNode) {
+                        toastNode.parentNode.removeChild(toastNode);
                     }
                 }, 5000);
             }
         } else {
-            // Fallback: mostrar por 5 segundos sin Bootstrap
-            setTimeout(() => {
-                if (toastElement.firstElementChild && toastElement.firstElementChild.parentNode) {
-                    toastElement.firstElementChild.parentNode.removeChild(toastElement.firstElementChild);
-                }
-            }, 5000);
+            // Fallback si no hay Bootstrap o el elemento no se creó correctamente
+            console.log(`📢 ${type.toUpperCase()}: ${message}`);
+            if (toastNode) {
+                setTimeout(() => {
+                    if (toastNode && toastNode.parentNode) {
+                        toastNode.parentNode.removeChild(toastNode);
+                    }
+                }, 5000);
+            }
         }
     }
 
