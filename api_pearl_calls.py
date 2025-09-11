@@ -148,7 +148,7 @@ def start_calling_system():
             
             # Integración con el sistema de scheduling para llamadas completadas
             try:
-                from call_manager_scheduler_integration import process_call_result
+                from call_manager_scheduler_integration import enhanced_process_call_result
                 
                 # Crear un resultado de llamada exitoso para el sistema de scheduling
                 call_result = {
@@ -160,7 +160,7 @@ def start_calling_system():
                 }
                 
                 # Procesar el resultado usando el sistema de integración
-                process_call_result(lead_id, call_result, pearl_response=response)
+                enhanced_process_call_result(lead_id, call_result, pearl_response=response)
                 logger.info(f"✅ Sistema de scheduling procesó la llamada exitosa para lead {lead_id}")
                 
             except Exception as e:
@@ -171,7 +171,7 @@ def start_calling_system():
             
             # Integración con el sistema de scheduling para llamadas fallidas
             try:
-                from call_manager_scheduler_integration import process_call_result
+                from call_manager_scheduler_integration import enhanced_process_call_result
                 
                 # Crear un resultado de llamada simulado para el sistema de scheduling
                 call_result = {
@@ -183,7 +183,7 @@ def start_calling_system():
                 }
                 
                 # Procesar el resultado usando el sistema de integración
-                process_call_result(lead_id, call_result)
+                enhanced_process_call_result(lead_id, call_result)
                 logger.info(f"🔄 Sistema de scheduling procesó la llamada fallida para lead {lead_id}")
                 
             except Exception as e:
