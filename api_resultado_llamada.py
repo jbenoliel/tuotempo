@@ -184,16 +184,36 @@ def actualizar_resultado():
     # NUEVA LÓGICA: Usar parámetros existentes del JSON para mapear a nuevos estados
     
     # Identificar si es útil positivo usando parámetros existentes
-    if data.get('nuevaCita') or data.get('conPack'):
+    # MEJORADO: Detectar citas por múltiples criterios
+    call_result = data.get('callResult', '').lower()
+    fecha_deseada = data.get('fechaDeseada')
+    preferencia_mt = data.get('preferenciaMT')
+    
+    # Criterios para detectar cita:
+    # 1. Campos tradicionales (nuevaCita, conPack)
+    # 2. callResult explícito ("cita agendada", "cita confirmada")  
+    # 3. Solo presencia de fechaDeseada + preferenciaMT (indica intención de cita)
+    is_appointment = (
+        data.get('nuevaCita') or 
+        data.get('conPack') or
+        call_result in ['cita agendada', 'citaagendada', 'cita confirmada', 'citaconfirmada'] or
+        (fecha_deseada and preferencia_mt)  # NUEVO: detectar solo por estos campos
+    )
+    
+    if is_appointment:
         # ÚTILES POSITIVOS - acepta cita
-        if data.get('conPack'):
+        # Si tiene fechaDeseada y preferenciaMT, siempre asumir que es con pack
+        has_appointment_details = fecha_deseada and preferencia_mt
+        
+        if data.get('conPack') or has_appointment_details:
             status_level_1 = 'Cita Agendada'
             status_level_2 = 'Con Pack'
-            logger.info(f"Estado útil positivo: Cita con pack")
+            reason = f"callResult: '{call_result}'" if call_result else "fechaDeseada + preferenciaMT"
+            logger.info(f"Estado útil positivo: Cita con pack ({reason})")
         else:
             status_level_1 = 'Cita Agendada'
             status_level_2 = 'Sin Pack'
-            logger.info(f"Estado útil positivo: Cita sin pack")
+            logger.info(f"Estado útil positivo: Cita sin pack (callResult: '{call_result}')")
             
     # Identificar si es útil negativo usando códigos existentes
     elif data.get('noInteresado') or codigo_no_interes:

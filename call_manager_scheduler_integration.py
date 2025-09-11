@@ -28,11 +28,24 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         duration = call_result.get('duration', 0)
         error_message = call_result.get('error_message')
         
-        # Determinar el outcome para el scheduler
-        outcome = determine_call_outcome(call_result, pearl_response)
+        # NUEVO: Detectar si hay cita agendada en callData
+        appointment_detected = detect_appointment_from_call_data(pearl_response)
+        if appointment_detected:
+            logger.info(f"🎯 Cita detectada para lead {lead_id}: {appointment_detected}")
+            # Cambiar el status y outcome para reflejar la cita
+            mapped_status = 'completed'
+            success = True
+            outcome = 'success'
+        else:
+            # Determinar el outcome normal para el scheduler
+            outcome = determine_call_outcome(call_result, pearl_response)
         
         # Actualizar el lead en la BD
         update_lead_with_call_result(lead_id, mapped_status, outcome, error_message, pearl_response)
+        
+        # NUEVO: Si se detectó cita, actualizar status_level_1
+        if appointment_detected:
+            update_lead_appointment_status(lead_id, appointment_detected)
         
         # Manejar casos según el tipo de error
         if not success:
