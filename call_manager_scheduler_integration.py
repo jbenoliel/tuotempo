@@ -22,7 +22,8 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
     """
     try:
         # Extraer información del resultado
-        status = call_result.get('status', 'failed')
+        raw_status = call_result.get('status', 'failed')
+        mapped_status = map_status_to_db_enum(raw_status)
         success = call_result.get('success', False)
         duration = call_result.get('duration', 0)
         error_message = call_result.get('error_message')
@@ -31,7 +32,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         outcome = determine_call_outcome(call_result, pearl_response)
         
         # Actualizar el lead en la BD
-        update_lead_with_call_result(lead_id, status, outcome, error_message, pearl_response)
+        update_lead_with_call_result(lead_id, mapped_status, outcome, error_message, pearl_response)
         
         # Manejar casos según el tipo de error
         if not success:
@@ -72,6 +73,35 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
     except Exception as e:
         logger.error(f"Error procesando resultado de llamada para lead {lead_id}: {e}")
         return False
+
+def map_status_to_db_enum(status: str) -> str:
+    """
+    Mapea el status de Pearl AI a los valores válidos del ENUM de call_status.
+    
+    Args:
+        status: Status de Pearl AI
+        
+    Returns:
+        str: Valor válido para el ENUM call_status
+    """
+    status_lower = str(status).lower()
+    
+    # Mapeo de status de Pearl AI a ENUM de BD
+    status_mapping = {
+        'completed': 'completed',
+        'success': 'completed',
+        'busy': 'busy',
+        'no_answer': 'no_answer',
+        'failed': 'error',
+        'error': 'error',
+        'timeout': 'no_answer',
+        'rejected': 'error',
+        'calling': 'calling',
+        'selected': 'selected',
+        'in_progress': 'calling'
+    }
+    
+    return status_mapping.get(status_lower, 'error')
 
 def determine_call_outcome(call_result: Dict, pearl_response: Dict = None) -> str:
     """
@@ -151,7 +181,7 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
                 import json
                 pearl_response_json = json.dumps(pearl_response)
             
-            cursor.execute(sql, (str(status)[:50], error_message, pearl_response_json, lead_id))
+            cursor.execute(sql, (status, error_message, pearl_response_json, lead_id))
             
             # Si es una llamada exitosa y hay confirmación de cita, actualizar status_level_1
             if outcome == 'success':
