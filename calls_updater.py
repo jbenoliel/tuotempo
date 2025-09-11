@@ -296,7 +296,7 @@ def update_calls_from_pearl():
                         'call_duration': call_details.get('duration'),
                         'call_summary': call_details.get('summary', {}).get('text') if isinstance(call_details.get('summary'), dict) else call_details.get('summary'),
                         'call_recording_url': call_details.get('recordingUrl'),
-                        'pearl_call_response': json.dumps(call_details) if call_details else None,
+                        'pearl_call_response': json.dumps(call_details) if call_details else '',
                         'updated_at': datetime.now()
                     }
 
@@ -401,7 +401,7 @@ def get_error_message_from_pearl_status(conversation_status: int, status: int) -
     # Mapear status oficiales de Pearl AI
     status_messages = {
         3: "Llamada en progreso",
-        4: None,  # Completed - success, no error message
+        4: "",  # Completed - success, no error message
         5: "Línea ocupada",
         6: "Fallo temporal de conexión", 
         7: "No contesta",
