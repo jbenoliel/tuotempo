@@ -202,18 +202,16 @@ def actualizar_resultado():
     
     if is_appointment:
         # ÚTILES POSITIVOS - acepta cita
-        # Si tiene fechaDeseada y preferenciaMT, siempre asumir que es con pack
-        has_appointment_details = fecha_deseada and preferencia_mt
-        
-        if data.get('conPack') or has_appointment_details:
+        # Solo marcar "Con Pack" si específicamente viene conPack: true
+        if data.get('conPack') is True:
             status_level_1 = 'Cita Agendada'
             status_level_2 = 'Con Pack'
-            reason = f"callResult: '{call_result}'" if call_result else "fechaDeseada + preferenciaMT"
-            logger.info(f"Estado útil positivo: Cita con pack ({reason})")
+            logger.info(f"Estado útil positivo: Cita con pack (conPack=true)")
         else:
             status_level_1 = 'Cita Agendada'
             status_level_2 = 'Sin Pack'
-            logger.info(f"Estado útil positivo: Cita sin pack (callResult: '{call_result}')")
+            reason = f"callResult: '{call_result}'" if call_result else "fechaDeseada/preferenciaMT/interesado"
+            logger.info(f"Estado útil positivo: Cita sin pack ({reason})")
             
     # Identificar si es útil negativo usando códigos existentes
     elif data.get('noInteresado') or codigo_no_interes:
