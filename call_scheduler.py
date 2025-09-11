@@ -57,14 +57,14 @@ class CallScheduler:
     
     def get_working_hours(self) -> Tuple[str, str]:
         """Obtiene las horas laborables."""
-        start = self.config.get('working_hours_start', '10:00')
-        end = self.config.get('working_hours_end', '20:00')
+        start = self.config.get('working_hours_start', '10:00') or '10:00'
+        end = self.config.get('working_hours_end', '20:00') or '20:00'
         return start, end
     
     def is_working_time(self, dt: datetime) -> bool:
         """Verifica si una fecha/hora está en horario laboral."""
         # Verificar día de la semana (1=Lunes, 7=Domingo)
-        working_days = self.config.get('working_days', [1, 2, 3, 4, 5])
+        working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
         weekday = dt.isoweekday()  # 1=Monday, 7=Sunday
         
         if weekday not in working_days:
@@ -73,6 +73,12 @@ class CallScheduler:
         # Verificar hora
         start_hour, end_hour = self.get_working_hours()
         current_time = dt.time()
+        
+        # Safety checks for hour strings
+        if not start_hour or ':' not in str(start_hour):
+            start_hour = '10:00'
+        if not end_hour or ':' not in str(end_hour):
+            end_hour = '20:00'
         
         # Convertir strings de hora a time objects
         from datetime import time
@@ -84,8 +90,12 @@ class CallScheduler:
     def find_next_working_slot(self, base_datetime: datetime) -> datetime:
         """Encuentra el siguiente slot en horario laboral."""
         candidate = base_datetime
-        working_days = self.config.get('working_days', [1, 2, 3, 4, 5])
+        working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
         start_hour, _ = self.get_working_hours()
+        
+        # Safety check for start_hour
+        if not start_hour or ':' not in str(start_hour):
+            start_hour = '10:00'
         
         # Si ya está en horario laboral, devolverlo
         if self.is_working_time(candidate):
@@ -132,6 +142,12 @@ class CallScheduler:
         Returns:
             bool: True si se programó correctamente, False si se cerró el lead
         """
+        # Safety checks for None values
+        if outcome is None:
+            outcome = 'unknown'
+        if not isinstance(outcome, str):
+            outcome = str(outcome) if outcome is not None else 'unknown'
+        
         conn = get_connection()
         if not conn:
             logger.error("No se pudo conectar a la BD")
@@ -157,14 +173,14 @@ class CallScheduler:
                 
                 # Incrementar contador de intentos
                 attempts = (lead['call_attempts_count'] or 0) + 1
-                max_attempts = int(self.config.get('max_attempts', 6))
+                max_attempts = int(self.config.get('max_attempts', 6) or 6)
                 
                 # Si alcanzó el máximo de intentos, cerrar el lead
                 if attempts >= max_attempts:
                     return self._close_lead(cursor, lead_id, outcome, attempts)
                 
                 # Calcular fecha de reprogramación (configurable en horas)
-                reschedule_hours = float(self.config.get('reschedule_hours', 30))
+                reschedule_hours = float(self.config.get('reschedule_hours', 30) or 30)
                 next_attempt_time = datetime.now() + timedelta(hours=reschedule_hours)
                 
                 # Ajustar al siguiente horario laboral
@@ -228,7 +244,7 @@ class CallScheduler:
     
     def _close_lead(self, cursor, lead_id: int, outcome: str, attempts: int) -> bool:
         """Cierra un lead después del máximo de intentos."""
-        closure_reasons = self.config.get('closure_reasons', {})
+        closure_reasons = self.config.get('closure_reasons', {}) or {}
         
         # Determinar razón de cierre según el outcome
         if outcome == 'no_answer':
@@ -421,6 +437,13 @@ class CallScheduler:
 # Funciones de utilidad para integración con el sistema actual
 def schedule_failed_call(lead_id: int, outcome: str) -> bool:
     """Función de conveniencia para programar una llamada fallida."""
+    # Safety checks
+    if lead_id is None or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id: {lead_id}")
+        return False
+    if outcome is None:
+        outcome = 'unknown'
+    
     scheduler = CallScheduler()
     return scheduler.schedule_retry(lead_id, outcome)
 

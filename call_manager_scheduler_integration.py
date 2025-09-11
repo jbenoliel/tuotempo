@@ -20,6 +20,14 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         call_result: Resultado de la llamada de Pearl AI
         pearl_response: Respuesta completa de la API de Pearl
     """
+    # Safety checks at the very beginning
+    if lead_id is None or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id: {lead_id}")
+        return False
+    if call_result is None:
+        logger.error(f"call_result is None for lead {lead_id}")
+        return False
+        
     try:
         # Extraer información del resultado
         raw_status = call_result.get('status', 'failed')
@@ -206,6 +214,11 @@ def mark_successful_call(lead_id: int, call_result: Dict):
     """
     Marca una llamada como exitosa y potencialmente cierra el lead.
     """
+    # Safety check for lead_id
+    if lead_id is None or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id: {lead_id}")
+        return False
+        
     conn = get_connection()
     if not conn:
         return False
@@ -337,6 +350,15 @@ def close_lead_immediately(lead_id: int, outcome: str, closure_reason: str):
     Cierra un lead inmediatamente sin reprogramar.
     Se usa para teléfonos inválidos o errores que no deben reintentarse.
     """
+    # Safety checks
+    if lead_id is None or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id: {lead_id}")
+        return False
+    if outcome is None:
+        outcome = 'unknown'
+    if closure_reason is None:
+        closure_reason = 'Error desconocido'
+    
     conn = get_connection()
     if not conn:
         logger.error("No se pudo conectar a la BD para cerrar lead")
