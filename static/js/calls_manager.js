@@ -320,7 +320,7 @@ class CallsManager {
             signal: AbortSignal.timeout(10000) // 10 segundos de timeout
         };
         
-        if (body) {
+        if (body && method !== 'GET' && method !== 'HEAD') {
             options.body = JSON.stringify(body);
             // Reducir verbosidad del logging
             if (method === 'POST') {
@@ -1254,11 +1254,17 @@ class CallsManager {
             // Consultar TODOS los leads del servidor que coincidan con los filtros
             this.showToast('Consultando todos los leads que coinciden...', 'info');
             
-            const response = await this.apiCall('GET', '/leads/count-by-status', {
+            // Construir query parameters para GET request
+            const queryParams = new URLSearchParams({
                 status_field: statusField,
-                status_value: statusValue,
-                archivo_origen: filters.archivo_origen
+                status_value: statusValue
             });
+            
+            if (filters.archivo_origen && filters.archivo_origen.length > 0) {
+                queryParams.append('archivo_origen', JSON.stringify(filters.archivo_origen));
+            }
+            
+            const response = await this.apiCall('GET', `/leads/count-by-status?${queryParams.toString()}`);
             
             const totalMatching = response.total_count;
             const alreadySelected = response.selected_count;

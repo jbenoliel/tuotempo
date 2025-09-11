@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PearlAPIError(Exception):
@@ -288,6 +287,57 @@ class PearlCaller:
             error_msg = f"Error de conexión al buscar llamadas paginadas: {str(e)}"
             logger.error(error_msg)
             raise PearlAPIError(error_msg)
+
+    def download_recording(self, call_id: str, download_path: str, call_details: Optional[Dict] = None) -> Optional[str]:
+        """
+        Descarga la grabación de una llamada y la guarda en un archivo.
+
+        Args:
+            call_id (str): ID de la llamada.
+            download_path (str): Ruta donde guardar el archivo de audio.
+            call_details (Optional[Dict]): Detalles de la llamada ya obtenidos para evitar una nueva consulta.
+
+        Returns:
+            Optional[str]: La ruta del archivo guardado o None si no se pudo descargar.
+        """
+        try:
+            logger.info(f"Intentando descargar grabación para la llamada: {call_id}")
+            
+            # Si no se pasan los detalles de la llamada, los obtenemos
+            if call_details is None:
+                call_details = self.get_call_status(call_id)
+
+            recording_url = call_details.get('recording')
+            if not recording_url:
+                logger.warning(f"No se encontró URL de grabación para la llamada {call_id}")
+                return None
+
+            logger.info(f"URL de grabación encontrada: {recording_url}")
+            
+            # Realizar la petición de descarga
+            response = requests.get(recording_url, timeout=60, stream=True)
+
+            if response.status_code == 200:
+                # Asegurarse de que el directorio de destino existe
+                os.makedirs(os.path.dirname(download_path), exist_ok=True)
+                
+                with open(download_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                
+                logger.info(f"✅ Grabación guardada exitosamente en: {download_path}")
+                return download_path
+            else:
+                logger.error(f"Error al descargar la grabación: {response.status_code} - {response.text}")
+                return None
+
+        except requests.RequestException as e:
+            error_msg = f"Error de conexión al descargar la grabación: {str(e)}"
+            logger.error(error_msg)
+            raise PearlAPIError(error_msg)
+        except Exception as e:
+            logger.error(f"Error inesperado al descargar la grabación: {e}")
+            return None
 
     def get_call_status(self, call_id: str) -> Dict:
         """
