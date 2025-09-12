@@ -40,6 +40,14 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         outcome = determine_call_outcome(call_result, pearl_response)
         
         # Actualizar el lead en la BD
+        # Additional safety checks with logging
+        if mapped_status is None:
+            logger.error(f"mapped_status is None for lead {lead_id}, using default 'failed'")
+            mapped_status = 'failed'
+        if outcome is None:
+            logger.error(f"outcome is None for lead {lead_id}, using default 'error'")
+            outcome = 'error'
+        
         update_lead_with_call_result(lead_id, mapped_status, outcome, error_message, pearl_response)
         
         # Manejar casos según el tipo de error
@@ -165,6 +173,19 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
     """
     Actualiza el lead con el resultado de la llamada.
     """
+    # Comprehensive safety checks
+    if lead_id is None or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id: {lead_id}")
+        return False
+    if status is None:
+        logger.error(f"status is None for lead {lead_id}, using 'error'")
+        status = 'error'
+    if outcome is None:
+        logger.error(f"outcome is None for lead {lead_id}, using 'error'")
+        outcome = 'error'
+    if error_message is None:
+        error_message = ''
+        
     conn = get_connection()
     if not conn:
         logger.error("No se pudo conectar a la BD")

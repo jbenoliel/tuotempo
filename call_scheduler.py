@@ -24,7 +24,19 @@ logger = logging.getLogger(__name__)
 class CallScheduler:
     def __init__(self):
         self.config = {}
-        self.load_config()
+        try:
+            self.load_config()
+        except Exception as e:
+            logger.error(f"Error loading config in __init__: {e}")
+            # Ensure config is never None with safe defaults
+            self.config = {
+                'max_attempts': 6,
+                'reschedule_hours': 30,
+                'working_hours_start': '10:00',
+                'working_hours_end': '20:00',
+                'working_days': [1, 2, 3, 4, 5],
+                'closure_reasons': {}
+            }
     
     def load_config(self) -> Dict:
         """Carga la configuración desde la base de datos."""
@@ -39,12 +51,27 @@ class CallScheduler:
                 configs = cursor.fetchall()
                 
                 for config in configs:
-                    key = config['config_key']
-                    value = config['config_value']
+                    if config is None:
+                        continue
+                        
+                    key = config.get('config_key')
+                    value = config.get('config_value')
+                    
+                    if key is None or value is None:
+                        logger.warning(f"Skipping config with None key or value: key={key}, value={value}")
+                        continue
                     
                     # Parsear valores JSON
                     if key in ['closure_reasons', 'working_days']:
-                        self.config[key] = json.loads(value)
+                        try:
+                            self.config[key] = json.loads(value)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.error(f"Error parsing JSON for key {key}: {e}")
+                            # Set default values
+                            if key == 'working_days':
+                                self.config[key] = [1, 2, 3, 4, 5]
+                            elif key == 'closure_reasons':
+                                self.config[key] = {}
                     else:
                         self.config[key] = value
                         
@@ -173,6 +200,11 @@ class CallScheduler:
                 
                 # Incrementar contador de intentos
                 attempts = (lead['call_attempts_count'] or 0) + 1
+                # Extra safety check for self.config
+                if self.config is None:
+                    logger.error(f"self.config is None in schedule_retry for lead {lead_id}")
+                    self.config = {'max_attempts': 6}
+                    
                 max_attempts = int(self.config.get('max_attempts', 6) or 6)
                 
                 # Si alcanzó el máximo de intentos, cerrar el lead
@@ -442,10 +474,16 @@ def schedule_failed_call(lead_id: int, outcome: str) -> bool:
         logger.error(f"Invalid lead_id: {lead_id}")
         return False
     if outcome is None:
+        logger.warning(f"outcome is None for lead {lead_id}, using 'unknown'")
         outcome = 'unknown'
     
-    scheduler = CallScheduler()
-    return scheduler.schedule_retry(lead_id, outcome)
+    try:
+        scheduler = CallScheduler()
+        logger.debug(f"Calling schedule_retry for lead {lead_id} with outcome '{outcome}'")
+        return scheduler.schedule_retry(lead_id, outcome)
+    except Exception as e:
+        logger.error(f"Error in schedule_failed_call for lead {lead_id}: {e}")
+        return False
 
 def get_next_scheduled_calls(limit: int = 10) -> List[Dict]:
     """Función de conveniencia para obtener próximas llamadas."""
