@@ -23,20 +23,26 @@ logger = logging.getLogger(__name__)
 
 class CallScheduler:
     def __init__(self):
-        self.config = {}
-        try:
-            self.load_config()
-        except Exception as e:
-            logger.error(f"Error loading config in __init__: {e}")
-            # Ensure config is never None with safe defaults
-            self.config = {
-                'max_attempts': 6,
-                'reschedule_hours': 30,
-                'working_hours_start': '10:00',
-                'working_hours_end': '20:00',
-                'working_days': [1, 2, 3, 4, 5],
-                'closure_reasons': {}
-            }
+        # Initialize with safe defaults - avoid database call in __init__
+        self.config = {
+            'max_attempts': 6,
+            'reschedule_hours': 30,
+            'working_hours_start': '10:00',
+            'working_hours_end': '20:00',
+            'working_days': [1, 2, 3, 4, 5],
+            'closure_reasons': {}
+        }
+        self._config_loaded = False
+    
+    def _ensure_config_loaded(self):
+        """Carga la configuración si no se ha cargado aún (lazy loading)."""
+        if not self._config_loaded:
+            try:
+                self.load_config()
+            except Exception as e:
+                logger.warning(f"Could not load config from database, using defaults: {e}")
+                # Keep default config if loading fails
+            self._config_loaded = True
     
     def load_config(self) -> Dict:
         """Carga la configuración desde la base de datos."""
@@ -115,6 +121,7 @@ class CallScheduler:
     
     def get_working_hours(self) -> Tuple[str, str]:
         """Obtiene las horas laborables."""
+        self._ensure_config_loaded()
         start = self.config.get('working_hours_start', '10:00') or '10:00'
         end = self.config.get('working_hours_end', '20:00') or '20:00'
         
@@ -132,6 +139,7 @@ class CallScheduler:
     
     def is_working_time(self, dt: datetime) -> bool:
         """Verifica si una fecha/hora está en horario laboral."""
+        self._ensure_config_loaded()
         # Verificar día de la semana (1=Lunes, 7=Domingo)
         working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
         
@@ -170,6 +178,7 @@ class CallScheduler:
     
     def find_next_working_slot(self, base_datetime: datetime) -> datetime:
         """Encuentra el siguiente slot en horario laboral."""
+        self._ensure_config_loaded()
         candidate = base_datetime
         working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
         
@@ -267,10 +276,8 @@ class CallScheduler:
                 
                 # Incrementar contador de intentos
                 attempts = (lead['call_attempts_count'] or 0) + 1
-                # Extra safety check for self.config
-                if self.config is None:
-                    logger.error(f"self.config is None in schedule_retry for lead {lead_id}")
-                    self.config = {'max_attempts': 6}
+                # Ensure config is loaded
+                self._ensure_config_loaded()
                     
                 max_attempts = int(self.config.get('max_attempts', 6) or 6)
                 
@@ -343,6 +350,7 @@ class CallScheduler:
     
     def _close_lead(self, cursor, lead_id: int, outcome: str, attempts: int) -> bool:
         """Cierra un lead después del máximo de intentos."""
+        self._ensure_config_loaded()
         closure_reasons = self.config.get('closure_reasons', {}) or {}
         
         # Determinar razón de cierre según el outcome
