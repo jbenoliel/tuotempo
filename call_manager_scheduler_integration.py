@@ -100,7 +100,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
             elif success:
                 # Llamada exitosa - marcar como completada y cerrar el lead si hay cita
                 try:
-                    mark_successful_call(lead_id, call_result)
+                    mark_successful_call(lead_id, call_result, pearl_response)
                     logger.info(f"Llamada exitosa para lead {lead_id}")
                 except Exception as e:
                     logger.error(f"Error marking successful call for lead {lead_id}: {e}")
@@ -258,9 +258,9 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
     finally:
         conn.close()
 
-def mark_successful_call(lead_id: int, call_result: Dict):
+def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict = None):
     """
-    Marca una llamada como exitosa y potencialmente cierra el lead.
+    Marca una llamada como exitosa y procesa la información de cita si está disponible.
     """
     # Safety check for lead_id
     if lead_id is None or not isinstance(lead_id, int):
@@ -273,23 +273,101 @@ def mark_successful_call(lead_id: int, call_result: Dict):
     
     try:
         with conn.cursor() as cursor:
-            # Si la llamada fue exitosa, podríamos querer cerrar el lead
-            # dependiendo de si se agendó una cita o hubo rechazo definitivo
+            # Valores por defecto
+            update_fields = {
+                'call_status': 'completed',
+                'last_call_attempt': 'NOW()',
+                'updated_at': 'CURRENT_TIMESTAMP'
+            }
             
-            # Por ahora, solo marcamos como completada
-            cursor.execute("""
-                UPDATE leads SET
-                    call_status = 'completed',
-                    last_call_attempt = NOW(),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (lead_id,))
+            # Procesar información de cita si está disponible
+            if pearl_response and 'collectedInfo' in pearl_response:
+                collected_info = pearl_response['collectedInfo']
+                logger.info(f"Procesando collectedInfo para lead {lead_id}: {collected_info}")
+                
+                # Extraer información de cita
+                fecha_deseada = None
+                hora_deseada = None
+                call_result_info = None
+                preferencia_mt = None
+                
+                # Buscar en la lista de collected_info
+                for item in collected_info:
+                    if item.get('id') == 'fechaDeseada':
+                        fecha_deseada = item.get('value')
+                    elif item.get('id') == 'horaDeseada':
+                        hora_deseada = item.get('value')
+                    elif item.get('id') == 'callResult':
+                        call_result_info = item.get('value')
+                    elif item.get('id') == 'preferenciaMT':
+                        preferencia_mt = item.get('value')
+                
+                logger.info(f"Lead {lead_id} - Datos extraídos: fecha={fecha_deseada}, hora={hora_deseada}, resultado={call_result_info}, preferencia={preferencia_mt}")
+                
+                # Determinar si hay cita basándose ÚNICAMENTE en la presencia de fechaDeseada
+                tiene_cita = bool(fecha_deseada)
+                logger.info(f"Lead {lead_id} - Tiene cita: {tiene_cita}")
+                
+                # Procesar fecha de cita si está disponible
+                if fecha_deseada:
+                    try:
+                        # Convertir formato DD-MM-YYYY a YYYY-MM-DD para MySQL
+                        if '-' in fecha_deseada and len(fecha_deseada.split('-')) == 3:
+                            parts = fecha_deseada.split('-')
+                            if len(parts[0]) == 2:  # DD-MM-YYYY
+                                mysql_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                                update_fields['cita'] = f"'{mysql_date}'"
+                                logger.info(f"Lead {lead_id} - Fecha de cita procesada: {mysql_date}")
+                    except Exception as e:
+                        logger.warning(f"Error procesando fecha {fecha_deseada} para lead {lead_id}: {e}")
+                
+                # Procesar hora de cita si está disponible (OPCIONAL)
+                if hora_deseada:
+                    try:
+                        # Asegurar formato HH:MM:SS
+                        if ':' in hora_deseada:
+                            time_parts = hora_deseada.split(':')
+                            if len(time_parts) >= 2:
+                                # Asegurar formato completo HH:MM:SS
+                                if len(time_parts) == 2:
+                                    hora_deseada += ':00'
+                                update_fields['hora_cita'] = f"'{hora_deseada}'"
+                                logger.info(f"Lead {lead_id} - Hora de cita procesada: {hora_deseada}")
+                    except Exception as e:
+                        logger.warning(f"Error procesando hora {hora_deseada} para lead {lead_id}: {e}")
+                
+                # Actualizar status ÚNICAMENTE basado en la presencia de fechaDeseada
+                if tiene_cita:
+                    update_fields['status_level_1'] = "'Cita Agendada'"
+                    # Opcional: actualizar resultado_llamada solo si hay un resultado específico
+                    if call_result_info and 'cita reservada' in call_result_info.lower():
+                        update_fields['resultado_llamada'] = "'Cita confirmada'"
+                    logger.info(f"Lead {lead_id} - Estado actualizado a 'Cita Agendada' por presencia de fechaDeseada")
+                else:
+                    logger.info(f"Lead {lead_id} - Sin información de cita (fechaDeseada faltante)")
+                
+            # Construir query de actualización
+            set_clauses = []
+            for field, value in update_fields.items():
+                if value in ['NOW()', 'CURRENT_TIMESTAMP']:
+                    set_clauses.append(f"{field} = {value}")
+                else:
+                    set_clauses.append(f"{field} = {value}")
+            
+            sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = %s"
+            cursor.execute(sql, (lead_id,))
             
             conn.commit()
-            logger.info(f"Lead {lead_id} marcado como llamada exitosa")
+            
+            if update_fields.get('cita') or update_fields.get('status_level_1'):
+                logger.info(f"✅ Lead {lead_id} procesado exitosamente con información de cita")
+            else:
+                logger.info(f"✅ Lead {lead_id} marcado como llamada exitosa (sin información de cita)")
             
     except Exception as e:
         logger.error(f"Error marcando llamada exitosa para lead {lead_id}: {e}")
+        if conn:
+            conn.rollback()
     finally:
         conn.close()
 
