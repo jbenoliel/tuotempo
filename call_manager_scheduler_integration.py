@@ -48,41 +48,65 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
             logger.error(f"outcome is None for lead {lead_id}, using default 'error'")
             outcome = 'error'
         
-        update_lead_with_call_result(lead_id, mapped_status, outcome, error_message, pearl_response)
+        try:
+            update_lead_with_call_result(lead_id, mapped_status, outcome, error_message, pearl_response)
+        except Exception as e:
+            logger.error(f"Critical error in update_lead_with_call_result for lead {lead_id}: {e}")
+            # Return early to avoid further processing that could cause none_dealloc
+            return False
         
-        # Manejar casos según el tipo de error
-        if not success:
-            if outcome == 'invalid_phone':
-                # Teléfonos inválidos se cierran inmediatamente SIN reprogramar
-                logger.info(f"Teléfono inválido para lead {lead_id}. Cerrando directamente.")
-                close_lead_immediately(lead_id, outcome, 'Teléfono erróneo')
-                
-            elif outcome in ['no_answer', 'busy', 'hang_up']:
-                # Estos casos se reprograman
-                logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Usando scheduler para reprogramar.")
-                
-                # Intentar reprogramar con el scheduler
-                scheduled = schedule_failed_call(lead_id, outcome)
-                
-                if scheduled:
-                    logger.info(f"Lead {lead_id} reprogramado exitosamente por el scheduler")
-                else:
-                    logger.info(f"Lead {lead_id} cerrado por el scheduler (máximo intentos alcanzado)")
+        # Manejar casos según el tipo de error - wrapped in try-catch
+        try:
+            if not success:
+                if outcome == 'invalid_phone':
+                    # Teléfonos inválidos se cierran inmediatamente SIN reprogramar
+                    logger.info(f"Teléfono inválido para lead {lead_id}. Cerrando directamente.")
+                    try:
+                        close_lead_immediately(lead_id, outcome, 'Teléfono erróneo')
+                    except Exception as e:
+                        logger.error(f"Error closing lead {lead_id}: {e}")
                     
-            elif outcome == 'error':
-                # Errores genéricos también se cierran (podrían ser números incorrectos)
-                logger.info(f"Error genérico para lead {lead_id}. Cerrando como teléfono erróneo.")
-                close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
-                
-            else:
-                # Cualquier otro outcome no reconocido - cerrar por seguridad
-                logger.warning(f"Outcome no reconocido '{outcome}' para lead {lead_id}. Cerrando.")
-                close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
-        
-        elif success:
-            # Llamada exitosa - marcar como completada y cerrar el lead si hay cita
-            mark_successful_call(lead_id, call_result)
-            logger.info(f"Llamada exitosa para lead {lead_id}")
+                elif outcome in ['no_answer', 'busy', 'hang_up']:
+                    # Estos casos se reprograman
+                    logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Usando scheduler para reprogramar.")
+                    
+                    # Intentar reprogramar con el scheduler
+                    try:
+                        scheduled = schedule_failed_call(lead_id, outcome)
+                        
+                        if scheduled:
+                            logger.info(f"Lead {lead_id} reprogramado exitosamente por el scheduler")
+                        else:
+                            logger.info(f"Lead {lead_id} cerrado por el scheduler (máximo intentos alcanzado)")
+                    except Exception as e:
+                        logger.error(f"Error scheduling failed call for lead {lead_id}: {e}")
+                        
+                elif outcome == 'error':
+                    # Errores genéricos también se cierran (podrían ser números incorrectos)
+                    logger.info(f"Error genérico para lead {lead_id}. Cerrando como teléfono erróneo.")
+                    try:
+                        close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
+                    except Exception as e:
+                        logger.error(f"Error closing lead {lead_id}: {e}")
+                    
+                else:
+                    # Cualquier otro outcome no reconocido - cerrar por seguridad
+                    logger.warning(f"Outcome no reconocido '{outcome}' para lead {lead_id}. Cerrando.")
+                    try:
+                        close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
+                    except Exception as e:
+                        logger.error(f"Error closing lead {lead_id}: {e}")
+            
+            elif success:
+                # Llamada exitosa - marcar como completada y cerrar el lead si hay cita
+                try:
+                    mark_successful_call(lead_id, call_result)
+                    logger.info(f"Llamada exitosa para lead {lead_id}")
+                except Exception as e:
+                    logger.error(f"Error marking successful call for lead {lead_id}: {e}")
+        except Exception as e:
+            logger.error(f"Critical error in call outcome handling for lead {lead_id}: {e}")
+            return False
         
         return True
         
@@ -193,24 +217,27 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
     
     try:
         with conn.cursor() as cursor:
-            # Actualizar lead con resultado de la llamada
+            # Ensure all parameters are strings and not None
+            safe_status = str(status) if status is not None else 'error'
+            safe_error_message = str(error_message) if error_message is not None else ''
+            safe_lead_id = int(lead_id) if lead_id is not None else 0
+            
+            if safe_lead_id == 0:
+                logger.error("Invalid lead_id, cannot update database")
+                return False
+            
+            # Actualizar lead con resultado de la llamada - simplified query
             sql = """
                 UPDATE leads SET
                     call_status = %s,
                     call_attempts_count = IFNULL(call_attempts_count,0) + 1,
                     last_call_attempt = NOW(),
                     call_error_message = %s,
-                    pearl_call_response = %s,
-                    updated_at = CURRENT_TIMESTAMP
+                    updated_at = NOW()
                 WHERE id = %s
             """
             
-            pearl_response_json = ''
-            if pearl_response:
-                import json
-                pearl_response_json = json.dumps(pearl_response)
-            
-            cursor.execute(sql, (status, error_message, pearl_response_json, lead_id))
+            cursor.execute(sql, (safe_status, safe_error_message, safe_lead_id))
             
             # Si es una llamada exitosa y hay confirmación de cita, actualizar status_level_1
             if outcome == 'success':
