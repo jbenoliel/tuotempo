@@ -13,6 +13,9 @@ import json
 from datetime import datetime
 from pearl_caller import get_pearl_client, PearlAPIError
 from dotenv import load_dotenv
+from db import get_connection
+import mysql.connector
+import re
 
 # --- Configuración de Logging ---
 log_directory = "logs"
@@ -40,8 +43,101 @@ stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
 
-# --- Carga de variables de entorno ---
-load_dotenv()
+
+
+def _buscar_info_lead(db_cursor, phone: str, name: str) -> dict:
+    """Busca información de un lead en la BD por teléfono o nombre."""
+    lead_data = {}
+    # Campos a recuperar de la tabla leads
+    campos_lead = [
+        'fecha_nacimiento', 'nombre_clinica', 'direccion_clinica', 'ciudad',
+        'fecha_minima_reserva', 'preferencia_horario', 'origen_archivo'
+    ]
+
+    try:
+        # 1. Búsqueda por número de teléfono normalizado
+        if phone:
+            # Quitar prefijo '+34' y cualquier otro carácter no numérico
+            clean_phone = re.sub(r'\D', '', phone)
+            if clean_phone.startswith('34'):
+                clean_phone = clean_phone[2:]
+
+            sql = f"SELECT {', '.join(campos_lead)} FROM leads WHERE telefono = %s LIMIT 1"
+            db_cursor.execute(sql, (clean_phone,))
+            result = db_cursor.fetchone()
+            if result:
+                lead_data = dict(zip(campos_lead, result))
+                logger.info(f"Lead encontrado por teléfono para {phone}")
+                return lead_data
+
+        # 2. Si no se encuentra por teléfono, buscar por nombre
+        if name:
+            sql = f"SELECT {', '.join(campos_lead)} FROM leads WHERE nombre_lead = %s LIMIT 1"
+            db_cursor.execute(sql, (name,))
+            result = db_cursor.fetchone()
+            if result:
+                lead_data = dict(zip(campos_lead, result))
+                logger.info(f"Lead encontrado por nombre para '{name}'")
+                return lead_data
+
+        logger.warning(f"No se encontró lead en la BD para tel: {phone} o nombre: '{name}'")
+        return {}
+
+    except Exception as e:
+        logger.error(f"Error al buscar en la base de datos: {e}")
+        return {}
+
+def get_railway_connection():
+    """Crea una conexión específica a la BD de Railway usando las variables de entorno del archivo .env."""
+    from dotenv import dotenv_values
+
+    # Cargar valores directamente desde el archivo .env
+    env_values = dotenv_values()
+
+    # Buscar variables con y sin guion bajo para compatibilidad
+    db_host = env_values.get('MYSQL_HOST') or env_values.get('MYSQLHOST')
+    db_user = env_values.get('MYSQL_USER') or env_values.get('MYSQLUSER')
+    db_password = env_values.get('MYSQL_PASSWORD') or env_values.get('MYSQLPASSWORD')
+    db_database = env_values.get('MYSQL_DATABASE') or env_values.get('MYSQLDATABASE')
+    db_port = env_values.get('MYSQL_PORT') or env_values.get('MYSQLPORT')
+
+    # Verificar que todas las variables necesarias están presentes
+    if not all([db_host, db_user, db_password, db_database, db_port]):
+        logger.error("Faltan una o más variables de entorno para la BD de Railway en el archivo .env.")
+        logger.error(f"Valores encontrados: HOST={db_host}, USER={db_user}, DB={db_database}, PORT={db_port}")
+        return None
+
+    try:
+        # Ensure all config values are safe and not None - same safety as db.py
+        host = str(db_host) if db_host is not None else 'localhost'
+        port = int(db_port) if db_port is not None else 3306
+        user = str(db_user) if db_user is not None else 'root'
+        password = str(db_password) if db_password is not None else ''
+        database = str(db_database) if db_database is not None else 'Segurcaixa'
+        
+        cfg = {
+            'host': host,
+            'port': port,
+            'user': user,
+            'password': password,
+            'database': database,
+            'ssl_disabled': True,
+            'autocommit': True,
+            'charset': 'utf8mb4',  # Same as db.py - proper unicode support
+            'use_unicode': True,   # Same as db.py - get strings instead of bytearrays
+            'collation': 'utf8mb4_unicode_ci',
+            'sql_mode': 'TRADITIONAL',
+            'auth_plugin': 'mysql_native_password',
+            'consume_results': True,
+            'raise_on_warnings': False
+        }
+
+        conn = mysql.connector.connect(**cfg)
+        logger.info("Conexión con la base de datos de Railway establecida correctamente.")
+        return conn
+    except mysql.connector.Error as e:
+        logger.error(f"ERROR conectando a la base de datos de Railway: {e}")
+        return None
 
 def main():
     """Función principal del script."""
@@ -49,17 +145,38 @@ def main():
     print("DESCARGADOR DE GRABACIONES DE LLAMADAS DESDE EXCEL")
     print("="*60)
 
+
+    db_conn = None
     try:
-        # --- 1. Conexión con Pearl AI ---
+        # --- 1. Conexiones ---
         logger.info("Inicializando cliente de Pearl AI...")
         pearl_client = get_pearl_client()
         if not pearl_client.test_connection():
             logger.error("No se pudo establecer conexión con la API de Pearl AI. Revisa las credenciales en .env")
             return
         logger.info("Conexión con Pearl AI establecida correctamente.")
+        
+        # Inicializar la conexión a la base de datos como None
+        db_conn = None
+        db_cursor = None
+        
+        # Intentar conectar a la base de datos de Railway específicamente, pero continuar si falla
+        try:
+            logger.info("Intentando conectar a la base de datos de Railway...")
+            # Usar la función get_railway_connection para conectar específicamente a Railway
+            db_conn = get_railway_connection()
+            if db_conn:
+                db_cursor = db_conn.cursor()
+                logger.info("Conexión con la base de datos de Railway establecida correctamente.")
+            else:
+                logger.warning("No se pudo conectar a la base de datos de Railway. El script continuará sin enriquecer los datos.")
+        except Exception as e:
+            logger.warning(f"Error al conectar a la base de datos de Railway: {str(e)}. El script continuará sin enriquecer los datos.")
+            db_conn = None
+            db_cursor = None
 
         # --- 2. Usar información predefinida ---
-        excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\Grabaciones sept 10.xlsx"
+        excel_path = r"C:\Users\jbeno\Dropbox\TEYAME\Prueba Segurcaixa\Grabaciones sept 11.xlsx"
         call_id_column = "Id"
 
         logger.info(f"Usando archivo Excel predefinido: {excel_path}")
@@ -134,11 +251,21 @@ def main():
                 api_response_str = str(e)
                 error_count += 1
             
-            results.append({
+            # Buscar información del lead en la base de datos
+            lead_info = {}
+            if db_cursor:
+                phone_to_search = call_details.get('to')
+                name_to_search = call_details.get('name')
+                lead_info = _buscar_info_lead(db_cursor, phone_to_search, name_to_search)
+
+            result_row = {
                 call_id_column: call_id,
                 'download_status': status,
                 'api_response': api_response_str
-            })
+            }
+            # Añadir la información del lead al resultado
+            result_row.update(lead_info)
+            results.append(result_row)
 
         # --- 5. Guardar resultados en un nuevo Excel ---
         if results:
@@ -173,6 +300,14 @@ def main():
 
     except Exception as e:
         logger.error(f"Ha ocurrido un error fatal en el script: {e}")
+    finally:
+        # Cerrar la conexión a la base de datos si está abierta
+        if db_conn and hasattr(db_conn, 'is_connected') and db_conn.is_connected():
+            try:
+                db_conn.close()
+                logger.info("Conexión con la base de datos cerrada correctamente.")
+            except Exception as e:
+                logger.warning(f"Error al cerrar la conexión a la base de datos: {e}")
 
 if __name__ == "__main__":
     main()

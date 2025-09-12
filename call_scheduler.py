@@ -57,6 +57,16 @@ class CallScheduler:
                     key = config.get('config_key')
                     value = config.get('config_value')
                     
+                    # Defensive programming: handle bytearray if still present
+                    if isinstance(key, bytearray):
+                        key = key.decode('utf-8')
+                    if isinstance(value, bytearray):
+                        value = value.decode('utf-8')
+                    
+                    # Ensure strings (should be strings now with use_unicode=True)
+                    key = str(key) if key is not None else None
+                    value = str(value) if value is not None else None
+                    
                     if key is None or value is None:
                         logger.warning(f"Skipping config with None key or value: key={key}, value={value}")
                         continue
@@ -79,19 +89,63 @@ class CallScheduler:
                 
         except Error as e:
             logger.error(f"Error cargando configuracion: {e}")
+            # Set default configuration if database load fails
+            self.config = {
+                'max_attempts': 6,
+                'reschedule_hours': 30,
+                'working_hours_start': '10:00',
+                'working_hours_end': '20:00',
+                'working_days': [1, 2, 3, 4, 5],
+                'closure_reasons': {}
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error loading configuration: {e}")
+            # Set default configuration if unexpected error occurs
+            self.config = {
+                'max_attempts': 6,
+                'reschedule_hours': 30,
+                'working_hours_start': '10:00',
+                'working_hours_end': '20:00',
+                'working_days': [1, 2, 3, 4, 5],
+                'closure_reasons': {}
+            }
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def get_working_hours(self) -> Tuple[str, str]:
         """Obtiene las horas laborables."""
         start = self.config.get('working_hours_start', '10:00') or '10:00'
         end = self.config.get('working_hours_end', '20:00') or '20:00'
+        
+        # Handle bytearray values
+        if isinstance(start, bytearray):
+            start = start.decode('utf-8')
+        if isinstance(end, bytearray):
+            end = end.decode('utf-8')
+            
+        # Ensure strings
+        start = str(start) if start is not None else '10:00'
+        end = str(end) if end is not None else '20:00'
+        
         return start, end
     
     def is_working_time(self, dt: datetime) -> bool:
         """Verifica si una fecha/hora está en horario laboral."""
         # Verificar día de la semana (1=Lunes, 7=Domingo)
         working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
+        
+        # Handle bytearray or string values in working_days list
+        if isinstance(working_days, (list, tuple)):
+            safe_working_days = []
+            for day in working_days:
+                if isinstance(day, bytearray):
+                    day = day.decode('utf-8')
+                try:
+                    safe_working_days.append(int(day))
+                except (ValueError, TypeError):
+                    continue
+            working_days = safe_working_days if safe_working_days else [1, 2, 3, 4, 5]
         weekday = dt.isoweekday()  # 1=Monday, 7=Sunday
         
         if weekday not in working_days:
@@ -118,6 +172,19 @@ class CallScheduler:
         """Encuentra el siguiente slot en horario laboral."""
         candidate = base_datetime
         working_days = self.config.get('working_days', [1, 2, 3, 4, 5]) or [1, 2, 3, 4, 5]
+        
+        # Handle bytearray or string values in working_days list
+        if isinstance(working_days, (list, tuple)):
+            safe_working_days = []
+            for day in working_days:
+                if isinstance(day, bytearray):
+                    day = day.decode('utf-8')
+                try:
+                    safe_working_days.append(int(day))
+                except (ValueError, TypeError):
+                    continue
+            working_days = safe_working_days if safe_working_days else [1, 2, 3, 4, 5]
+            
         start_hour, _ = self.get_working_hours()
         
         # Safety check for start_hour

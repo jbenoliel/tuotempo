@@ -27,9 +27,13 @@ def get_connection():
         'database': database,
         'ssl_disabled': True,
         'autocommit': True,
-        'charset': 'utf8',  # Changed from utf8mb4 to avoid character set issues
-        'use_unicode': False,  # Disabled to avoid None issues
-        'sql_mode': ''
+        'charset': 'utf8mb4',  # Back to utf8mb4 for proper unicode support
+        'use_unicode': True,   # Enable unicode to get strings instead of bytearrays
+        'collation': 'utf8mb4_unicode_ci',  # Explicit collation
+        'sql_mode': 'TRADITIONAL',  # More strict mode
+        'auth_plugin': 'mysql_native_password',
+        'consume_results': True,  # Consume all results to avoid buffering issues
+        'raise_on_warnings': False  # Don't raise on warnings
     }
     try:
         conn = mysql.connector.connect(**cfg)
