@@ -275,7 +275,7 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
         with conn.cursor() as cursor:
             # Valores por defecto
             update_fields = {
-                'call_status': 'completed',
+                'call_status': 'completed',  # Sin comillas, se manejará con parámetros
                 'last_call_attempt': 'NOW()',
                 'updated_at': 'CURRENT_TIMESTAMP'
             }
@@ -316,7 +316,7 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
                             parts = fecha_deseada.split('-')
                             if len(parts[0]) == 2:  # DD-MM-YYYY
                                 mysql_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-                                update_fields['cita'] = f"'{mysql_date}'"
+                                update_fields['cita'] = mysql_date  # Sin comillas
                                 logger.info(f"Lead {lead_id} - Fecha de cita procesada: {mysql_date}")
                     except Exception as e:
                         logger.warning(f"Error procesando fecha {fecha_deseada} para lead {lead_id}: {e}")
@@ -331,31 +331,48 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
                                 # Asegurar formato completo HH:MM:SS
                                 if len(time_parts) == 2:
                                     hora_deseada += ':00'
-                                update_fields['hora_cita'] = f"'{hora_deseada}'"
+                                update_fields['hora_cita'] = hora_deseada  # Sin comillas
                                 logger.info(f"Lead {lead_id} - Hora de cita procesada: {hora_deseada}")
                     except Exception as e:
                         logger.warning(f"Error procesando hora {hora_deseada} para lead {lead_id}: {e}")
                 
                 # Actualizar status ÚNICAMENTE basado en la presencia de fechaDeseada
                 if tiene_cita:
-                    update_fields['status_level_1'] = "'Cita Agendada'"
+                    update_fields['status_level_1'] = "Cita Agendada"  # Sin comillas
                     # Opcional: actualizar resultado_llamada solo si hay un resultado específico
                     if call_result_info and 'cita reservada' in call_result_info.lower():
-                        update_fields['resultado_llamada'] = "'Cita confirmada'"
-                    logger.info(f"Lead {lead_id} - Estado actualizado a 'Cita Agendada' por presencia de fechaDeseada")
+                        update_fields['resultado_llamada'] = "Cita confirmada"  # Sin comillas
+                    
+                    # CERRAR EL LEAD cuando hay cita (igual que con "No Interesado")
+                    update_fields['lead_status'] = "closed"  # Sin comillas
+                    update_fields['closure_reason'] = "Cita agendada"  # Sin comillas
+                    update_fields['selected_for_calling'] = 'FALSE'
+                    
+                    logger.info(f"Lead {lead_id} - Estado actualizado a 'Cita Agendada' y CERRADO por presencia de fechaDeseada")
                 else:
                     logger.info(f"Lead {lead_id} - Sin información de cita (fechaDeseada faltante)")
                 
-            # Construir query de actualización
+            # Construir query de actualización con parámetros seguros
             set_clauses = []
+            query_params = []
+            
             for field, value in update_fields.items():
                 if value in ['NOW()', 'CURRENT_TIMESTAMP']:
+                    # Funciones especiales que no necesitan parámetros
                     set_clauses.append(f"{field} = {value}")
+                elif value == 'FALSE':
+                    # Booleano FALSE
+                    set_clauses.append(f"{field} = FALSE")
                 else:
-                    set_clauses.append(f"{field} = {value}")
+                    # Valores regulares con parámetros seguros
+                    set_clauses.append(f"{field} = %s")
+                    query_params.append(value)
+            
+            # Agregar el lead_id al final
+            query_params.append(lead_id)
             
             sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = %s"
-            cursor.execute(sql, (lead_id,))
+            cursor.execute(sql, tuple(query_params))
             
             conn.commit()
             

@@ -63,13 +63,16 @@ def procesar_cita_manual():
             
             print(f"\nEjecutando UPDATE para lead {lead_id}...")
             
-            # Actualizar el lead con la información de cita (sin resultado_llamada por ahora)
+            # Actualizar el lead con la información de cita Y CERRARLO
             sql = """
                 UPDATE leads SET
                     cita = %s,
                     hora_cita = %s,
                     status_level_1 = %s,
                     call_status = 'completed',
+                    lead_status = 'closed',
+                    closure_reason = 'Cita agendada',
+                    selected_for_calling = FALSE,
                     updated_at = NOW()
                 WHERE id = %s
             """
@@ -86,7 +89,7 @@ def procesar_cita_manual():
                 cursor.execute("""
                     SELECT id, nombre, apellidos, telefono,
                            cita, hora_cita, status_level_1, resultado_llamada,
-                           call_status, updated_at
+                           call_status, lead_status, closure_reason, selected_for_calling, updated_at
                     FROM leads 
                     WHERE id = %s
                 """, (lead_id,))
@@ -102,6 +105,9 @@ def procesar_cita_manual():
                     print(f"Status Level 1: {lead['status_level_1']}")
                     print(f"Resultado llamada: {lead['resultado_llamada']}")
                     print(f"Call Status: {lead['call_status']}")
+                    print(f"Lead Status: {lead['lead_status']}")
+                    print(f"Closure Reason: {lead['closure_reason']}")
+                    print(f"Selected for calling: {lead['selected_for_calling']}")
                     print(f"Actualizado: {lead['updated_at']}")
                     
                     # Verificar si todo está correcto
@@ -118,10 +124,21 @@ def procesar_cita_manual():
                     if lead['status_level_1'] != status_resultado:
                         print(f"ERROR: Status esperado {status_resultado}, obtenido {lead['status_level_1']}")
                         success = False
+                    if lead['lead_status'] != 'closed':
+                        print(f"ERROR: Lead debería estar 'closed', pero está '{lead['lead_status']}'")
+                        success = False
+                    if lead['closure_reason'] != 'Cita agendada':
+                        print(f"ERROR: Closure reason esperado 'Cita agendada', obtenido '{lead['closure_reason']}'")
+                        success = False
+                    if lead['selected_for_calling'] != 0:
+                        print(f"ERROR: Selected for calling debería ser 0 (FALSE), pero es {lead['selected_for_calling']}")
+                        success = False
                         
                     if success:
-                        print("\n*** EXITO: El lead ahora tiene la cita procesada correctamente! ***")
-                        print("El problema en la pantalla /leads debería estar resuelto.")
+                        print("\n*** EXITO COMPLETO: El lead tiene la cita procesada Y está CERRADO correctamente! ***")
+                        print("- El problema en la pantalla /leads está resuelto")
+                        print("- El lead no será seleccionado para más llamadas")
+                        print("- El estado es 'Cita Agendada' y 'closed'")
                     else:
                         print("\nAlgunos campos no se actualizaron correctamente.")
                         
