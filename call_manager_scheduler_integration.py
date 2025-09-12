@@ -266,6 +266,11 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
     if lead_id is None or not isinstance(lead_id, int):
         logger.error(f"Invalid lead_id: {lead_id}")
         return False
+    
+    # Safety check for call_result
+    if call_result is None:
+        logger.error(f"call_result is None for lead {lead_id}")
+        return False
         
     conn = get_connection()
     if not conn:
@@ -275,8 +280,16 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
         with conn.cursor() as cursor:
             # Valores por defecto usando el mapeo correcto
             # Determinar el status correcto basado en call_result
-            raw_status = call_result.get('status', 'success') if call_result.get('success', False) else 'failed'
-            mapped_status = map_status_to_db_enum(raw_status)
+            try:
+                raw_status = call_result.get('status', 'success') if call_result.get('success', False) else 'failed'
+                mapped_status = map_status_to_db_enum(raw_status)
+                
+                if not mapped_status:  # Validar que el mapeo funcionó
+                    mapped_status = 'completed'  # Valor por defecto seguro
+                    logger.warning(f"Lead {lead_id} - Mapeo de status falló, usando 'completed'")
+            except Exception as e:
+                logger.error(f"Lead {lead_id} - Error mapeando status: {e}")
+                mapped_status = 'completed'  # Valor por defecto seguro
             
             update_fields = {
                 'call_status': mapped_status,  # Usar status mapeado correctamente
@@ -361,8 +374,17 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
             query_params = []
             
             for field, value in update_fields.items():
+                # Validar que ningún valor sea None
+                if value is None:
+                    logger.error(f"Lead {lead_id} - Campo {field} es None, saltando")
+                    continue
+                    
                 # Convertir valor a string para comparaciones
-                value_str = str(value)
+                try:
+                    value_str = str(value)
+                except Exception as e:
+                    logger.error(f"Lead {lead_id} - Error convirtiendo {field} a string: {e}")
+                    continue
                 
                 if value_str in ['NOW()', 'CURRENT_TIMESTAMP']:
                     # Funciones especiales que no necesitan parámetros
@@ -376,9 +398,18 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
                     # Valores regulares con parámetros seguros
                     set_clauses.append(f"{field} = %s")
                     # Limpiar cualquier comilla que pueda tener el valor
-                    clean_value = value_str.strip("'\"") if isinstance(value, str) else value
-                    query_params.append(clean_value)
-                    logger.info(f"Lead {lead_id} - Campo {field}: valor='{clean_value}', tipo={type(clean_value)}")
+                    try:
+                        clean_value = value_str.strip("'\"") if isinstance(value, str) else value
+                        query_params.append(clean_value)
+                        logger.info(f"Lead {lead_id} - Campo {field}: valor='{clean_value}', tipo={type(clean_value)}")
+                    except Exception as e:
+                        logger.error(f"Lead {lead_id} - Error procesando valor para {field}: {e}")
+                        continue
+            
+            # Validar que tenemos al menos un campo para actualizar
+            if not set_clauses:
+                logger.error(f"Lead {lead_id} - No hay campos válidos para actualizar")
+                return False
             
             # Agregar el lead_id al final
             query_params.append(lead_id)
@@ -390,21 +421,38 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
             logger.info(f"Lead {lead_id} - Parámetros: {tuple(query_params)}")
             logger.info(f"Lead {lead_id} - Update fields: {update_fields}")
             
-            cursor.execute(sql, tuple(query_params))
-            
-            conn.commit()
-            
-            if update_fields.get('cita') or update_fields.get('status_level_1'):
-                logger.info(f"✅ Lead {lead_id} procesado exitosamente con información de cita")
-            else:
-                logger.info(f"✅ Lead {lead_id} marcado como llamada exitosa (sin información de cita)")
+            try:
+                cursor.execute(sql, tuple(query_params))
+                conn.commit()
+                
+                if update_fields.get('cita') or update_fields.get('status_level_1'):
+                    logger.info(f"Lead {lead_id} procesado exitosamente con información de cita")
+                else:
+                    logger.info(f"Lead {lead_id} marcado como llamada exitosa (sin información de cita)")
+                    
+                return True
+                    
+            except Exception as sql_error:
+                logger.error(f"Lead {lead_id} - Error SQL: {sql_error}")
+                logger.error(f"Lead {lead_id} - SQL: {sql}")
+                logger.error(f"Lead {lead_id} - Params: {tuple(query_params)}")
+                conn.rollback()
+                return False
             
     except Exception as e:
         logger.error(f"Error marcando llamada exitosa para lead {lead_id}: {e}")
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except:
+                pass  # Ignorar errores en rollback
+        return False
     finally:
-        conn.close()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass  # Ignorar errores al cerrar conexión
 
 def get_leads_from_scheduler(limit: int = 10) -> list:
     """
