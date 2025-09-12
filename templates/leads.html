@@ -30,9 +30,9 @@
                     <label for="estado" class="form-label">Estado</label>
                     <select class="form-select" id="estado" name="estado">
                         <option value="" {% if estado == '' %}selected{% endif %}>Todos</option>
-                        <option value="no answer" {% if estado == 'no answer' %}selected{% endif %}>Sin respuesta</option>
-                        <option value="busy" {% if estado == 'busy' %}selected{% endif %}>Ocupado</option>
-                        <option value="completed" {% if estado == 'completed' %}selected{% endif %}>Completado</option>
+                        <option value="Cita Agendada" {% if estado == 'Cita Agendada' %}selected{% endif %}>Cita Agendada</option>
+                        <option value="No Interesado" {% if estado == 'No Interesado' %}selected{% endif %}>No Interesado</option>
+                        <option value="Volver a llamar" {% if estado == 'Volver a llamar' %}selected{% endif %}>Volver a llamar</option>
                     </select>
                 </div>
                 <div class="col-md-3">

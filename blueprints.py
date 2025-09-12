@@ -375,20 +375,68 @@ def eliminar_archivo_origen():
 @login_required
 def leads():
     search = request.args.get('search', '')
+    estado = request.args.get('estado', '')
+    con_pack = request.args.get('conPack', '')
+    
     conn = get_connection()
     if not conn:
         flash("Error de conexión", "danger")
-        return render_template('leads.html', leads=[], search=search)
+        return render_template('leads.html', leads=[], search=search, estado=estado, con_pack=con_pack)
     
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM leads WHERE nombre_clinica LIKE %s ORDER BY nombre_clinica"
-        cursor.execute(query, (f"%{search}%",))
+        
+        # Debug logging
+        print(f"DEBUG LEADS FILTER - search: '{search}', estado: '{estado}', con_pack: '{con_pack}'")
+        
+        # Construir query dinámicamente
+        conditions = []
+        params = []
+        
+        # Base query
+        query = "SELECT * FROM leads"
+        
+        # Filtro de búsqueda (teléfono, nombre, o clínica)
+        if search:
+            conditions.append("(telefono LIKE %s OR telefono2 LIKE %s OR nombre LIKE %s OR apellidos LIKE %s OR nombre_clinica LIKE %s)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param, search_param, search_param, search_param])
+            print(f"DEBUG - Added search condition for: {search}")
+        
+        # Filtro por estado
+        if estado:
+            conditions.append("status_level_1 = %s")
+            params.append(estado)
+            print(f"DEBUG - Added estado condition for: {estado}")
+        
+        # Filtro por conPack 
+        if con_pack:
+            if con_pack == '1':
+                conditions.append("conPack = 1")
+            elif con_pack == '0':
+                conditions.append("(conPack = 0 OR conPack IS NULL)")
+            print(f"DEBUG - Added conPack condition for: {con_pack}")
+        
+        # Agregar condiciones WHERE si existen
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        # Ordenar y limitar
+        query += " ORDER BY updated_at DESC, nombre_clinica LIMIT 100"
+        
+        print(f"DEBUG - Final query: {query}")
+        print(f"DEBUG - Params: {params}")
+        
+        cursor.execute(query, params)
         leads_data = cursor.fetchall()
-        return render_template('leads.html', leads=leads_data, search=search)
+        
+        print(f"DEBUG - Results found: {len(leads_data)}")
+        if leads_data:
+            print(f"DEBUG - First result: ID {leads_data[0]['id']}, Name: {leads_data[0]['nombre']}")
+        return render_template('leads.html', leads=leads_data, search=search, estado=estado, con_pack=con_pack)
     except Exception as e:
         flash(f"Error al obtener leads: {e}", "danger")
-        return render_template('leads.html', leads=[], search=search)
+        return render_template('leads.html', leads=[], search=search, estado=estado, con_pack=con_pack)
     finally:
         if conn.is_connected():
             conn.close()
