@@ -273,9 +273,13 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
     
     try:
         with conn.cursor() as cursor:
-            # Valores por defecto
+            # Valores por defecto usando el mapeo correcto
+            # Determinar el status correcto basado en call_result
+            raw_status = call_result.get('status', 'success') if call_result.get('success', False) else 'failed'
+            mapped_status = map_status_to_db_enum(raw_status)
+            
             update_fields = {
-                'call_status': 'completed',  # Sin comillas, se manejará con parámetros
+                'call_status': mapped_status,  # Usar status mapeado correctamente
                 'last_call_attempt': 'NOW()',
                 'updated_at': 'CURRENT_TIMESTAMP'
             }
@@ -357,21 +361,35 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
             query_params = []
             
             for field, value in update_fields.items():
-                if value in ['NOW()', 'CURRENT_TIMESTAMP']:
+                # Convertir valor a string para comparaciones
+                value_str = str(value)
+                
+                if value_str in ['NOW()', 'CURRENT_TIMESTAMP']:
                     # Funciones especiales que no necesitan parámetros
-                    set_clauses.append(f"{field} = {value}")
-                elif value == 'FALSE':
+                    set_clauses.append(f"{field} = {value_str}")
+                    logger.info(f"Lead {lead_id} - Campo {field}: función especial {value_str}")
+                elif value_str == 'FALSE' or value is False:
                     # Booleano FALSE
                     set_clauses.append(f"{field} = FALSE")
+                    logger.info(f"Lead {lead_id} - Campo {field}: booleano FALSE")
                 else:
                     # Valores regulares con parámetros seguros
                     set_clauses.append(f"{field} = %s")
-                    query_params.append(value)
+                    # Limpiar cualquier comilla que pueda tener el valor
+                    clean_value = value_str.strip("'\"") if isinstance(value, str) else value
+                    query_params.append(clean_value)
+                    logger.info(f"Lead {lead_id} - Campo {field}: valor='{clean_value}', tipo={type(clean_value)}")
             
             # Agregar el lead_id al final
             query_params.append(lead_id)
             
             sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = %s"
+            
+            # Debug logging para identificar el problema
+            logger.info(f"Lead {lead_id} - SQL generado: {sql}")
+            logger.info(f"Lead {lead_id} - Parámetros: {tuple(query_params)}")
+            logger.info(f"Lead {lead_id} - Update fields: {update_fields}")
+            
             cursor.execute(sql, tuple(query_params))
             
             conn.commit()
