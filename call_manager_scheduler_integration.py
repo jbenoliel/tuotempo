@@ -100,7 +100,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
             elif success:
                 # Llamada exitosa - marcar como completada y cerrar el lead si hay cita
                 try:
-                    mark_successful_call(lead_id, call_result, pearl_response)
+                    mark_successful_call(lead_id, call_result, None)  # Revertir temporalmente
                     logger.info(f"Llamada exitosa para lead {lead_id}")
                 except Exception as e:
                     logger.error(f"Error marking successful call for lead {lead_id}: {e}")
@@ -297,10 +297,23 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
                 'updated_at': 'CURRENT_TIMESTAMP'
             }
             
-            # Procesar información de cita si está disponible
-            if pearl_response and 'collectedInfo' in pearl_response:
-                collected_info = pearl_response['collectedInfo']
-                logger.info(f"Procesando collectedInfo para lead {lead_id}: {collected_info}")
+            # Procesar información de cita si está disponible - VERSIÓN SEGURA
+            try:
+                if (pearl_response and 
+                    isinstance(pearl_response, dict) and 
+                    'collectedInfo' in pearl_response and 
+                    pearl_response['collectedInfo'] is not None):
+                    
+                    collected_info = pearl_response['collectedInfo']
+                    logger.info(f"Procesando collectedInfo para lead {lead_id}: {collected_info}")
+                else:
+                    logger.debug(f"Lead {lead_id} - Sin collectedInfo válido, saltando procesamiento de citas")
+                    collected_info = None
+            except Exception as e:
+                logger.error(f"Lead {lead_id} - Error accediendo a collectedInfo: {e}")
+                collected_info = None
+            
+            if collected_info:
                 
                 # Extraer información de cita
                 fecha_deseada = None
