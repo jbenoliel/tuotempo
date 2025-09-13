@@ -27,19 +27,15 @@ def get_connection():
         'database': database,
         'ssl_disabled': True,
         'autocommit': True,
-        'charset': 'utf8mb4',  # Back to utf8mb4 for proper unicode support
-        'use_unicode': True,   # Enable unicode to get strings instead of bytearrays
-        'collation': 'utf8mb4_unicode_ci',  # Explicit collation
-        'sql_mode': 'TRADITIONAL',  # More strict mode
-        'auth_plugin': 'mysql_native_password',
-        'consume_results': True,  # Consume all results to avoid buffering issues
-        'raise_on_warnings': False  # Don't raise on warnings
+        'charset': 'utf8mb4',
+        'use_unicode': True,
+        'auth_plugin': 'mysql_native_password'
     }
     try:
         conn = mysql.connector.connect(**cfg)
         return conn
-    except Error as e:
-        print(f"ERROR conectando a MySQL: {e}")
+    except Exception as e:
+        print(f"ERROR conectando a MySQL: {type(e).__name__}: {str(e)}")
         # Si falla con SSL, intentar sin SSL
         if 'SSL' in str(e) or '2026' in str(e):
             try:
@@ -48,6 +44,6 @@ def get_connection():
                 cfg_no_ssl['ssl_disabled'] = True
                 conn = mysql.connector.connect(**cfg_no_ssl)
                 return conn
-            except Error as e2:
-                print(f"ERROR conectando sin SSL: {e2}")
+            except Exception as e2:
+                print(f"ERROR conectando sin SSL: {type(e2).__name__}: {str(e2)}")
         return None

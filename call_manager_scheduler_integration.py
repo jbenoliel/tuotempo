@@ -6,7 +6,7 @@ Este módulo extiende el call_manager.py para usar automáticamente el scheduler
 import logging
 from datetime import datetime
 from typing import Dict, Optional
-from call_scheduler import schedule_failed_call
+from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection
 from db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -70,16 +70,15 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
                     # Estos casos se reprograman
                     logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Usando scheduler para reprogramar.")
                     
-                    # Intentar reprogramar con el scheduler
+                    # Usar versión segura de reprogramación (evita none_dealloc)
                     try:
-                        scheduled = schedule_failed_call(lead_id, outcome)
-                        
+                        scheduled = simple_reschedule_failed_call(lead_id, outcome)
                         if scheduled:
-                            logger.info(f"Lead {lead_id} reprogramado exitosamente por el scheduler")
+                            logger.info(f"Lead {lead_id} reprogramado exitosamente (versión simple)")
                         else:
-                            logger.info(f"Lead {lead_id} cerrado por el scheduler (máximo intentos alcanzado)")
+                            logger.info(f"Lead {lead_id} cerrado por máximo intentos alcanzado")
                     except Exception as e:
-                        logger.error(f"Error scheduling failed call for lead {lead_id}: {e}")
+                        logger.error(f"Error en reprogramación simple para lead {lead_id}: {e}")
                         
                 elif outcome == 'error':
                     # Errores genéricos también se cierran (podrían ser números incorrectos)
@@ -210,7 +209,7 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
     if error_message is None:
         error_message = ''
         
-    conn = get_connection()
+    conn = get_pymysql_connection()
     if not conn:
         logger.error("No se pudo conectar a la BD")
         return False
@@ -272,7 +271,7 @@ def mark_successful_call(lead_id: int, call_result: Dict, pearl_response: Dict =
         logger.error(f"call_result is None for lead {lead_id}")
         return False
         
-    conn = get_connection()
+    conn = get_pymysql_connection()
     if not conn:
         return False
     
@@ -522,12 +521,12 @@ def on_call_failed_callback(lead_id: int, phone: str, result: Dict):
 # Funciones de utilidad para monitoreo
 def get_scheduler_integration_stats():
     """Obtiene estadísticas de la integración scheduler-call_manager."""
-    conn = get_connection()
+    conn = get_pymysql_connection()
     if not conn:
         return {}
     
     try:
-        with conn.cursor(dictionary=True) as cursor:
+        with conn.cursor() as cursor:
             stats = {}
             
             # Llamadas programadas hoy
@@ -581,7 +580,7 @@ def close_lead_immediately(lead_id: int, outcome: str, closure_reason: str):
     if closure_reason is None:
         closure_reason = 'Error desconocido'
     
-    conn = get_connection()
+    conn = get_pymysql_connection()
     if not conn:
         logger.error("No se pudo conectar a la BD para cerrar lead")
         return False
