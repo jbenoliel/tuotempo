@@ -6,10 +6,226 @@ Este módulo extiende el call_manager.py para usar automáticamente el scheduler
 import logging
 from datetime import datetime
 from typing import Dict, Optional
-from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection
+from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection, cancel_scheduled_calls_for_lead
 from db import get_connection
 
 logger = logging.getLogger(__name__)
+
+def check_and_close_if_not_interested(lead_id: int, call_result: Dict, pearl_response: Dict = None) -> bool:
+    """
+    Verifica si el resultado indica 'No Interesado' y cierra el lead inmediatamente.
+    
+    Args:
+        lead_id: ID del lead
+        call_result: Resultado de la llamada
+        pearl_response: Respuesta de Pearl AI
+        
+    Returns:
+        bool: True si se cerró el lead por 'No Interesado'
+    """
+    if not lead_id or not isinstance(lead_id, int):
+        return False
+    
+    # Buscar indicadores de "No Interesado" en los datos
+    not_interested_indicators = [
+        'no interesado', 'not interested', 'no interesa', 
+        'no le interesa', 'desinteresado', 'rechaza'
+    ]
+    
+    # Verificar en call_result
+    if call_result:
+        call_result_str = str(call_result).lower()
+        if any(indicator in call_result_str for indicator in not_interested_indicators):
+            close_lead_with_reason(lead_id, 'No interesado')
+            return True
+    
+    # Verificar en pearl_response si está disponible
+    if pearl_response and isinstance(pearl_response, dict):
+        # Verificar en collectedInfo
+        collected_info = pearl_response.get('collectedInfo')
+        if collected_info:
+            collected_str = str(collected_info).lower()
+            if any(indicator in collected_str for indicator in not_interested_indicators):
+                close_lead_with_reason(lead_id, 'No interesado')
+                return True
+    
+    return False
+
+def analyze_call_failure_type(call_result: Dict, pearl_response: Dict = None) -> str:
+    """
+    Analiza el tipo de fallo de llamada para determinar la razón exacta
+    
+    Args:
+        call_result: Resultado de la llamada
+        pearl_response: Respuesta de Pearl AI
+        
+    Returns:
+        str: Tipo de fallo ('invalid_phone', 'no_answer', 'busy', 'other')
+    """
+    # Indicadores de número no válido
+    invalid_phone_indicators = [
+        'invalid number', 'numero invalido', 'numero inexistente',
+        'number not in service', 'fuera de servicio', 'no existe',
+        'invalid phone', 'telefono incorrecto', 'wrong number'
+    ]
+    
+    # Indicadores de no contesta
+    no_answer_indicators = [
+        'no answer', 'no contesta', 'no responde', 'sin respuesta',
+        'voicemail', 'buzon', 'answering machine'
+    ]
+    
+    # Indicadores de ocupado
+    busy_indicators = [
+        'busy', 'ocupado', 'linea ocupada', 'line busy'
+    ]
+    
+    # Convertir datos a string para análisis
+    analysis_text = ""
+    
+    if call_result:
+        analysis_text += str(call_result).lower()
+    
+    if pearl_response:
+        # Analizar campos específicos de Pearl AI
+        status_code = pearl_response.get('status')
+        conversation_status = pearl_response.get('conversationStatus')
+        
+        # Pearl AI status codes específicos
+        if status_code == 6:  # Número no válido en Pearl AI
+            return 'invalid_phone'
+        elif status_code == 7:  # No contesta
+            return 'no_answer'
+        elif status_code == 5:  # Busy
+            return 'busy'
+        
+        analysis_text += str(pearl_response).lower()
+    
+    # Análisis por texto
+    if any(indicator in analysis_text for indicator in invalid_phone_indicators):
+        return 'invalid_phone'
+    elif any(indicator in analysis_text for indicator in no_answer_indicators):
+        return 'no_answer'  
+    elif any(indicator in analysis_text for indicator in busy_indicators):
+        return 'busy'
+    else:
+        return 'other'
+
+def close_lead_with_reason(lead_id: int, reason: str) -> bool:
+    """
+    Cierra un lead con una razón específica
+    
+    Args:
+        lead_id: ID del lead
+        reason: Razón del cierre
+        
+    Returns:
+        bool: True si se cerró exitosamente
+    """
+    conn = None
+    try:
+        conn = get_pymysql_connection()
+        if not conn:
+            logger.error(f"No se pudo conectar para cerrar lead {lead_id}")
+            return False
+            
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE leads 
+                SET lead_status = 'closed',
+                    closure_reason = %s,
+                    selected_for_calling = FALSE,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (reason, lead_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                logger.info(f"Lead {lead_id} cerrado por: {reason}")
+                return True
+            else:
+                logger.warning(f"No se pudo cerrar lead {lead_id} - no encontrado")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Error cerrando lead {lead_id}: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return False
+        
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+def increment_call_attempts_count(lead_id: int) -> bool:
+    """
+    Incrementa el contador de intentos de llamada en +1
+    Se ejecuta cada vez que se realiza un intento, independiente del resultado
+    
+    Args:
+        lead_id: ID del lead
+        
+    Returns:
+        bool: True si se incrementó exitosamente
+    """
+    if not lead_id or not isinstance(lead_id, int):
+        logger.error(f"Invalid lead_id for increment_call_attempts_count: {lead_id}")
+        return False
+    
+    conn = None
+    try:
+        conn = get_pymysql_connection()
+        if not conn:
+            logger.error(f"No se pudo conectar para incrementar contador de lead {lead_id}")
+            return False
+            
+        with conn.cursor() as cursor:
+            # Incrementar contador de intentos
+            cursor.execute("""
+                UPDATE leads l
+                SET call_attempts_count = (
+                        SELECT COUNT(*) FROM pearl_calls pc WHERE pc.lead_id = l.id
+                    ),
+                    last_call_attempt = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (lead_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                
+                # Obtener el nuevo valor para logging
+                cursor.execute("SELECT call_attempts_count FROM leads WHERE id = %s", (lead_id,))
+                result = cursor.fetchone()
+                new_count = result['call_attempts_count'] if result else 0
+                
+                logger.info(f"Incrementado contador de llamadas para lead {lead_id}: {new_count}")
+                return True
+            else:
+                logger.warning(f"No se pudo incrementar contador para lead {lead_id} - lead no encontrado")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Error incrementando contador para lead {lead_id}: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return False
+        
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response: Dict = None):
     """
@@ -27,6 +243,20 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
     if call_result is None:
         logger.error(f"call_result is None for lead {lead_id}")
         return False
+    
+    # REGLA DE NEGOCIO: Al realizar cualquier llamada (programada o no programada),
+    # cancelar todas las llamadas programadas pendientes para ese lead
+    cancelled_count = cancel_scheduled_calls_for_lead(lead_id, "Llamada realizada - cancelando programaciones pendientes")
+    if cancelled_count > 0:
+        logger.info(f"Canceladas {cancelled_count} llamadas programadas para lead {lead_id} antes de procesar resultado")
+    
+    # INCREMENTAR CONTADOR DE LLAMADAS: +1 por cada intento, independiente del resultado
+    increment_call_attempts_count(lead_id)
+    
+    # VERIFICAR SI EL LEAD DICE "NO INTERESADO" Y CERRARLO INMEDIATAMENTE
+    if check_and_close_if_not_interested(lead_id, call_result, pearl_response):
+        logger.info(f"Lead {lead_id} cerrado automáticamente por 'No Interesado'")
+        return True
         
     try:
         # Extraer información del resultado
@@ -67,18 +297,30 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
                         logger.error(f"Error closing lead {lead_id}: {e}")
                     
                 elif outcome in ['no_answer', 'busy', 'hang_up']:
-                    # Estos casos se reprograman
-                    logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Usando scheduler para reprogramar.")
+                    # Análisis detallado del tipo de fallo
+                    failure_type = analyze_call_failure_type(call_result, pearl_response)
+                    logger.info(f"Análisis detallado para lead {lead_id}: outcome={outcome}, failure_type={failure_type}")
                     
-                    # Usar versión segura de reprogramación (evita none_dealloc)
-                    try:
-                        scheduled = simple_reschedule_failed_call(lead_id, outcome)
-                        if scheduled:
-                            logger.info(f"Lead {lead_id} reprogramado exitosamente (versión simple)")
-                        else:
-                            logger.info(f"Lead {lead_id} cerrado por máximo intentos alcanzado")
-                    except Exception as e:
-                        logger.error(f"Error en reprogramación simple para lead {lead_id}: {e}")
+                    if failure_type == 'invalid_phone':
+                        # Número no válido - cerrar inmediatamente
+                        logger.info(f"Lead {lead_id} identificado como número no válido - cerrando")
+                        try:
+                            close_lead_with_reason(lead_id, 'Ilocalizable - Número no válido')
+                        except Exception as e:
+                            logger.error(f"Error cerrando lead {lead_id} por número no válido: {e}")
+                    else:
+                        # Casos que se pueden reprogramar (no contesta, busy, hang_up)
+                        logger.info(f"Llamada fallida para lead {lead_id} ({outcome}). Reprogramando...")
+                        
+                        # Usar versión segura de reprogramación
+                        try:
+                            scheduled = simple_reschedule_failed_call(lead_id, outcome)
+                            if scheduled:
+                                logger.info(f"Lead {lead_id} reprogramado exitosamente")
+                            else:
+                                logger.info(f"Lead {lead_id} cerrado por máximo intentos alcanzado")
+                        except Exception as e:
+                            logger.error(f"Error en reprogramación para lead {lead_id}: {e}")
                         
                 elif outcome == 'error':
                     # Errores genéricos también se cierran (podrían ser números incorrectos)
@@ -227,9 +469,11 @@ def update_lead_with_call_result(lead_id: int, status: str, outcome: str,
             
             # Actualizar lead con resultado de la llamada - simplified query
             sql = """
-                UPDATE leads SET
+                UPDATE leads l SET
                     call_status = %s,
-                    call_attempts_count = IFNULL(call_attempts_count,0) + 1,
+                    call_attempts_count = (
+                        SELECT COUNT(*) FROM pearl_calls pc WHERE pc.lead_id = l.id
+                    ),
                     last_call_attempt = NOW(),
                     call_error_message = %s,
                     updated_at = NOW()

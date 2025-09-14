@@ -229,11 +229,13 @@ class CallManager:
                     conn_upd = get_connection()
                     cur_upd = conn_upd.cursor()
                     cur_upd.execute("""
-                        UPDATE leads
-                        SET call_attempts_count = IFNULL(call_attempts_count,0) + 1,
+                        UPDATE leads l
+                        SET call_attempts_count = (
+                            SELECT COUNT(*) FROM pearl_calls pc WHERE pc.lead_id = l.id
+                        ),
                             last_call_attempt = NOW(),
                             call_status = %s
-                        WHERE id = %s
+                        WHERE l.id = %s
                     """, (call_status, lead['id']))
                     conn_upd.commit()
                     cur_upd.close()
@@ -595,10 +597,12 @@ class CallManager:
             cursor = conn.cursor()
             
             query = """
-                UPDATE leads SET 
-                    call_attempts_count = COALESCE(call_attempts_count, 0) + 1,
+                UPDATE leads l SET 
+                    call_attempts_count = (
+                        SELECT COUNT(*) FROM pearl_calls pc WHERE pc.lead_id = l.id
+                    ),
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s
+                WHERE l.id = %s
             """
             
             cursor.execute(query, [lead_id])
