@@ -4,6 +4,7 @@ Este módulo extiende el call_manager.py para usar automáticamente el scheduler
 """
 
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Optional
 from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection, cancel_scheduled_calls_for_lead
@@ -36,7 +37,7 @@ def check_and_close_if_not_interested(lead_id: int, call_result: Dict, pearl_res
     if call_result:
         call_result_str = str(call_result).lower()
         if any(indicator in call_result_str for indicator in not_interested_indicators):
-            close_lead_with_reason(lead_id, 'No interesado')
+            close_lead_with_reason(lead_id, 'No interesado', telefono)
             return True
     
     # Verificar en pearl_response si está disponible
@@ -46,7 +47,7 @@ def check_and_close_if_not_interested(lead_id: int, call_result: Dict, pearl_res
         if collected_info:
             collected_str = str(collected_info).lower()
             if any(indicator in collected_str for indicator in not_interested_indicators):
-                close_lead_with_reason(lead_id, 'No interesado')
+                close_lead_with_reason(lead_id, 'No interesado', telefono)
                 return True
     
     return False
@@ -111,7 +112,7 @@ def analyze_call_failure_type(call_result: Dict, pearl_response: Dict = None) ->
     else:
         return 'other'
 
-def close_lead_with_reason(lead_id: int, reason: str) -> bool:
+def close_lead_with_reason(lead_id: int, reason: str, telefono: str = None) -> bool:
     """
     Cierra un lead con una razón específica
     
@@ -138,14 +139,41 @@ def close_lead_with_reason(lead_id: int, reason: str) -> bool:
                     updated_at = NOW()
                 WHERE id = %s
             """, (reason, lead_id))
-            
             if cursor.rowcount > 0:
                 conn.commit()
                 logger.info(f"Lead {lead_id} cerrado por: {reason}")
                 return True
-            else:
-                logger.warning(f"No se pudo cerrar lead {lead_id} - no encontrado")
-                return False
+            # Fallback: si no encontró por id, intentar cerrar por teléfono
+            if telefono:
+                try:
+                    phone_digits = re.sub(r'[^0-9]', '', telefono)
+                    cursor.execute(
+                        "SELECT id FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s",
+                        (phone_digits,)
+                    )
+                    matches = cursor.fetchall()
+                    logger.debug(f"[DEBUG_CLOSE] Leads coincidentes por teléfono {telefono}: {matches}")
+                    if matches:
+                        fallback_id = matches[0]['id']
+                        cursor.execute(
+                            """
+                            UPDATE leads 
+                            SET lead_status = 'closed',
+                                closure_reason = %s,
+                                selected_for_calling = FALSE,
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (reason, fallback_id)
+                        )
+                        if cursor.rowcount != 0:
+                            conn.commit()
+                            logger.info(f"Lead {fallback_id} cerrado por teléfono fallback: {telefono}")
+                            return True
+                except Exception as fe:
+                    logger.warning(f"Fallback close_lead_with_reason error: {fe}")
+            logger.warning(f"No se pudo cerrar lead {lead_id} - no encontrado")
+            return False
                 
     except Exception as e:
         logger.error(f"Error cerrando lead {lead_id}: {e}")
@@ -163,7 +191,7 @@ def close_lead_with_reason(lead_id: int, reason: str) -> bool:
             except:
                 pass
 
-def increment_call_attempts_count(lead_id: int) -> bool:
+def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
     """
     Incrementa el contador de intentos de llamada en +1
     Se ejecuta cada vez que se realiza un intento, independiente del resultado
@@ -196,20 +224,48 @@ def increment_call_attempts_count(lead_id: int) -> bool:
                     updated_at = NOW()
                 WHERE id = %s
             """, (lead_id,))
-            
-            if cursor.rowcount > 0:
+            if cursor.rowcount != 0:
                 conn.commit()
-                
                 # Obtener el nuevo valor para logging
                 cursor.execute("SELECT call_attempts_count FROM leads WHERE id = %s", (lead_id,))
                 result = cursor.fetchone()
                 new_count = result['call_attempts_count'] if result else 0
-                
                 logger.info(f"Incrementado contador de llamadas para lead {lead_id}: {new_count}")
                 return True
-            else:
-                logger.warning(f"No se pudo incrementar contador para lead {lead_id} - lead no encontrado")
-                return False
+            # Fallback: intentar incrementar por teléfono si se proporcionó
+            if telefono:
+                try:
+                    phone_digits = re.sub(r'[^0-9]', '', telefono)
+                    # Intentar coincidir leads por teléfono si id falló
+                    cursor.execute(
+                        "SELECT id FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s",
+                        (phone_digits,)
+                    )
+                    matches = cursor.fetchall()
+                    logger.debug(f"[DEBUG_INCREMENT] Leads coincidentes por teléfono {telefono}: {matches}")
+                    if matches:
+                        fallback_id = matches[0]['id']
+                        logger.info(f"[DEBUG_INCREMENT] Usando lead_id de fallback: {fallback_id} para incremento")
+                        cursor.execute(
+                            """
+                            UPDATE leads l
+                            SET call_attempts_count = (
+                                    SELECT COUNT(*) FROM pearl_calls pc WHERE pc.lead_id = l.id
+                                ),
+                                last_call_attempt = NOW(),
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (fallback_id,)
+                        )
+                        if cursor.rowcount != 0:
+                            conn.commit()
+                            logger.info(f"Fallback: incrementado contador para lead {fallback_id} (tel={telefono})")
+                            return True
+                except Exception as fe:
+                    logger.warning(f"Fallback increment_call_attempts_count error: {fe}")
+            logger.warning(f"No se pudo incrementar contador para lead {lead_id} - lead no encontrado")
+            return False
                 
     except Exception as e:
         logger.error(f"Error incrementando contador para lead {lead_id}: {e}")
@@ -227,7 +283,7 @@ def increment_call_attempts_count(lead_id: int) -> bool:
             except:
                 pass
 
-def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response: Dict = None):
+def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response: Dict = None, telefono: str = None):
     """
     Procesa el resultado de una llamada e integra con el scheduler automáticamente.
     
@@ -250,8 +306,8 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
     if cancelled_count > 0:
         logger.info(f"Canceladas {cancelled_count} llamadas programadas para lead {lead_id} antes de procesar resultado")
     
-    # INCREMENTAR CONTADOR DE LLAMADAS: +1 por cada intento, independiente del resultado
-    increment_call_attempts_count(lead_id)
+        # INCREMENTAR CONTADOR DE LLAMADAS: +1 por cada intento, con fallback por teléfono
+    increment_call_attempts_count(lead_id, telefono)
     
     # VERIFICAR SI EL LEAD DICE "NO INTERESADO" Y CERRARLO INMEDIATAMENTE
     if check_and_close_if_not_interested(lead_id, call_result, pearl_response):
@@ -289,12 +345,12 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         try:
             if not success:
                 if outcome == 'invalid_phone':
-                    # Teléfonos inválidos se cierran inmediatamente SIN reprogramar
-                    logger.info(f"Teléfono inválido para lead {lead_id}. Cerrando directamente.")
-                    try:
-                        close_lead_immediately(lead_id, outcome, 'Teléfono erróneo')
-                    except Exception as e:
-                        logger.error(f"Error closing lead {lead_id}: {e}")
+                        # Teléfonos inválidos se cierran inmediatamente SIN reprogramar
+                        logger.info(f"Teléfono inválido para lead {lead_id}. Cerrando directamente.")
+                        try:
+                            close_lead_immediately(lead_id, outcome, 'Teléfono erróneo', telefono)
+                        except Exception as e:
+                            logger.error(f"Error closing lead {lead_id}: {e}")
                     
                 elif outcome in ['no_answer', 'busy', 'hang_up']:
                     # Análisis detallado del tipo de fallo
@@ -305,7 +361,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
                         # Número no válido - cerrar inmediatamente
                         logger.info(f"Lead {lead_id} identificado como número no válido - cerrando")
                         try:
-                            close_lead_with_reason(lead_id, 'Ilocalizable - Número no válido')
+                            close_lead_with_reason(lead_id, 'Ilocalizable - Número no válido', telefono)
                         except Exception as e:
                             logger.error(f"Error cerrando lead {lead_id} por número no válido: {e}")
                     else:
@@ -756,10 +812,10 @@ def integrate_scheduler_with_call_manager():
         logger.error(f"Error integrando scheduler con call manager: {e}")
         return []
 
-# Función de callback para usar en el call_manager
+    # Función de callback para usar en el call_manager
 def on_call_completed_callback(lead_id: int, phone: str, result: Dict):
     """Callback para cuando se completa una llamada."""
-    enhanced_process_call_result(lead_id, result)
+    enhanced_process_call_result(lead_id, result, None, telefono=phone)
 
 def on_call_failed_callback(lead_id: int, phone: str, result: Dict):
     """Callback para cuando falla una llamada."""
