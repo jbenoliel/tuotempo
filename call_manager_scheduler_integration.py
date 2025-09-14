@@ -715,7 +715,9 @@ def get_leads_from_scheduler(limit: int = 10) -> list:
     Obtiene leads que están programados por el scheduler para llamar ahora.
     """
     from call_scheduler import get_next_scheduled_calls
-    return get_next_scheduled_calls(limit)
+    calls = get_next_scheduled_calls(limit)
+    logger.debug(f"[INTEGRATOR] get_next_scheduled_calls returned {len(calls)} calls: {calls}")
+    return calls
 
 def integrate_scheduler_with_call_manager():
     """
@@ -727,6 +729,7 @@ def integrate_scheduler_with_call_manager():
     try:
         # Obtener llamadas pendientes del scheduler
         scheduled_calls = get_leads_from_scheduler(50)
+        logger.debug(f"[INTEGRATOR] Scheduled calls fetched: {scheduled_calls}")
         
         if not scheduled_calls:
             logger.info("No hay llamadas programadas pendientes")

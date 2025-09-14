@@ -12,6 +12,7 @@ Funcionalidades:
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime, timedelta
+import logging
 from db import get_connection
 import logging
 import json
@@ -20,6 +21,8 @@ from typing import Dict, List, Optional, Tuple
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+_CS_LOG = logging.getLogger('call_scheduler')
 
 class CallScheduler:
     def __init__(self):
@@ -259,16 +262,19 @@ class CallScheduler:
         try:
             with conn.cursor(dictionary=True) as cursor:
                 # Obtener información actual del lead
+                # Forzar lectura de la fila real para evitar ID mal calculado
                 cursor.execute("""
-                    SELECT id, call_attempts_count, lead_status, telefono, nombre, apellidos
+                    SELECT id AS real_id, call_attempts_count, lead_status, telefono, nombre, apellidos
                     FROM leads 
                     WHERE id = %s
                 """, (lead_id,))
-                
                 lead = cursor.fetchone()
                 if not lead:
-                    logger.error(f"Lead {lead_id} no encontrado")
+                    logger.error(f"Lead {lead_id} no existe en la BD. Abortando retry.")
                     return False
+                # Forzar uso del ID real para evitar lead_id erróneo
+                lead_id = lead['real_id']
+                logger.debug(f"[SCHEDULER] Lead real obtenido: {lead_id} (telefono={lead.get('telefono')})")
                 
                 if lead['lead_status'] == 'closed':
                     logger.info(f"Lead {lead_id} ya está cerrado")
@@ -321,7 +327,6 @@ class CallScheduler:
                             updated_at = NOW()
                         WHERE id = %s
                     """, (scheduled_time, attempts, outcome, existing_schedule['id']))
-                    
                     logger.info(f"📅 Actualizada llamada programada existente para lead {lead_id}")
                 else:
                     # Crear nueva llamada programada
@@ -330,10 +335,10 @@ class CallScheduler:
                         (lead_id, scheduled_at, attempt_number, status, last_outcome)
                         VALUES (%s, %s, %s, 'pending', %s)
                     """, (lead_id, scheduled_time, attempts, outcome))
-                    
                     logger.info(f"📅 Nueva llamada programada creada para lead {lead_id}")
-                
+
                 conn.commit()
+                logger.debug(f"[SCHEDULER] call_schedule upsert para lead {lead_id}: scheduled_at={scheduled_time}, intento={attempts}")
                 
                 logger.info(f"Lead {lead_id} ({lead['nombre'] or ''} {lead['apellidos'] or ''}) "
                            f"reprogramado para {scheduled_time} (intento {attempts}/{max_attempts})")

@@ -225,17 +225,19 @@ def simple_reschedule_failed_call(lead_id: int, outcome: str) -> bool:
             return False
             
         with conn.cursor() as cursor:
-            # Obtener información del lead
+            # Obtener información real del lead para asegurar el ID correcto
             cursor.execute("""
-                SELECT id, call_attempts_count, lead_status, telefono, nombre
+                SELECT id AS real_id, call_attempts_count, lead_status, telefono, nombre, apellidos
                 FROM leads 
                 WHERE id = %s
             """, (lead_id,))
-            
             lead = cursor.fetchone()
             if not lead:
-                logger.error(f"Lead {lead_id} no encontrado")
+                logger.error(f"Lead {lead_id} no existe en la BD. Abortando reprogramación.")
                 return False
+            # Forzar uso del ID real para evitar errores de cálculo
+            lead_id = lead['real_id']
+            logger.debug(f"[REPROGRAMACION] Lead real obtenido: {lead_id} (telefono={lead.get('telefono')})")
                 
             if lead['lead_status'] == 'closed':
                 logger.info(f"Lead {lead_id} ya está cerrado - no se reprograma")
@@ -295,10 +297,10 @@ def simple_reschedule_failed_call(lead_id: int, outcome: str) -> bool:
                 logger.warning(f"No se pudo insertar en call_schedule para lead {lead_id}: {e}")
                 # Continuar sin fallar si la tabla no existe
             
-            conn.commit()
-            
-            logger.info(f"Lead {lead_id} reprogramado para {next_attempt} (intento {current_attempts + 1}/{config['max_attempts']})")
-            return True
+        conn.commit()
+        logger.debug(f"[REPROGRAMACION] call_schedule upsert para lead {lead_id}: scheduled_at={next_attempt}, intento={current_attempts + 1}")
+        logger.info(f"Lead {lead_id} reprogramado para {next_attempt} (intento {current_attempts + 1}/{config['max_attempts']})")
+        return True
             
     except Exception as e:
         logger.error(f"Error en reprogramación simple para lead {lead_id}: {type(e).__name__}: {str(e)}")
