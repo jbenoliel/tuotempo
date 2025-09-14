@@ -198,6 +198,41 @@ def run_reservas_automaticas_daemon():
         logging.error(f"[RESERVAS-DAEMON] Error fatal en daemon: {e}")
         logging.error("[RESERVAS-DAEMON] El daemon de reservas automáticas no pudo iniciarse")
 
+def run_scheduled_calls_daemon():
+    """Daemon que ejecuta las llamadas programadas según scheduler_config cada X minutos."""
+    import time
+    from db import get_connection
+    from call_manager_scheduler_integration import integrate_scheduler_with_call_manager
+    from call_manager import CallManager
+
+    while True:
+        # Leer intervalo de ejecución desde configuración
+        interval = 5
+        conn = get_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT config_value FROM scheduler_config WHERE config_key = %s",
+                    ('scheduled_calls_interval_minutes',)
+                )
+                row = cursor.fetchone()
+                if row and row[0].isdigit():
+                    interval = int(row[0])
+            except Exception as err:
+                logging.error(f"Error leyendo scheduled_calls_interval_minutes: {err}")
+            finally:
+                cursor.close()
+                conn.close()
+
+        # Obtener y disparar llamadas pendientes
+        leads = integrate_scheduler_with_call_manager()
+        if leads:
+            cm = CallManager()
+            cm.start(leads)
+
+        time.sleep(interval * 60)
+
 def main():
     """Punto de entrada principal. Orquesta el arranque de servicios."""
     run_migrations()
@@ -218,31 +253,27 @@ def main():
         run_scheduler()
 
     elif service_name == 'local':
-        logging.info("Entorno local detectado. Iniciando API y scheduler en segundo plano.")
+        logging.info("Entorno local detectado. Iniciando API y daemons en segundo plano.")
         from calls_updater import run_scheduler
-        scheduler_thread = threading.Thread(target=run_scheduler, name="SchedulerThread", daemon=True)
-        scheduler_thread.start()
-        
-        # Iniciar daemon de reservas automáticas en entorno local
-        reservas_thread = threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasThread", daemon=True)
-        reservas_thread.start()
-        
+        threading.Thread(target=run_scheduler, name="PearlUpdaterThread", daemon=True).start()
+        threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasDaemonThread", daemon=True).start()
+        threading.Thread(target=run_scheduled_calls_daemon, name="ScheduledCallsDaemonThread", daemon=True).start()
+
         from app import app
         app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)), debug=True)
 
     else: # Servicio web principal (web, dashboard, tuotempo-apis, etc.)
-        logging.info("Iniciando la aplicación web principal (Dashboard + API)...")
-        
+        logging.info("Iniciando la aplicación web principal (Dashboard + API) y daemons en segundo plano...")
+
         # Iniciar scheduler de actualización de llamadas Pearl AI
-        logging.info("Iniciando scheduler de actualización de llamadas Pearl AI en segundo plano...")
         from calls_updater import run_scheduler
-        scheduler_thread = threading.Thread(target=run_scheduler, name="CallsUpdaterThread", daemon=True)
-        scheduler_thread.start()
-        
-        # Iniciar daemon de reservas automáticas como hilo en segundo plano
-        logging.info("Iniciando daemon de reservas automáticas en segundo plano...")
-        reservas_thread = threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasAutomaticasThread", daemon=True)
-        reservas_thread.start()
+        threading.Thread(target=run_scheduler, name="PearlUpdaterThread", daemon=True).start()
+
+        # Iniciar daemon de reservas automáticas
+        threading.Thread(target=run_reservas_automaticas_daemon, name="ReservasDaemonThread", daemon=True).start()
+
+        # Iniciar daemon de ejecución de llamadas programadas
+        threading.Thread(target=run_scheduled_calls_daemon, name="ScheduledCallsDaemonThread", daemon=True).start()
         
         if use_gunicorn:
             port = os.getenv('PORT', '8080')

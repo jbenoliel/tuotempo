@@ -531,6 +531,8 @@ class CallTask:
     max_attempts: int = 3
     timeout: int = 30
 ```
+ 
+- **scheduled_calls_interval_minutes**: Intervalo en minutos para ejecutar el daemon de llamadas programadas.
 
 ## 🧪 Testing y Validación
 
