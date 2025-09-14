@@ -308,7 +308,17 @@ def get_statistics(filtro_origen_archivo=None):
             # Llamadas de hoy (temporalmente deshabilitado)
             stats['llamadas_hoy'] = 0
 
-            # Resumen de estados actualizados para las nuevas opciones de llamadas
+            # Obtener configuración de máximo intentos
+            try:
+                cursor.execute(
+                    "SELECT config_value FROM scheduler_config WHERE config_key = 'max_attempts'"
+                )
+                row_max = cursor.fetchone()
+                max_attempts = int(row_max['config_value']) if row_max and row_max.get('config_value') else 6
+            except Exception:
+                max_attempts = 6
+
+            # Resumen de estados actualizado para métricas de llamada
             query_estados = f"""
                 SELECT
                     IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END), 0) AS contactados,
@@ -317,13 +327,7 @@ def get_statistics(filtro_origen_archivo=None):
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Sin Pack' THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Con Pack' THEN 1 ELSE 0 END), 0) AS cita_con_pack,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' THEN 1 ELSE 0 END), 0) AS utiles_positivos,
-                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos,
-                    IFNULL(SUM(CASE 
-                        WHEN lead_status = 'closed' AND closure_reason IS NOT NULL THEN 1
-                        WHEN call_attempts_count >= 6 AND status_level_1 = 'Volver a llamar' THEN 1
-                        WHEN TRIM(status_level_1) = 'No Interesado' AND TRIM(status_level_2) = 'No útil' THEN 1 
-                        ELSE 0 
-                    END), 0) AS no_util
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos
                 FROM leads {where_clause}
             """
             cursor.execute(query_estados, params)
@@ -336,8 +340,16 @@ def get_statistics(filtro_origen_archivo=None):
                 'cita_con_pack': row_states['cita_con_pack'],
                 'utiles_positivos': row_states['utiles_positivos'],
                 'utiles_negativos': row_states['utiles_negativos'],
-                'no_util': row_states['no_util']
+                'no_util': 0
             }
+
+            # Cálculo de leads que alcanzaron el máximo de intentos
+            if where_clause:
+                where_max = where_clause + f" AND call_attempts_count >= {max_attempts}"
+            else:
+                where_max = f"WHERE call_attempts_count >= {max_attempts}"
+            cursor.execute(f"SELECT COUNT(*) AS cnt FROM leads {where_max}", params)
+            stats['estados']['no_util'] = cursor.fetchone()['cnt']
 
             # Calcular total de citas y tasa sobre contactados
             stats['citas_total'] = row_states['cita_sin_pack'] + row_states['cita_con_pack']
