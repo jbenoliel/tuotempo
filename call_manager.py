@@ -129,29 +129,29 @@ class CallManager:
 
     def start_calling(self, specific_lead_ids: List[int] = None) -> bool:
         """
-        Inicia el sistema de llamadas.
-        
+        Inicia el sistema de llamadas de forma asíncrona.
+
         Args:
             specific_lead_ids: Lista de IDs específicos para llamar. Si es None, usa todos los marcados.
         """
         if self.is_running:
             logger.warning("El sistema de llamadas ya está ejecutándose")
             return False
-            
+
         try:
             # Obtener leads seleccionados de la BD
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
-            
+
             if specific_lead_ids:
                 # Llamar solo a leads específicos
                 placeholders = ','.join(['%s'] * len(specific_lead_ids))
                 query = f"""
                     SELECT id, nombre, apellidos, telefono, telefono2
-                    FROM leads 
+                    FROM leads
                     WHERE id IN ({placeholders})
                       AND (manual_management IS NULL OR manual_management = FALSE)
-                      AND ((telefono IS NOT NULL AND telefono != '') 
+                      AND ((telefono IS NOT NULL AND telefono != '')
                            OR (telefono2 IS NOT NULL and telefono2 != ''))
                 """
                 cursor.execute(query, specific_lead_ids)
@@ -160,30 +160,51 @@ class CallManager:
                 # Fallback al comportamiento anterior (todos los marcados)
                 cursor.execute("""
                     SELECT id, nombre, apellidos, telefono, telefono2
-                    FROM leads 
+                    FROM leads
                     WHERE selected_for_calling = TRUE
                       AND (manual_management IS NULL OR manual_management = FALSE)
-                      AND ((telefono IS NOT NULL AND telefono != '') 
-                           OR (telefono2 IS NOT NULL AND telefono2 != ''))
+                      AND ((telefono IS NOT NULL AND telefono != '')
+                           OR (telefono2 IS NOT NULL and telefono2 != ''))
                 """)
                 logger.info("📋 Usando todos los leads marcados como selected_for_calling=TRUE")
-            
+
             leads = cursor.fetchall()
             cursor.close()
             conn.close()
-            
+
             if not leads:
                 if specific_lead_ids:
                     logger.warning(f"No se encontraron leads válidos en la lista específica: {specific_lead_ids}")
                 else:
                     logger.warning("No hay leads seleccionados para llamar")
                 return False
-                
+
             logger.info(f"✅ Iniciando llamadas para {len(leads)} leads")
             if specific_lead_ids:
                 logger.info(f"📞 IDs específicos encontrados: {[lead['id'] for lead in leads]}")
+
+            # Marcar como iniciado y procesar en background
             self.is_running = True
-            
+
+            # Iniciar procesamiento asíncrono
+            import threading
+            thread = threading.Thread(target=self._process_leads_async, args=(leads,))
+            thread.daemon = True
+            thread.start()
+
+            logger.info("[ASYNC] Sistema de llamadas iniciado en background")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error iniciando sistema de llamadas: {e}")
+            self.is_running = False
+            return False
+
+    def _process_leads_async(self, leads):
+        """Procesa los leads de forma asíncrona en background"""
+        try:
+            logger.info(f"[ASYNC] Procesando {len(leads)} leads en background")
+
             # Procesar cada lead con teléfonos normalizados
             for lead in leads:
                 # VERIFICACIÓN MODO PRUEBA - LOGS DETALLADOS
@@ -191,7 +212,7 @@ class CallManager:
                 logger.info(f"📞 Override phone configurado: {_override_phone}")
                 logger.info(f"📱 Teléfono original del lead: {lead.get('telefono', 'N/A')}")
                 logger.info(f"📱 Teléfono secundario del lead: {lead.get('telefono2', 'N/A')}")
-                
+
                 # Determinar qué teléfono usar - APLICAR OVERRIDE
                 if _override_phone:
                     phone_to_use = _override_phone
@@ -199,17 +220,17 @@ class CallManager:
                 else:
                     phone_to_use = lead['telefono'] if lead['telefono'] else lead['telefono2']
                     logger.info(f"📞 Usando teléfono normal del lead: {phone_to_use}")
-                
+
                 # Normalizar el teléfono añadiendo +34 si es necesario
                 normalized_phone = normalize_spanish_phone(phone_to_use)
-                
+
                 logger.info(f"🎯 Teléfono FINAL normalizado: {normalized_phone}")
                 logger.info(f"✅ Procesando lead {lead['id']}: {lead.get('nombre', 'N/A')} - {phone_to_use} -> {normalized_phone}")
-                
+
                 # Llamar callbacks si existen
                 if self.on_call_started:
                     self.on_call_started(lead['id'], normalized_phone)
-                    
+
                 # Ejecutar llamada real con Pearl AI
                 logger.info(f"🚀 INICIANDO LLAMADA A PEARL AI")
                 logger.info(f"📞 Número final enviado a Pearl: {normalized_phone}")
@@ -252,17 +273,15 @@ class CallManager:
                 # Emitir actualización de stats si corresponde
                 if self.on_stats_updated:
                     self.on_stats_updated(self.stats)
-            
-            logger.info("Sistema de llamadas completado")
+
+            logger.info("[ASYNC] Sistema de llamadas completado en background")
             self.is_running = False
             if self.on_stats_updated:
                 self.on_stats_updated(self.stats)
-            return True
-            
+
         except Exception as e:
-            logger.error(f"Error iniciando sistema de llamadas: {e}")
+            logger.error(f"[ERROR] Error procesando leads en background: {e}")
             self.is_running = False
-            return False
     
     def stop_calling(self) -> bool:
         """Detiene el sistema de llamadas."""
