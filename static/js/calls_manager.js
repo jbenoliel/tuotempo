@@ -1261,7 +1261,10 @@ class CallsManager {
             });
             
             if (filters.archivo_origen && filters.archivo_origen.length > 0) {
-                queryParams.append('archivo_origen', JSON.stringify(filters.archivo_origen));
+                // Enviar cada archivo_origen como parametro separado (no como JSON)
+                filters.archivo_origen.forEach(archivo => {
+                    queryParams.append('archivo_origen', archivo);
+                });
             }
             
             const response = await this.apiCall('GET', `/leads/count-by-status?${queryParams.toString()}`);
