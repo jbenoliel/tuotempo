@@ -199,39 +199,9 @@ def run_reservas_automaticas_daemon():
         logging.error("[RESERVAS-DAEMON] El daemon de reservas automáticas no pudo iniciarse")
 
 def run_scheduled_calls_daemon():
-    """Daemon que ejecuta las llamadas programadas según scheduler_config cada X minutos."""
-    import time
-    from db import get_connection
-    from call_manager_scheduler_integration import integrate_scheduler_with_call_manager
-    from call_manager import CallManager
-
-    while True:
-        # Leer intervalo de ejecución desde configuración
-        interval = 5
-        conn = get_connection()
-        if conn:
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT config_value FROM scheduler_config WHERE config_key = %s",
-                    ('scheduled_calls_interval_minutes',)
-                )
-                row = cursor.fetchone()
-                if row and row[0].isdigit():
-                    interval = int(row[0])
-            except Exception as err:
-                logging.error(f"Error leyendo scheduled_calls_interval_minutes: {err}")
-            finally:
-                cursor.close()
-                conn.close()
-
-        # Obtener y disparar llamadas pendientes
-        leads = integrate_scheduler_with_call_manager()
-        if leads:
-            cm = CallManager()
-            cm.start(leads)
-
-        time.sleep(interval * 60)
+    """Daemon mejorado que respeta completamente las reglas de scheduler_config."""
+    from scheduled_calls_daemon_improved import run_scheduled_calls_daemon_improved
+    run_scheduled_calls_daemon_improved()
 
 def main():
     """Punto de entrada principal. Orquesta el arranque de servicios."""

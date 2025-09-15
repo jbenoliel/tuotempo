@@ -132,12 +132,12 @@ def close_lead_with_reason(lead_id: int, reason: str, telefono: str = None) -> b
             
         with conn.cursor() as cursor:
             cursor.execute("""
-                UPDATE leads 
+                UPDATE leads
                 SET lead_status = 'closed',
                     closure_reason = %s,
                     selected_for_calling = FALSE,
                     updated_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND lead_status = 'open'
             """, (reason, lead_id))
             if cursor.rowcount > 0:
                 conn.commit()
@@ -157,12 +157,12 @@ def close_lead_with_reason(lead_id: int, reason: str, telefono: str = None) -> b
                         fallback_id = matches[0]['id']
                         cursor.execute(
                             """
-                            UPDATE leads 
+                            UPDATE leads
                             SET lead_status = 'closed',
                                 closure_reason = %s,
                                 selected_for_calling = FALSE,
                                 updated_at = NOW()
-                            WHERE id = %s
+                            WHERE id = %s AND lead_status = 'open'
                             """,
                             (reason, fallback_id)
                         )
@@ -172,7 +172,13 @@ def close_lead_with_reason(lead_id: int, reason: str, telefono: str = None) -> b
                             return True
                 except Exception as fe:
                     logger.warning(f"Fallback close_lead_with_reason error: {fe}")
-            logger.warning(f"No se pudo cerrar lead {lead_id} - no encontrado")
+            # Verificar si el lead existe pero ya está cerrado
+            cursor.execute("SELECT id, lead_status FROM leads WHERE id = %s", (lead_id,))
+            lead_info = cursor.fetchone()
+            if lead_info and lead_info['lead_status'] == 'closed':
+                logger.info(f"Lead {lead_id} ya estaba cerrado, no requiere cierre")
+            else:
+                logger.warning(f"No se pudo cerrar lead {lead_id} - no encontrado")
             return False
                 
     except Exception as e:
@@ -214,7 +220,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
             return False
             
         with conn.cursor() as cursor:
-            # Incrementar contador de intentos
+            # Incrementar contador de intentos (solo para leads abiertos)
             cursor.execute("""
                 UPDATE leads l
                 SET call_attempts_count = (
@@ -222,7 +228,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                     ),
                     last_call_attempt = NOW(),
                     updated_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND lead_status = 'open'
             """, (lead_id,))
             if cursor.rowcount != 0:
                 conn.commit()
@@ -254,7 +260,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                                 ),
                                 last_call_attempt = NOW(),
                                 updated_at = NOW()
-                            WHERE id = %s
+                            WHERE id = %s AND lead_status = 'open'
                             """,
                             (fallback_id,)
                         )
@@ -264,7 +270,13 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                             return True
                 except Exception as fe:
                     logger.warning(f"Fallback increment_call_attempts_count error: {fe}")
-            logger.warning(f"No se pudo incrementar contador para lead {lead_id} - lead no encontrado")
+            # Verificar si el lead existe pero está cerrado
+            cursor.execute("SELECT id, lead_status FROM leads WHERE id = %s", (lead_id,))
+            lead_info = cursor.fetchone()
+            if lead_info and lead_info['lead_status'] == 'closed':
+                logger.info(f"Lead {lead_id} ya está cerrado, no se actualiza contador")
+            else:
+                logger.warning(f"No se pudo incrementar contador para lead {lead_id} - lead no encontrado")
             return False
                 
     except Exception as e:
