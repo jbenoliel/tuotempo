@@ -2,6 +2,7 @@
 -- Se puede ejecutar de forma segura, ya que elimina las tablas si ya existen.
 
 -- Eliminar tablas en orden inverso para evitar problemas de claves foráneas
+DROP TABLE IF EXISTS `call_schedule`;
 DROP TABLE IF EXISTS `pearl_calls`;
 DROP TABLE IF EXISTS `recargas`;
 DROP TABLE IF EXISTS `leads`;
@@ -19,6 +20,25 @@ CREATE TABLE `usuarios` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `email_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --- Tabla de Llamadas Programadas ---
+-- Almacena reintentos programados por el scheduler
+CREATE TABLE `call_schedule` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `lead_id` INT NOT NULL,
+  `scheduled_at` DATETIME NOT NULL,
+  `attempt_number` INT NOT NULL DEFAULT 1,
+  `status` ENUM('pending','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
+  `last_outcome` VARCHAR(50) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_call_schedule_lead` (`lead_id`),
+  INDEX `idx_call_schedule_status` (`status`),
+  INDEX `idx_call_schedule_scheduled_at` (`scheduled_at`),
+  -- Restringimos a UNA llamada pendiente por lead evitando duplicados
+  UNIQUE KEY `uniq_lead_status` (`lead_id`, `status`),
+  CONSTRAINT `fk_call_schedule_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --- Tabla de Clínicas ---

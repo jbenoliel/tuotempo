@@ -694,24 +694,6 @@ def actualizar_resultado():
                         logger.warning(f"No se pudo parsear hora_rellamada '{hora_rellamada}': {e}")
                     
                     # Si se pudo parsear la fecha/hora, programar la llamada
-                    if scheduled_datetime:
-                        # Verificar que la fecha sea futura
-                        if scheduled_datetime > datetime.now():
-                            # Insertar directamente en call_schedule
-                            cursor_schedule = conn.cursor()
-                            cursor_schedule.execute("""
-                                INSERT INTO call_schedule 
-                                (lead_id, scheduled_at, attempt_number, status, last_outcome, created_at, updated_at)
-                                VALUES (%s, %s, %s, 'pending', 'callback_requested', NOW(), NOW())
-                            """, (
-                                lead_id, 
-                                scheduled_datetime, 
-                                (update_data.get('call_attempts_count', 0) or 0) + 1
-                            ))
-                            cursor_schedule.close()
-                            conn.commit()
-                            
-                            logger.info(f"Lead {lead_id} programado para llamada de callback el {scheduled_datetime}")
                         else:
                             logger.warning(f"Fecha de callback {scheduled_datetime} está en el pasado, ignorando")
                     

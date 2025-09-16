@@ -155,15 +155,18 @@ def complete_basic_call_records():
         cursor = db_conn.cursor()
 
         # Buscar registros basicos que necesitan completarse
+        # Solo procesar registros que tengan al menos 2 minutos de antiguedad
+        # para dar tiempo a Pearl AI a procesar completamente la llamada
         cursor.execute("""
-            SELECT id, call_id, lead_id, phone_number, outbound_id
+            SELECT id, call_id, lead_id, phone_number, outbound_id, created_at
             FROM pearl_calls
             WHERE call_id IS NOT NULL
             AND (summary IS NULL OR summary = '')
             AND (duration IS NULL OR duration = 0)
             AND status IN ('1', 'pending', 'basic')
             AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            LIMIT 50
+            AND created_at <= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+            LIMIT 20
         """)
 
         basic_records = cursor.fetchall()

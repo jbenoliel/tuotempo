@@ -418,14 +418,18 @@ def leads():
         #  - Sin cita confirmada: sin fecha 'cita' y sin 'hora_cita'
         #  - Excluir 'Cita Agendada'
         if solo_interesados_sin_cita == '1':
+            # Notas SQL:
+            #  - Evitar comparar DATE/TIME directamente con '' (lanza 1525 Incorrect DATE value)
+            #  - Convertimos a CHAR y usamos COALESCE para tratar NULL/'' de forma segura
+            #  - Consideramos sin cita cuando cita vacía y hora_cita vacía o '00:00:00'
             conditions.append("(" \
                 "(status_level_1 LIKE 'Útiles Positivos%' AND status_level_1 <> 'Cita Agendada')" \
                 " OR ((preferencia_horario IS NOT NULL AND TRIM(preferencia_horario) != '')" \
                 "     OR (fecha_minima_reserva IS NOT NULL))" \
                 " OR (status_level_1 = 'Volver a llamar' AND ((preferencia_horario IS NOT NULL AND TRIM(preferencia_horario) != '') OR (fecha_minima_reserva IS NOT NULL)))" \
             ") AND (" \
-                "(cita IS NULL OR cita = '' OR cita = '0000-00-00')" \
-                " AND (hora_cita IS NULL OR hora_cita = '' OR hora_cita = '00:00:00')" \
+                "(COALESCE(CAST(cita AS CHAR), '') = '' OR CAST(cita AS CHAR) = '0000-00-00')" \
+                " AND (COALESCE(CAST(hora_cita AS CHAR), '') = '' OR CAST(hora_cita AS CHAR) = '00:00:00')" \
             ")")
             print("DEBUG - Added filter: solo_interesados_sin_cita = 1 (ampliado)")
         
