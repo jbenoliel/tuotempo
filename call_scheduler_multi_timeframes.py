@@ -152,6 +152,41 @@ class CallSchedulerMultiTimeframes:
 
         return validated_slots
 
+    def get_working_hours(self) -> Tuple[str, str]:
+        """Compat: devuelve (inicio, fin) agregados de las franjas laborales.
+
+        - Toma la hora de inicio más temprana y la hora de fin más tardía
+          entre todos los `working_time_slots` válidos.
+        - Si no hay franjas válidas, usa defaults seguros '10:00'-'20:00'.
+        - Mantiene compatibilidad con consumidores que esperan un par (start, end).
+        """
+        self._ensure_config_loaded()
+        slots = self.get_working_time_slots()
+
+        try:
+            # Extraer horas de inicio y fin como tuplas (HH, MM) para poder comparar
+            starts = []
+            ends = []
+            for slot in slots:
+                s = str(slot.get('start', '10:00'))
+                e = str(slot.get('end', '20:00'))
+                if ':' in s and ':' in e:
+                    s_h, s_m = map(int, s.split(':')[:2])
+                    e_h, e_m = map(int, e.split(':')[:2])
+                    starts.append((s_h, s_m, s))
+                    ends.append((e_h, e_m, e))
+
+            if not starts or not ends:
+                return '10:00', '20:00'
+
+            # Elegir el inicio más temprano y el fin más tardío
+            earliest_start = min(starts)  # compara por (h, m)
+            latest_end = max(ends)
+            return earliest_start[2], latest_end[2]
+        except Exception:
+            # Fallback seguro
+            return '10:00', '20:00'
+
     def is_working_time(self, dt: datetime) -> bool:
         """Verifica si una fecha/hora está en alguna de las franjas laborales."""
         self._ensure_config_loaded()
