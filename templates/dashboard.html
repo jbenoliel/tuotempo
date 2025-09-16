@@ -148,6 +148,11 @@ body { margin: 0; padding: 0; }
         <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Útiles Positivos</h6>
         <h4 class="mb-0 dashboard-text-white" style="color: white !important; font-weight: bold !important;">{{ stats.estados.utiles_positivos }}</h4>
         <small class="text-muted" style="color: rgba(255,255,255,0.8) !important;">Citas agendadas</small>
+        <div class="mt-2">
+          <a href="{{ url_for('main.leads_interesados_sin_cita') }}" class="btn btn-sm btn-light">
+            <i class="fas fa-users"></i> Ver interesados sin cita
+          </a>
+        </div>
       </div>
     </div>
   </div>
