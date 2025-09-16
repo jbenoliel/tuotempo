@@ -1462,7 +1462,7 @@ def get_call_history(lead_id):
     try:
         logger.info(f"Obteniendo historial de llamadas para lead {lead_id}")
         
-        conn = get_db_connection()
+        conn = get_connection()
         if not conn:
             return jsonify({'error': 'Error de conexión a la base de datos'}), 500
         
