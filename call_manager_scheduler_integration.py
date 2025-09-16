@@ -12,7 +12,7 @@ from db import get_connection
 
 logger = logging.getLogger(__name__)
 
-def check_and_close_if_not_interested(lead_id: int, call_result: Dict, pearl_response: Dict = None) -> bool:
+def check_and_close_if_not_interested(lead_id: int, call_result: Dict, pearl_response: Dict = None, telefono: str = None) -> bool:
     """
     Verifica si el resultado indica 'No Interesado' y cierra el lead inmediatamente.
     
@@ -220,7 +220,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
             return False
             
         with conn.cursor() as cursor:
-            # Incrementar contador de intentos (solo para leads abiertos)
+            # Incrementar contador de intentos (tratar NULL como abierto)
             cursor.execute("""
                 UPDATE leads l
                 SET call_attempts_count = (
@@ -228,7 +228,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                     ),
                     last_call_attempt = NOW(),
                     updated_at = NOW()
-                WHERE id = %s AND lead_status = 'open'
+                WHERE id = %s AND (lead_status IS NULL OR lead_status = 'open')
             """, (lead_id,))
             if cursor.rowcount != 0:
                 conn.commit()
@@ -238,6 +238,14 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                 new_count = result['call_attempts_count'] if result else 0
                 logger.info(f"Incrementado contador de llamadas para lead {lead_id}: {new_count}")
                 return True
+            else:
+                # Puede ocurrir que no haya filas afectadas si los valores ya coinciden
+                # Verificamos si el lead existe y está abierto/NULL para considerarlo éxito
+                cursor.execute("SELECT id, lead_status FROM leads WHERE id = %s", (lead_id,))
+                lead_info_check = cursor.fetchone()
+                if lead_info_check and (lead_info_check['lead_status'] is None or lead_info_check['lead_status'] == 'open'):
+                    logger.info(f"Lead {lead_id} ya tenía los valores actualizados (sin filas afectadas). Considerando incremento como OK")
+                    return True
             # Fallback: intentar incrementar por teléfono si se proporcionó
             if telefono:
                 try:
@@ -260,7 +268,7 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                                 ),
                                 last_call_attempt = NOW(),
                                 updated_at = NOW()
-                            WHERE id = %s AND lead_status = 'open'
+                            WHERE id = %s AND (lead_status IS NULL OR lead_status = 'open')
                             """,
                             (fallback_id,)
                         )
@@ -268,6 +276,13 @@ def increment_call_attempts_count(lead_id: int, telefono: str = None) -> bool:
                             conn.commit()
                             logger.info(f"Fallback: incrementado contador para lead {fallback_id} (tel={telefono})")
                             return True
+                        else:
+                            # Verificar existencia/estado para considerar OK
+                            cursor.execute("SELECT id, lead_status FROM leads WHERE id = %s", (fallback_id,))
+                            fb_info = cursor.fetchone()
+                            if fb_info and (fb_info['lead_status'] is None or fb_info['lead_status'] == 'open'):
+                                logger.info(f"Fallback: lead {fallback_id} ya estaba actualizado (sin filas afectadas). Considerando incremento como OK")
+                                return True
                 except Exception as fe:
                     logger.warning(f"Fallback increment_call_attempts_count error: {fe}")
             # Verificar si el lead existe pero está cerrado
@@ -322,7 +337,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
     increment_call_attempts_count(lead_id, telefono)
     
     # VERIFICAR SI EL LEAD DICE "NO INTERESADO" Y CERRARLO INMEDIATAMENTE
-    if check_and_close_if_not_interested(lead_id, call_result, pearl_response):
+    if check_and_close_if_not_interested(lead_id, call_result, pearl_response, telefono):
         logger.info(f"Lead {lead_id} cerrado automáticamente por 'No Interesado'")
         return True
         

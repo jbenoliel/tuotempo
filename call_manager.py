@@ -232,10 +232,41 @@ class CallManager:
                     self.on_call_started(lead['id'], normalized_phone)
 
                 # Ejecutar llamada real con Pearl AI
-                logger.info(f"🚀 INICIANDO LLAMADA A PEARL AI")
-                logger.info(f"📞 Número final enviado a Pearl: {normalized_phone}")
+                logger.info(f"[PEARL] INICIANDO LLAMADA A PEARL AI")
+                logger.info(f"[PEARL] Numero final enviado a Pearl: {normalized_phone}")
                 outbound_id = self.pearl_client.get_default_outbound_id()
                 success, api_response = self.pearl_client.make_call(outbound_id, normalized_phone, lead)
+
+                # Guardar detalles completos de la llamada en pearl_calls
+                if success and api_response and 'id' in api_response:
+                    try:
+                        from calls_updater import insert_call_record
+
+                        # Obtener detalles completos de la llamada
+                        call_id = api_response.get('id')
+                        if call_id:
+                            logger.info(f"[CALL_DETAILS] Obteniendo detalles completos para call_id: {call_id}")
+                            call_details = self.pearl_client.get_call_status(call_id)
+
+                            if call_details:
+                                # Guardar en pearl_calls usando calls_updater
+                                conn_calls = get_connection()
+                                cursor_calls = conn_calls.cursor()
+
+                                insert_success = insert_call_record(cursor_calls, call_details, lead['id'], outbound_id)
+                                conn_calls.commit()
+                                cursor_calls.close()
+                                conn_calls.close()
+
+                                if insert_success:
+                                    logger.info(f"[OK] Detalles de llamada guardados en pearl_calls para lead {lead['id']}")
+                                else:
+                                    logger.warning(f"[WARNING] No se pudieron guardar detalles de llamada para lead {lead['id']}")
+                            else:
+                                logger.warning(f"[WARNING] No se pudieron obtener detalles para call_id: {call_id}")
+
+                    except Exception as details_err:
+                        logger.error(f"[ERROR] Error guardando detalles de llamada: {details_err}")
 
                 # Actualizar estadísticas
                 if success:
