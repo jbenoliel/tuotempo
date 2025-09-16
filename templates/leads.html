@@ -72,10 +72,28 @@
             </div>
         </div>
         <div class="card-body">
+            <!-- Acciones masivas -->
+            <div class="mb-3 d-flex flex-wrap gap-2">
+                <button id="btnManualOn" class="btn btn-outline-secondary">
+                    <i class="fas fa-user-slash me-1"></i> Gestion manual (no llamar)
+                </button>
+                <button id="btnManualOff" class="btn btn-outline-success">
+                    <i class="fas fa-phone-volume me-1"></i> Volver a gestión automática
+                </button>
+                <button id="btnNoInteresado" class="btn btn-outline-danger">
+                    <i class="fas fa-ban me-1"></i> Marcar No Interesado
+                </button>
+                <button id="btnVerLlamadas" class="btn btn-outline-info">
+                    <i class="fas fa-headset me-1"></i> Ver últimas llamadas
+                </button>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
+                            <th style="width:32px;">
+                                <input type="checkbox" id="chkAll">
+                            </th>
                             <th>Nombre completo</th>
                             <th>Dirección Clínica</th>
                             <th>Teléfono</th>
@@ -88,6 +106,9 @@
                     <tbody>
                         {% for lead in leads %}
                             <tr>
+                                <td>
+                                    <input type="checkbox" class="lead-chk" value="{{ lead.id }}">
+                                </td>
                                 <td>{{ lead.nombre }} {{ lead.apellidos }}</td>
                                 <td>{{ lead.direccion_clinica }}</td>
                                 <td>{{ lead.telefono }}</td>
@@ -102,7 +123,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="7" class="text-center">No hay leads disponibles</td>
+                                <td colspan="8" class="text-center">No hay leads disponibles</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -110,6 +131,110 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal historial de llamadas -->
+    <div class="modal fade" id="callsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Historial de llamadas</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="callsContent">
+              <div class="text-muted">Cargando...</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 </div>
+
+<script>
+  (function(){
+    const apiBase = '/api/calls';
+    const chkAll = document.getElementById('chkAll');
+    const checkboxes = () => Array.from(document.querySelectorAll('.lead-chk'));
+    const selectedIds = () => checkboxes().filter(c=>c.checked).map(c=>parseInt(c.value,10));
+
+    if (chkAll) {
+      chkAll.addEventListener('change', ()=>{
+        checkboxes().forEach(c=> c.checked = chkAll.checked);
+      });
+    }
+
+    async function postJSON(url, body){
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body || {})
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`HTTP ${res.status}: ${txt}`);
+      }
+      return res.json();
+    }
+
+    async function toggleManual(manual){
+      const ids = selectedIds();
+      if (ids.length === 0) { alert('Selecciona al menos un lead'); return; }
+      try{
+        const resp = await postJSON(`${apiBase}/leads/manual-management`, {lead_ids: ids, manual_management: manual});
+        alert(`OK: ${resp.updated_count} leads actualizados`);
+        location.reload();
+      }catch(e){ alert('Error: '+ e.message); }
+    }
+
+    async function marcarNoInteresado(){
+      const ids = selectedIds();
+      if (ids.length === 0) { alert('Selecciona al menos un lead'); return; }
+      const sub = prompt('Razón (subestado) para No Interesado:', 'No da motivos');
+      if (sub === null) return;
+      try{
+        const resp = await postJSON(`${apiBase}/leads/mark-no-interesado`, {lead_ids: ids, subreason: sub});
+        alert(`OK: ${resp.updated_count} leads marcados como No Interesado`);
+        location.reload();
+      }catch(e){ alert('Error: '+ e.message); }
+    }
+
+    async function verLlamadas(){
+      const ids = selectedIds();
+      if (ids.length !== 1) { alert('Selecciona exactamente 1 lead para ver sus llamadas'); return; }
+      const leadId = ids[0];
+      try{
+        const res = await fetch(`${apiBase}/call-history/${leadId}`);
+        const data = await res.json();
+        const cont = document.getElementById('callsContent');
+        if (!data || !data.calls) { cont.innerHTML = '<div class="text-danger">Sin datos</div>'; }
+        else {
+          const html = data.calls.slice(0,10).map(c=>{
+            const when = c.call_time || c.created_at || '';
+            const sum = c.summary || c.transcription_summary || '';
+            const rec = c.recording_url ? `<a href="${c.recording_url}" target="_blank">Escuchar</a>` : '<span class="text-muted">Sin grabación</span>';
+            const status = c.status_text || c.status || '';
+            return `<div class="border rounded p-2 mb-2">
+                      <div><strong>${when}</strong> — ${status}</div>
+                      <div class="small text-muted">${sum || 'Sin resumen'}</div>
+                      <div>${rec}</div>
+                    </div>`;
+          }).join('');
+          cont.innerHTML = html || '<div class="text-muted">Sin llamadas recientes</div>';
+        }
+        const modalEl = document.getElementById('callsModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }catch(e){ alert('Error: '+ e.message); }
+    }
+
+    document.getElementById('btnManualOn')?.addEventListener('click', ()=>toggleManual(true));
+    document.getElementById('btnManualOff')?.addEventListener('click', ()=>toggleManual(false));
+    document.getElementById('btnNoInteresado')?.addEventListener('click', marcarNoInteresado);
+    document.getElementById('btnVerLlamadas')?.addEventListener('click', verLlamadas);
+  })();
+</script>
 {% endblock %}
 

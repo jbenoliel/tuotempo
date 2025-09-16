@@ -1049,6 +1049,71 @@ def cleanup_selected_leads():
             cursor.close()
             conn.close()
 
+@api_pearl_calls.route('/leads/mark-no-interesado', methods=['POST'])
+def mark_no_interesado():
+    """
+    Marca uno o varios leads como 'No Interesado'.
+
+    Body JSON:
+        {
+            "lead_ids": [1,2,3],
+            "subreason": "No da motivos"   # opcional (status_level_2)
+        }
+
+    Efectos en BD:
+      - status_level_1 = 'No Interesado'
+      - status_level_2 = subreason (o 'No da motivos' por defecto)
+      - lead_status = 'closed'
+      - closure_reason = 'No interesado'
+      - selected_for_calling = FALSE
+      - updated_at = NOW()
+    """
+    try:
+        data = request.get_json() or {}
+        lead_ids = data.get('lead_ids')
+        subreason = (data.get('subreason') or 'No da motivos').strip()
+
+        if not isinstance(lead_ids, list) or not lead_ids:
+            return jsonify({
+                "success": False,
+                "error": "lead_ids debe ser una lista no vacía"
+            }), 400
+
+        conn = get_connection()
+        if not conn:
+            return jsonify({"success": False, "error": "Error de conexión a la BD"}), 500
+        cursor = conn.cursor()
+
+        placeholders = ','.join(['%s'] * len(lead_ids))
+        query = f"""
+            UPDATE leads
+            SET status_level_1 = 'No Interesado',
+                status_level_2 = %s,
+                lead_status = 'closed',
+                closure_reason = 'No interesado',
+                selected_for_calling = FALSE,
+                updated_at = NOW()
+            WHERE id IN ({placeholders})
+        """
+        params = [subreason] + lead_ids
+        cursor.execute(query, params)
+        updated_count = cursor.rowcount
+        conn.commit()
+
+        logger.info(f"Marcados {updated_count} leads como 'No Interesado' (sub: {subreason})")
+        return jsonify({
+            "success": True,
+            "updated_count": updated_count,
+            "message": f"{updated_count} leads marcados como 'No Interesado'"
+        })
+    except Exception as e:
+        logger.error(f"Error marcando No Interesado: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 @api_pearl_calls.route('/history', methods=['GET'])
 def get_calls_history():
     """
