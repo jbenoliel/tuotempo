@@ -145,10 +145,74 @@ def get_last_sync_time(db_conn) -> datetime:
         # Fallback seguro en caso de error
         return datetime.now(timezone.utc) - timedelta(days=7)
 
+def complete_basic_call_records():
+    """Completa los registros basicos de pearl_calls con detalles completos de Pearl AI"""
+    logger.info("[BASIC_RECORDS] Completando registros basicos con detalles de Pearl AI...")
+
+    try:
+        pearl_client = get_pearl_client()
+        db_conn = get_connection()
+        cursor = db_conn.cursor()
+
+        # Buscar registros basicos que necesitan completarse
+        cursor.execute("""
+            SELECT id, call_id, lead_id, phone_number, outbound_id
+            FROM pearl_calls
+            WHERE call_id IS NOT NULL
+            AND (summary IS NULL OR summary = '')
+            AND (duration IS NULL OR duration = 0)
+            AND status IN ('1', 'pending', 'basic')
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            LIMIT 50
+        """)
+
+        basic_records = cursor.fetchall()
+
+        if not basic_records:
+            logger.info("[BASIC_RECORDS] No hay registros basicos para completar")
+            return 0
+
+        completed = 0
+
+        for record_id, call_id, lead_id, phone_number, outbound_id in basic_records:
+            try:
+                logger.info(f"[BASIC_RECORDS] Completando call_id: {call_id}")
+
+                # Obtener detalles completos de Pearl AI
+                call_details = pearl_client.get_call_status(call_id)
+
+                if call_details:
+                    # Actualizar registro existente con detalles completos
+                    success = update_call_record(cursor, call_details, lead_id, outbound_id)
+                    if success:
+                        completed += 1
+                        logger.info(f"[BASIC_RECORDS] Completado call_id {call_id} para lead {lead_id}")
+                    else:
+                        logger.warning(f"[BASIC_RECORDS] Error completando call_id {call_id}")
+                else:
+                    logger.warning(f"[BASIC_RECORDS] No se pudieron obtener detalles para call_id: {call_id}")
+
+            except Exception as e:
+                logger.error(f"[BASIC_RECORDS] Error procesando call_id {call_id}: {e}")
+
+        db_conn.commit()
+        cursor.close()
+        db_conn.close()
+
+        logger.info(f"[BASIC_RECORDS] Completados {completed} registros basicos")
+        return completed
+
+    except Exception as e:
+        logger.error(f"[BASIC_RECORDS] Error completando registros basicos: {e}")
+        return 0
+
 def update_calls_from_pearl():
     """Función principal que se encarga de obtener y actualizar las llamadas."""
-    logger.info("🚀 Iniciando ciclo de actualización de llamadas de Pearl AI...")
-    
+    logger.info("[PEARL_SYNC] Iniciando ciclo de actualización de llamadas de Pearl AI...")
+
+    # 1. Primero completar registros básicos creados por call_manager
+    complete_basic_call_records()
+
     try:
         pearl_client = get_pearl_client()
         outbound_id = pearl_client.get_default_outbound_id()

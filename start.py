@@ -215,7 +215,9 @@ def main():
     logging.info(f"--- 3. Iniciando servicio: {service_name} ---")
 
     # Para producción, usamos Gunicorn. Para local, el servidor de desarrollo de Flask.
-    use_gunicorn = os.getenv('ENVIRONMENT') == 'production'
+    # Si estamos en Railway (RAILWAY_SERVICE_NAME definido), forzar Gunicorn salvo que explícitamente se pida lo contrario.
+    on_railway = os.getenv('RAILWAY_SERVICE_NAME') is not None
+    use_gunicorn = (os.getenv('ENVIRONMENT') == 'production') or on_railway
 
     if 'actualizarllamadas' in service_name:
         logging.info("Iniciando el scheduler de actualización de llamadas...")

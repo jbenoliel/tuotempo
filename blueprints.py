@@ -377,6 +377,7 @@ def leads():
     search = request.args.get('search', '')
     estado = request.args.get('estado', '')
     con_pack = request.args.get('conPack', '')
+    solo_interesados_sin_cita = request.args.get('solo_interesados_sin_cita', '')
     
     conn = get_connection()
     if not conn:
@@ -408,6 +409,12 @@ def leads():
             conditions.append("status_level_1 = %s")
             params.append(estado)
             print(f"DEBUG - Added estado condition for: {estado}")
+
+        # Filtro especial: interesados sin cita (útiles positivos sin 'Cita Agendada')
+        # Se interpreta como: status_level_1 comienza por 'Útiles Positivos' pero NO es exactamente 'Cita Agendada'
+        if solo_interesados_sin_cita == '1':
+            conditions.append("(status_level_1 LIKE 'Útiles Positivos%' AND status_level_1 <> 'Cita Agendada')")
+            print("DEBUG - Added filter: solo_interesados_sin_cita = 1")
         
         # Filtro por conPack 
         if con_pack:
@@ -440,6 +447,13 @@ def leads():
     finally:
         if conn.is_connected():
             conn.close()
+
+@bp.route('/leads/interesados-sin-cita')
+@login_required
+def leads_interesados_sin_cita():
+    """Atajo para listar interesados sin cita desde la web."""
+    # Redirige a /leads con el filtro aplicado
+    return redirect(url_for('main.leads', solo_interesados_sin_cita='1'))
 
 @bp.route('/clinica/<int:id>')
 @login_required
