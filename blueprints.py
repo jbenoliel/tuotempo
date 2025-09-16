@@ -410,11 +410,24 @@ def leads():
             params.append(estado)
             print(f"DEBUG - Added estado condition for: {estado}")
 
-        # Filtro especial: interesados sin cita (útiles positivos sin 'Cita Agendada')
-        # Se interpreta como: status_level_1 comienza por 'Útiles Positivos' pero NO es exactamente 'Cita Agendada'
+        # Filtro especial: interesados sin cita
+        # Criterios:
+        #  - Indicadores de interés: (status_level_1 LIKE 'Útiles Positivos%')
+        #    o bien campos de preferencia (preferencia_horario/fecha_minima_reserva no nulos)
+        #    o 'Volver a llamar' con preferencia/fecha mínima
+        #  - Sin cita confirmada: sin fecha 'cita' y sin 'hora_cita'
+        #  - Excluir 'Cita Agendada'
         if solo_interesados_sin_cita == '1':
-            conditions.append("(status_level_1 LIKE 'Útiles Positivos%' AND status_level_1 <> 'Cita Agendada')")
-            print("DEBUG - Added filter: solo_interesados_sin_cita = 1")
+            conditions.append("(" \
+                "(status_level_1 LIKE 'Útiles Positivos%' AND status_level_1 <> 'Cita Agendada')" \
+                " OR ((preferencia_horario IS NOT NULL AND TRIM(preferencia_horario) != '')" \
+                "     OR (fecha_minima_reserva IS NOT NULL))" \
+                " OR (status_level_1 = 'Volver a llamar' AND ((preferencia_horario IS NOT NULL AND TRIM(preferencia_horario) != '') OR (fecha_minima_reserva IS NOT NULL)))" \
+            ") AND (" \
+                "(cita IS NULL OR cita = '' OR cita = '0000-00-00')" \
+                " AND (hora_cita IS NULL OR hora_cita = '' OR hora_cita = '00:00:00')" \
+            ")")
+            print("DEBUG - Added filter: solo_interesados_sin_cita = 1 (ampliado)")
         
         # Filtro por conPack 
         if con_pack:
