@@ -181,8 +181,13 @@ def obtener_slots():
         fecha_consulta_str = fecha_consulta_dt.strftime("%d-%m-%Y")
         
         current_app.logger.info(f"Buscando slots para la semana del {fecha_consulta_str}")
+        
+        tuotempo_call_params = {'locations_lid': [centro_id], 'start_date': fecha_consulta_str, 'days': 7}
+        current_app.logger.info(f"[TUOTEMPO_TRACE] Calling get_available_slots with params: {json.dumps(tuotempo_call_params)}")
+        
         res = tuotempo.get_available_slots(locations_lid=[centro_id], start_date=fecha_consulta_str, days=7)
-        current_app.logger.info(f"Respuesta CRUDA de Tuotempo API: {json.dumps(res, indent=2)}")
+        
+        current_app.logger.info(f"[TUOTEMPO_TRACE] Raw response from get_available_slots: {json.dumps(res, indent=2)}")
         
         slots_return = res
         current_slots = _extract_availabilities(res)
@@ -263,6 +268,7 @@ def reservar():
     if critical_keys - availability.keys():
         cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
         if cache_path.exists():
+            current_app.logger.info(f"Fichero de caché encontrado en: {cache_path}")
             try:
                 with cache_path.open('r', encoding='utf-8') as f:
                     cached_response = json.load(f)
@@ -275,8 +281,16 @@ def reservar():
                     cached_date = parse_date(s.get('start_date'))
                     request_date = parse_date(availability.get('start_date'))
 
+                    # Log detallado para depurar la comparación
+                    current_app.logger.info(f"[CACHE_DEBUG] Comparing cache slot: [date: {s.get('start_date')}, time: {s.get('startTime')}] with request: [date: {availability.get('start_date')}, time: {availability.get('startTime')}]")
+
                     if cached_date and request_date and cached_date == request_date and s.get('startTime') == availability.get('startTime'):
-                        current_app.logger.info(f"Slot encontrado en caché. Completando datos desde: {s}")
+                        # Trazas adicionales para verificar IDs
+                        found_resource_id = s.get('resourceid')
+                        found_activity_id = s.get('activityid')
+                        current_app.logger.info(f"Slot coincidente encontrado en caché. resourceId: '{found_resource_id}', activityId: '{found_activity_id}'")
+                        
+                        current_app.logger.info(f"Completando datos desde el slot de caché: {s}")
                         availability.update(s)
                         availability_completed = True
                         current_app.logger.info(f"Availability completada desde cache. Datos actuales: {availability}")
@@ -285,6 +299,8 @@ def reservar():
                     current_app.logger.warning(f"No se encontró un slot coincidente en la caché para {availability.get('start_date')} a las {availability.get('startTime')}")
             except Exception as e:
                 current_app.logger.error(f"Error al leer o procesar el fichero de caché {cache_path}: {e}")
+        else:
+            current_app.logger.warning(f"Fichero de caché NO encontrado en la ruta: {cache_path}")
 
     missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
     if missing_fields:
@@ -319,7 +335,13 @@ def reservar():
     }
 
     try:
+        tuotempo_call_params = {'user_info': user_info_norm, 'availability': availability_norm}
+        current_app.logger.info(f"[TUOTEMPO_TRACE] Calling create_reservation with params: {json.dumps(tuotempo_call_params)}")
+
         res = tuotempo.create_reservation(user_info=user_info_norm, availability=availability_norm)
+
+        current_app.logger.info(f"[TUOTEMPO_TRACE] Raw response from create_reservation: {json.dumps(res)}")
+
         if res.get('result') == 'OK':
             return jsonify(res), 200
         else:
