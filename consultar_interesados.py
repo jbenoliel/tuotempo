@@ -47,13 +47,21 @@ def consultar_interesados_sin_cita():
 
         cursor = conn.cursor()
 
-        # Consultar leads interesados sin cita - incluyendo datos de llamadas
+        # Consultar leads interesados sin cita - con resumenes de pearl_calls
         query = """
         SELECT l.id, l.nombre, l.apellidos, l.telefono, l.telefono2, l.email,
-               l.fecha_minima_reserva, l.ciudad, l.nombre_clinica,
+               l.fecha_minima_reserva, l.cita, l.hora_cita, l.ciudad, l.nombre_clinica,
                l.status_level_1, l.status_level_2, l.updated_at,
-               l.call_time, l.call_summary, l.origen_archivo
+               l.call_time,
+               COALESCE(pc.summary, l.call_summary) as resumen_llamada,
+               l.origen_archivo
         FROM leads l
+        LEFT JOIN (
+            SELECT lead_id, summary,
+                   ROW_NUMBER() OVER (PARTITION BY lead_id ORDER BY created_at DESC) as rn
+            FROM pearl_calls
+            WHERE summary IS NOT NULL AND summary != ''
+        ) pc ON l.id = pc.lead_id AND pc.rn = 1
         WHERE l.fecha_minima_reserva IS NOT NULL
         AND l.cita IS NULL
         ORDER BY l.fecha_minima_reserva ASC
@@ -68,12 +76,12 @@ def consultar_interesados_sin_cita():
         if results:
             # Crear DataFrame para Excel - incluir datos de llamada
             columns = ['ID', 'Nombre', 'Apellidos', 'Telefono', 'Telefono2', 'Email',
-                      'Fecha_Deseada', 'Ciudad', 'Clinica', 'Status_1', 'Status_2', 'Updated',
-                      'Ultima_Llamada', 'Resumen_Llamada', 'Origen_Archivo']
+                      'Fecha_Deseada', 'Fecha_Cita', 'Hora_Cita', 'Ciudad', 'Clinica',
+                      'Status_1', 'Status_2', 'Updated', 'Ultima_Llamada', 'Resumen_Llamada', 'Origen_Archivo']
 
             df_data = []
             for row in results:
-                id_lead, nombre, apellidos, telefono, telefono2, email, fecha_min, ciudad, clinica, status1, status2, updated_at, call_time, call_summary, origen_archivo = row
+                id_lead, nombre, apellidos, telefono, telefono2, email, fecha_min, cita, hora_cita, ciudad, clinica, status1, status2, updated_at, call_time, resumen_llamada, origen_archivo = row
 
                 df_data.append([
                     id_lead,
@@ -83,13 +91,15 @@ def consultar_interesados_sin_cita():
                     telefono2 or '',
                     email or '',
                     fecha_min.strftime('%Y-%m-%d') if fecha_min else '',
+                    cita.strftime('%Y-%m-%d') if cita else '',
+                    hora_cita.strftime('%H:%M') if hora_cita else '',
                     ciudad or '',
                     clinica or '',
                     status1 or '',
                     status2 or '',
                     updated_at.strftime('%Y-%m-%d %H:%M') if updated_at else '',
                     call_time.strftime('%Y-%m-%d %H:%M') if call_time else '',
-                    call_summary or '',
+                    resumen_llamada or '',
                     origen_archivo or ''
                 ])
 
@@ -104,12 +114,12 @@ def consultar_interesados_sin_cita():
             print(f"Archivo Excel generado: {filename}")
 
             # Mostrar resumen en consola
-            print(f"\n{'ID':<5} {'NOMBRE':<20} {'TELEFONO':<12} {'FECHA DESEADA':<12} {'ULTIMA LLAMADA':<16}")
-            print("-" * 70)
+            print(f"\n{'ID':<5} {'NOMBRE':<20} {'TELEFONO':<12} {'FECHA DESEADA':<12} {'FECHA CITA':<12} {'ULTIMA LLAMADA':<16}")
+            print("-" * 85)
 
             for i, row in enumerate(df_data):
                 if i < 10:  # Solo primeros 10 para consola
-                    print(f"{row[0]:<5} {row[1][:20]:<20} {row[3]:<12} {row[6]:<12} {row[12]:<16}")
+                    print(f"{row[0]:<5} {row[1][:20]:<20} {row[3]:<12} {row[6]:<12} {row[7]:<12} {row[14]:<16}")
 
             if len(df_data) > 10:
                 print(f"... y {len(df_data) - 10} mas (ver archivo Excel completo)")

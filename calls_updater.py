@@ -128,8 +128,8 @@ def get_last_sync_time(db_conn) -> datetime:
     """
     try:
         cursor = db_conn.cursor(dictionary=True)
-        # Buscamos el call_time más reciente que no sea nulo
-        cursor.execute("SELECT MAX(call_time) as last_call FROM leads WHERE call_time IS NOT NULL")
+        # Buscamos el call_time más reciente que no sea nulo en la tabla correcta (pearl_calls)
+        cursor.execute("SELECT MAX(call_time) as last_call FROM pearl_calls WHERE call_time IS NOT NULL")
         result = cursor.fetchone()
         cursor.close()
         
@@ -340,7 +340,7 @@ def update_calls_from_pearl():
                     continue
                     
                 lead_id = lead_result[0]
-                logger.info(f"📞 Procesando llamada {call_details.get('id')} para lead {lead_id} (teléfono: {phone_number} -> {phone_normalized})")
+                logger.debug(f"📞 Procesando llamada {call_details.get('id')} para lead {lead_id} (teléfono: {phone_number} -> {phone_normalized})")
 
                 # 1. INSERTAR/ACTUALIZAR EN PEARL_CALLS (registro detallado)
                 call_inserted = insert_call_record(cursor, call_details, lead_id, outbound_id)
@@ -364,7 +364,7 @@ def update_calls_from_pearl():
                     enhanced_process_call_result(lead_id, call_result, call_details)
                     
                     updated_count += 1
-                    logger.info(f"✅ COMPLETO - Lead {lead_id} procesado con scheduler integration para llamada {call_details.get('id')}")
+                    logger.debug(f"✅ COMPLETO - Lead {lead_id} procesado con scheduler integration para llamada {call_details.get('id')}")
                     
                 except ImportError:
                     logger.warning("⚠️ Módulo de integración scheduler no disponible, usando método básico")
@@ -392,7 +392,7 @@ def update_calls_from_pearl():
                     if cursor.rowcount > 0 or call_inserted:
                         updated_count += 1
                         status_msg = "✅ COMPLETO" if call_inserted else "⚠️ PARCIAL (solo leads)"
-                        logger.info(f"{status_msg} - Lead {lead_id} procesado con llamada {call_details.get('id')}")
+                        logger.debug(f"{status_msg} - Lead {lead_id} procesado con llamada {call_details.get('id')}")
                         
                 except Exception as e:
                     logger.error(f"❌ Error en integración scheduler para lead {lead_id}: {e}")
