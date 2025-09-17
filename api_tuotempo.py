@@ -114,6 +114,15 @@ def _extract_availabilities(resp: dict) -> list:
                 return found
     return []
 
+def _normalize_time_str(time_str):
+    """Normaliza un string de hora a formato HH:MM, eliminando segundos si existen."""
+    if not isinstance(time_str, str):
+        return None
+    parts = time_str.split(':')
+    if len(parts) >= 2:
+        return f"{parts[0]}:{parts[1]}"
+    return None
+
 # --- Configuración de Caché ---
 import tempfile
 
@@ -281,10 +290,14 @@ def reservar():
                     cached_date = parse_date(s.get('start_date'))
                     request_date = parse_date(availability.get('start_date'))
 
-                    # Log detallado para depurar la comparación
-                    current_app.logger.info(f"[CACHE_DEBUG] Comparing cache slot: [date: {s.get('start_date')}, time: {s.get('startTime')}] with request: [date: {availability.get('start_date')}, time: {availability.get('startTime')}]")
+                    # Normalizar horas para una comparación robusta (ignorar segundos)
+                    cached_time_norm = _normalize_time_str(s.get('startTime'))
+                    request_time_norm = _normalize_time_str(availability.get('startTime'))
 
-                    if cached_date and request_date and cached_date == request_date and s.get('startTime') == availability.get('startTime'):
+                    # Log detallado para depurar la comparación
+                    current_app.logger.info(f"[CACHE_DEBUG] Comparing cache slot: [date: {s.get('start_date')}, time: {cached_time_norm}] with request: [date: {availability.get('start_date')}, time: {request_time_norm}]")
+
+                    if cached_date and request_date and cached_date == request_date and cached_time_norm and cached_time_norm == request_time_norm:
                         # Trazas adicionales para verificar IDs
                         found_resource_id = s.get('resourceid')
                         found_activity_id = s.get('activityid')
