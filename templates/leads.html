@@ -22,6 +22,12 @@
         </div>
         <div class="card-body">
             <form method="get" action="{{ url_for('main.leads') }}" class="row g-3">
+                {# Mantener los filtros de archivo origen si existen #}
+                {% if filtro_origen %}
+                    {% for origen in filtro_origen %}
+                        <input type="hidden" name="origen_archivo" value="{{ origen }}">
+                    {% endfor %}
+                {% endif %}
                 <div class="col-md-4">
                     <label for="search" class="form-label">Buscar</label>
                     <input type="text" class="form-control" id="search" name="search" value="{{ search }}" placeholder="Nombre, dirección o teléfono">
@@ -51,7 +57,22 @@
             </form>
         </div>
     </div>
-    
+
+    {% if filtro_origen %}
+    <div class="alert alert-light border-secondary py-2 px-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted">
+                <i class="fas fa-file-alt me-2"></i>
+                <strong>Filtrando por archivos:</strong>
+                {% for origen in filtro_origen %}
+                    <span class="badge bg-secondary fw-normal">{{ origen }}</span>
+                {% endfor %}
+            </div>
+            <a href="{{ url_for('main.leads') }}" class="btn-close" aria-label="Quitar filtros de archivo"></a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Script para recarga automática -->
     <script>
         // Recarga la página cada 60 segundos

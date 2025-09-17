@@ -378,6 +378,7 @@ def leads():
     estado = request.args.get('estado', '')
     con_pack = request.args.get('conPack', '')
     solo_interesados_sin_cita = request.args.get('solo_interesados_sin_cita', '')
+    filtro_origen = request.args.getlist('origen_archivo')
     
     conn = get_connection()
     if not conn:
@@ -409,6 +410,13 @@ def leads():
             conditions.append("status_level_1 = %s")
             params.append(estado)
             print(f"DEBUG - Added estado condition for: {estado}")
+
+        # Filtro por archivo origen
+        if filtro_origen:
+            placeholders = ', '.join(['%s'] * len(filtro_origen))
+            conditions.append(f"origen_archivo IN ({placeholders})")
+            params.extend(filtro_origen)
+            print(f"DEBUG - Added origen_archivo condition for: {filtro_origen}")
 
         # Filtro especial: interesados sin cita
         # Criterios:
@@ -457,10 +465,10 @@ def leads():
         print(f"DEBUG - Results found: {len(leads_data)}")
         if leads_data:
             print(f"DEBUG - First result: ID {leads_data[0]['id']}, Name: {leads_data[0]['nombre']}")
-        return render_template('leads.html', leads=leads_data, search=search, estado=estado, con_pack=con_pack)
+        return render_template('leads.html', leads=leads_data, search=search, estado=estado, con_pack=con_pack, solo_interesados_sin_cita=solo_interesados_sin_cita, filtro_origen=filtro_origen)
     except Exception as e:
         flash(f"Error al obtener leads: {e}", "danger")
-        return render_template('leads.html', leads=[], search=search, estado=estado, con_pack=con_pack)
+        return render_template('leads.html', leads=[], search=search, estado=estado, con_pack=con_pack, solo_interesados_sin_cita=solo_interesados_sin_cita, filtro_origen=filtro_origen)
     finally:
         if conn.is_connected():
             conn.close()
