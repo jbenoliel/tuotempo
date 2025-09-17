@@ -164,6 +164,7 @@ def complete_basic_call_records():
             AND (summary IS NULL OR summary = '')
             AND (duration IS NULL OR duration = 0)
             AND status IN ('1', 'pending', 'basic')
+            AND status != 'invalid_call_id'
             AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
             AND created_at <= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
             LIMIT 20
@@ -177,7 +178,7 @@ def complete_basic_call_records():
 
         completed = 0
 
-        for record_id, call_id, lead_id, phone_number, outbound_id in basic_records:
+        for record_id, call_id, lead_id, phone_number, outbound_id, created_at in basic_records:
             try:
                 logger.info(f"[BASIC_RECORDS] Completando call_id: {call_id}")
 
@@ -196,7 +197,20 @@ def complete_basic_call_records():
                     logger.warning(f"[BASIC_RECORDS] No se pudieron obtener detalles para call_id: {call_id}")
 
             except Exception as e:
+                error_message = str(e)
                 logger.error(f"[BASIC_RECORDS] Error procesando call_id {call_id}: {e}")
+
+                # Si es un error de "wrong CallId", marcar como permanentemente fallido
+                if "wrong CallId" in error_message:
+                    logger.warning(f"[BASIC_RECORDS] Call_id {call_id} es invalido, marcando como fallido permanente")
+                    cursor.execute("""
+                        UPDATE pearl_calls
+                        SET status = 'invalid_call_id',
+                            summary = 'Call_id invalido - no reconocido por Pearl AI',
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, [record_id])
+                    completed += 1
 
         db_conn.commit()
         cursor.close()
