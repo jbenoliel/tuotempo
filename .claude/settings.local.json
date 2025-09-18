@@ -9,7 +9,9 @@
       "Bash(./venv/Scripts/python.exe reporte_detallado_railway.py)",
       "Bash(./venv/Scripts/python.exe reporte_por_fichero_railway.py)",
       "Bash(./venv/Scripts/python.exe:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

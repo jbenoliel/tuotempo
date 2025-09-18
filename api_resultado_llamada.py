@@ -692,8 +692,12 @@ def actualizar_resultado():
                         
                     except ValueError as e:
                         logger.warning(f"No se pudo parsear hora_rellamada '{hora_rellamada}': {e}")
-                    
+
                     # Si se pudo parsear la fecha/hora, programar la llamada
+                    if scheduled_datetime:
+                        if scheduled_datetime > datetime.now():
+                            # Aquí iría la lógica para programar la llamada con el scheduler
+                            logger.info(f"Programando callback para {telefono} el {scheduled_datetime}")
                         else:
                             logger.warning(f"Fecha de callback {scheduled_datetime} está en el pasado, ignorando")
                     
