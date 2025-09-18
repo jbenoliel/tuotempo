@@ -7,7 +7,7 @@ import logging
 import re
 from datetime import datetime
 from typing import Dict, Optional
-from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection, cancel_scheduled_calls_for_lead
+from reprogramar_llamadas_simple import simple_reschedule_failed_call, get_pymysql_connection, cancel_scheduled_calls_for_lead, complete_scheduled_call
 from db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -327,11 +327,16 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
         logger.error(f"call_result is None for lead {lead_id}")
         return False
     
-    # REGLA DE NEGOCIO: Al realizar cualquier llamada (programada o no programada),
-    # cancelar todas las llamadas programadas pendientes para ese lead
-    cancelled_count = cancel_scheduled_calls_for_lead(lead_id, "Llamada realizada - cancelando programaciones pendientes")
-    if cancelled_count > 0:
-        logger.info(f"Canceladas {cancelled_count} llamadas programadas para lead {lead_id} antes de procesar resultado")
+    # REGLA DE NEGOCIO: Al procesar una llamada, marcar la programación pendiente como 'completed'.
+    # Esto evita que la tabla crezca indefinidamente con registros 'cancelled'.
+    outcome_for_schedule = determine_call_outcome(call_result, pearl_response)
+    completed_count = complete_scheduled_call(lead_id, outcome_for_schedule)
+    if completed_count > 0:
+        logger.info(f"Marcada como 'completada' {completed_count} llamada programada para lead {lead_id} con outcome '{outcome_for_schedule}'")
+    else:
+        # Si no había una llamada 'pending' que completar, puede ser una llamada manual.
+        # Por seguridad, cancelamos cualquier otra posible programación futura.
+        cancel_scheduled_calls_for_lead(lead_id, "Llamada manual procesada - cancelando futuras programaciones")
     
         # INCREMENTAR CONTADOR DE LLAMADAS: +1 por cada intento, con fallback por teléfono
     increment_call_attempts_count(lead_id, telefono)
