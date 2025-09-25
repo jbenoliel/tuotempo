@@ -1575,9 +1575,11 @@ def count_leads_by_status():
         
         # CRÍTICO: Solo leads OPEN - NO contar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
-        
-        # CRÍTICO: Excluir leads con cita programada - NO deben contarse para selección
-        where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+
+        # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
+        # Si es "Volver a llamar", contar todas independientemente del status_level_2
+        if status_value != 'Volver a llamar':
+            where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
 
         # Agregar filtro de archivo origen si se especifica
         if archivo_origen:
@@ -1661,8 +1663,12 @@ def select_leads_by_status():
         # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
 
-        # CRÍTICO: Excluir leads con cita programada - NO deben seleccionarse para llamadas
-        where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+        # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
+        # Si es "Volver a llamar", permitir todas las selecciones independientemente del status_level_2
+        if status_value != 'Volver a llamar':
+            where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
+        else:
+            logger.info(f"[DEBUG] Omitiendo filtro de cita programada para 'Volver a llamar'")
 
         # Agregar filtro de archivo origen si se especifica
         if archivo_origen:
