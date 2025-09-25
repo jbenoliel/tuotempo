@@ -1321,14 +1321,15 @@ class CallsManager {
                     }
                 }
                 
-                // Establecer filtro para mostrar solo seleccionados
-                this.state.filters.selected = 'selected';
+                // NO filtrar por seleccionados - mostrar TODOS los leads con ese estado
+                // Limpiar filtro de selección para mostrar tanto seleccionados como no seleccionados
+                this.state.filters.selected = '';
                 const selectedFilter = document.getElementById('selectedFilter');
                 if (selectedFilter) {
-                    selectedFilter.value = 'selected';
+                    selectedFilter.value = '';
                 }
-                
-                // Aplicar filtros para mostrar solo los leads seleccionados
+
+                // Aplicar filtros para mostrar todos los leads con ese estado
                 // Pequeño delay para asegurar que el servidor procese la selección
                 setTimeout(() => {
                     this.applyFilters();
