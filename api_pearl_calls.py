@@ -1573,8 +1573,10 @@ def count_leads_by_status():
         where_conditions = [f"TRIM({status_field}) = %s"]
         params = [status_value]
 
-        # CRÍTICO: Solo leads OPEN - NO contar leads cerrados
-        where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        # CRÍTICO: Solo leads OPEN - EXCEPTO para "Volver a llamar"
+        if status_value != 'Volver a llamar':
+            where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        # Para "Volver a llamar" no filtrar por lead_status
 
         # ESPECIAL: Para "Volver a llamar", incluir TODOS los call_status
         if status_value == 'Volver a llamar':
@@ -1668,8 +1670,13 @@ def select_leads_by_status():
         where_conditions = [f"TRIM({status_field}) = %s"]
         where_params = [status_value]
 
-        # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
-        where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+        # CRÍTICO: Solo leads OPEN - EXCEPTO para "Volver a llamar"
+        # Si es "Volver a llamar", ignorar lead_status porque debe estar disponible
+        if status_value != 'Volver a llamar':
+            where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+            logger.info(f"[DEBUG] Aplicando filtro lead_status para '{status_value}'")
+        else:
+            logger.info(f"[DEBUG] ESPECIAL: Omitiendo filtro lead_status para 'Volver a llamar'")
 
         # ESPECIAL: Para "Volver a llamar", incluir TODOS los call_status
         # porque necesitamos resetear leads que ya fueron procesados
@@ -1708,11 +1715,12 @@ def select_leads_by_status():
         if status_value == 'Volver a llamar':
             logger.info(f"[DEBUG] ESPECIAL: Reseteando estados de llamada para 'Volver a llamar'")
 
-            # Resetear call_status a 'no_selected' para todos los leads que coinciden
+            # Resetear call_status a 'no_selected' y REABRIR leads cerrados
             reset_query = f"""
                 UPDATE leads
                 SET call_status = 'no_selected',
                     call_error_message = NULL,
+                    lead_status = 'open',
                     updated_at = NOW()
                 WHERE {where_clause}
             """
