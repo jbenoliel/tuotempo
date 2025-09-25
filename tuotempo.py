@@ -3,6 +3,7 @@ import logging
 import requests
 import json
 from dotenv import load_dotenv
+from tuotempo_api_logger import log_tuotempo_api_call
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,7 @@ class Tuotempo:
         
         logging.info(f"Tuotempo adapter initialized for {self.environment} environment")
     
+    @log_tuotempo_api_call
     def get_available_slots(self, locations_lid, start_date, days=7):
         """
         Obtiene slots disponibles para la ubicación y fecha especificadas.
@@ -76,6 +78,7 @@ class Tuotempo:
             logging.error(f"Error al obtener slots: {e}")
             return {"error": str(e)}
     
+    @log_tuotempo_api_call
     def create_reservation(self, user_info, availability):
         """
         Crea una reserva con la información proporcionada.

@@ -74,7 +74,7 @@ def fix_selected_estados():
         affected_rows = cursor.rowcount
         conn.commit()
 
-        print(f"   ✅ Corregidos {affected_rows} leads")
+        print(f"   Corregidos {affected_rows} leads")
 
         # 4. Verificar corrección
         cursor.execute("""
@@ -88,9 +88,9 @@ def fix_selected_estados():
         print(f"   Leads con 'selected' después de corrección: {remaining_selected}")
 
         if remaining_selected == 0:
-            print("   ✅ Corrección completada exitosamente")
+            print("   Corrección completada exitosamente")
         else:
-            print("   ⚠️  Aún quedan leads con estado 'selected'")
+            print("   ALERTA: Aún quedan leads con estado 'selected'")
 
         # 5. Mostrar distribución de estados después de corrección
         cursor.execute("""

@@ -225,6 +225,40 @@ def obtener_slots():
     return jsonify({'success': True, 'slots': slots_list})
 
 
+@tuotempo_api.route('/api/logs/tuotempo', methods=['GET'])
+def get_tuotempo_logs():
+    """Endpoint para obtener los logs de las APIs de tuotempo."""
+    try:
+        from railway_logs_helper import read_tuotempo_logs, filter_logs_by_time
+
+        # Parámetros opcionales
+        max_lines = int(request.args.get('max_lines', 50))
+        hours_ago = int(request.args.get('hours_ago', 24))
+
+        # Leer logs
+        logs = read_tuotempo_logs(max_lines)
+
+        # Filtrar por tiempo si se especifica
+        if hours_ago > 0:
+            logs = filter_logs_by_time(logs, hours_ago)
+
+        return jsonify({
+            'success': True,
+            'total_logs': len(logs),
+            'logs': logs,
+            'parameters': {
+                'max_lines': max_lines,
+                'hours_ago': hours_ago
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error al obtener logs de tuotempo: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @tuotempo_api.route('/api/reservar', methods=['POST'])
 def reservar():
     data = request.get_json(silent=True)

@@ -4,6 +4,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from datetime import datetime
+from tuotempo_api_logger import log_tuotempo_api_call, log_requests_call
 
 # Load environment variables
 load_dotenv()
@@ -48,6 +49,7 @@ class TuoTempoAPI:
             pro_key = "24b98d8d41b970d38362b52bd3505c04"  # PRO environment
             self.api_key = pre_key if environment == "PRE" else pro_key
 
+    @log_tuotempo_api_call
     def get_centers(self, province=None):
         """
         Get the list of all centers (clinics).
@@ -68,10 +70,11 @@ class TuoTempoAPI:
             params["province"] = province
 
         logging.info(f"[TuoTempoAPI] GET Centers - URL: {url}, Params: {params}")
-        response = requests.get(url, headers=self.headers, params=params)
+        response = log_requests_call('GET', url, headers=self.headers, params=params)
         logging.info(f"[TuoTempoAPI] GET Centers - Response: {response.status_code}")
         return response.json()
     
+    @log_tuotempo_api_call
     def get_available_slots(self, activity_id, area_id, start_date, resource_id=None, time_preference=None, min_time=None, max_time=None):
         """
         Get available slots for a specific service, center, and date.
@@ -127,7 +130,7 @@ class TuoTempoAPI:
             params["resourceId"] = resource_id
 
         logging.info(f"[TuoTempoAPI] GET Availabilities - URL: {url}, Params: {params}")
-        response = requests.get(url, headers=self.headers, params=params)
+        response = log_requests_call('GET', url, headers=self.headers, params=params)
         logging.info(
             f"[TuoTempoAPI] GET Availabilities - Response: {response.status_code}, Body: {response.text[:500]}"
         )
@@ -166,6 +169,7 @@ class TuoTempoAPI:
         logging.warning(f"[TuoTempoAPI] No se pudo convertir la fecha '{date_string}' a formato dd/mm/yyyy")
         return date_string  # Devolver la cadena original como fallback
 
+    @log_tuotempo_api_call
     def register_non_insured_user(self, fname, lname, birthday, phone):
         """
         Register a non-insured user in TuoTempo.
@@ -201,7 +205,7 @@ class TuoTempoAPI:
         }
         
         logging.info(f"[TuoTempoAPI] POST Register User - URL: {url}, Payload: {json.dumps(payload)}")
-        response = requests.post(url, headers=self.headers, params=params, json=payload)
+        response = log_requests_call('POST', url, headers=self.headers, params=params, json=payload)
         response_data = response.json()
         logging.info(f"[TuoTempoAPI] POST Register User - Response: {response.status_code}, Body: {response.text[:200]}")
         
@@ -225,6 +229,7 @@ class TuoTempoAPI:
         
         return response_data
     
+    @log_tuotempo_api_call
     def confirm_appointment(self, availability, communication_phone):
         """
         Confirma una cita en Tuotempo con los datos de disponibilidad y el usuario registrado
@@ -267,7 +272,7 @@ class TuoTempoAPI:
         logging.info(f"[TuoTempoAPI] Headers: {headers}")
         logging.info(f"[TuoTempoAPI] Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
 
-        response = requests.post(url, headers=headers, json=payload)
+        response = log_requests_call('POST', url, headers=headers, json=payload)
         
         logging.info(f"[TuoTempoAPI] POST Confirm Appointment - Response: {response.status_code}")
         logging.info(f"[TuoTempoAPI] Body: {response.text[:500] + '...' if len(response.text) > 500 else response.text}")
@@ -278,6 +283,7 @@ class TuoTempoAPI:
             logging.error(f"[TuoTempoAPI] Error al decodificar JSON de respuesta: {e}")
             return {"result": "ERROR", "msg": "Respuesta inválida de la API", "details": response.text}
     
+    @log_tuotempo_api_call
     def cancel_appointment(self, resid, reason=""):
         """
         Cancela una cita existente.
@@ -304,7 +310,7 @@ class TuoTempoAPI:
         payload = {"reason": reason} if reason else None
 
         logging.info(f"[TuoTempoAPI] DELETE Cancel Appointment - URL: {url}")
-        response = requests.delete(url, headers=headers, params=params, json=payload)
+        response = log_requests_call('DELETE', url, headers=headers, params=params, json=payload)
         logging.info(f"[TuoTempoAPI] DELETE Cancel Appointment - Response: {response.status_code}")
         logging.info(f"[TuoTempoAPI] Body: {response.text[:500] + '...' if len(response.text) > 500 else response.text}")
 
