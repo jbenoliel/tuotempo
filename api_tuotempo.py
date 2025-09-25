@@ -502,7 +502,6 @@ def reservar():
                 phone_for_slots = phone_cache
 
                 # Obtener slots para esa fecha
-                from tuotempo import Tuotempo
                 tuotempo_instance = Tuotempo(
                     api_key=os.getenv('TUOTEMPO_API_KEY'),
                     secret_key=os.getenv('TUOTEMPO_SECRET_KEY'),
