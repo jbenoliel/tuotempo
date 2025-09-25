@@ -1578,12 +1578,16 @@ def count_leads_by_status():
         
         # CRÍTICO: Excluir leads con cita programada - NO deben contarse para selección
         where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
-        
+
         # Agregar filtro de archivo origen si se especifica
         if archivo_origen:
-            placeholders = ','.join(['%s'] * len(archivo_origen))
-            where_conditions.append(f"origen_archivo IN ({placeholders})")
-            params.extend(archivo_origen)
+            # Usar LIKE con TRIM para manejar espacios y variaciones
+            archivo_conditions = []
+            for archivo in archivo_origen:
+                archivo_conditions.append("TRIM(origen_archivo) LIKE %s")
+                params.append(f"%{archivo}%")
+
+            where_conditions.append(f"({' OR '.join(archivo_conditions)})")
         
         where_clause = ' AND '.join(where_conditions)
         
@@ -1659,12 +1663,20 @@ def select_leads_by_status():
         
         # CRÍTICO: Excluir leads con cita programada - NO deben seleccionarse para llamadas
         where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
-        
+
         # Agregar filtro de archivo origen si se especifica
         if archivo_origen:
-            placeholders = ','.join(['%s'] * len(archivo_origen))
-            where_conditions.append(f"origen_archivo IN ({placeholders})")
-            params.extend(archivo_origen)
+            # Usar LIKE con TRIM para manejar espacios y variaciones
+            archivo_conditions = []
+            for archivo in archivo_origen:
+                archivo_conditions.append("TRIM(origen_archivo) LIKE %s")
+                params.append(f"%{archivo}%")
+
+            where_conditions.append(f"({' OR '.join(archivo_conditions)})")
+
+            # DEBUG: Log del filtro de archivo construido
+            logger.info(f"[DEBUG] Filtro archivo construido: {' OR '.join(archivo_conditions)}")
+            logger.info(f"[DEBUG] Parámetros archivo añadidos: {[f'%{archivo}%' for archivo in archivo_origen]}")
         
         where_clause = ' AND '.join(where_conditions)
         
