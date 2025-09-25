@@ -953,10 +953,10 @@ def _mark_leads_for_calling(lead_ids: List[int], selected: bool, priority: int =
             update_fields.append("call_priority = %s")
             params.append(priority)
         
-        # Si se está seleccionando, resetear estado de error
+        # Si se está seleccionando, resetear estado de error pero mantener no_selected
         if selected:
             update_fields.extend([
-                "call_status = 'selected'",
+                "call_status = 'no_selected'",  # Listo para llamar, no "selected"
                 "call_error_message = NULL"
             ])
         
@@ -1572,9 +1572,12 @@ def count_leads_by_status():
         # Construir query base
         where_conditions = [f"TRIM({status_field}) = %s"]
         params = [status_value]
-        
+
         # CRÍTICO: Solo leads OPEN - NO contar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+
+        # TEMPORAL: Incluir leads con estado 'selected' que deberían ser 'no_selected'
+        where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
         # Si es "Volver a llamar", contar todas independientemente del status_level_2
@@ -1662,6 +1665,10 @@ def select_leads_by_status():
 
         # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
+
+        # TEMPORAL: Incluir leads con estado 'selected' que deberían ser 'no_selected'
+        where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
+        logger.info(f"[DEBUG] TEMPORAL: Incluyendo leads con call_status 'selected' en selección")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
         # Si es "Volver a llamar", permitir todas las selecciones independientemente del status_level_2
@@ -1904,6 +1911,56 @@ def deselect_all_leads():
         logger.error(f"Error deseleccionando todos los leads: {e}")
         return jsonify({'error': str(e)}), 500
         
+    finally:
+        if 'conn' in locals() and conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@api_pearl_calls.route('/leads/fix-selected-status', methods=['POST'])
+def fix_selected_status():
+    """
+    ENDPOINT TEMPORAL: Corregir estados 'selected' incorrectos.
+    Convertir todos los call_status = 'selected' a 'no_selected'
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Contar leads con estado 'selected'
+        cursor.execute("SELECT COUNT(*) as total FROM leads WHERE call_status = 'selected'")
+        total_before = cursor.fetchone()['total']
+
+        if total_before == 0:
+            return jsonify({
+                'success': True,
+                'message': 'No hay leads con estado selected para corregir',
+                'fixed_count': 0
+            })
+
+        # Corregir estados 'selected' a 'no_selected'
+        cursor.execute("""
+            UPDATE leads
+            SET call_status = 'no_selected',
+                updated_at = NOW()
+            WHERE call_status = 'selected'
+        """)
+
+        fixed_count = cursor.rowcount
+        conn.commit()
+
+        logger.info(f"Corregidos {fixed_count} leads con estado 'selected' -> 'no_selected'")
+
+        return jsonify({
+            'success': True,
+            'message': f'Corregidos {fixed_count} leads con estado selected incorrecto',
+            'fixed_count': fixed_count,
+            'total_before': total_before
+        })
+
+    except Exception as e:
+        logger.error(f"Error corrigiendo estados selected: {e}")
+        return jsonify({'error': str(e)}), 500
+
     finally:
         if 'conn' in locals() and conn and conn.is_connected():
             cursor.close()
