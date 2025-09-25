@@ -457,45 +457,83 @@ def complete_scheduled_call(lead_id: int, outcome: str) -> int:
     """
     Marca una llamada programada como 'completed'.
     Se ejecuta cuando se ha procesado una llamada programada.
-    
+
+    Versión mejorada que maneja correctamente leads cerrados y reduce warnings spam.
+
     Args:
         lead_id: ID del lead
         outcome: Resultado final de la llamada
-        
+
     Returns:
         int: Número de llamadas marcadas como completadas (debería ser 1 o 0)
     """
     if not lead_id or not isinstance(lead_id, int):
         logger.error(f"Invalid lead_id for complete_scheduled_call: {lead_id}")
         return 0
-    
+
     conn = None
     try:
         conn = get_pymysql_connection()
         if not conn:
             logger.error("No se pudo conectar a la BD para completar schedule")
             return 0
-            
+
         with conn.cursor() as cursor:
-            # Actualizar la llamada pendiente a 'completed'
-            sql = """
+            # Primero verificar el estado del lead
+            cursor.execute("""
+                SELECT lead_status, call_attempts_count, nombre, apellidos
+                FROM leads
+                WHERE id = %s
+            """, (lead_id,))
+
+            lead = cursor.fetchone()
+            if not lead:
+                logger.warning(f"Lead {lead_id} no existe - no se puede completar schedule")
+                return 0
+
+            # Si el lead está cerrado, cancelar cualquier llamada pending
+            if lead['lead_status'] == 'closed':
+                cursor.execute("""
+                    UPDATE call_schedule
+                    SET status = 'cancelled',
+                        last_outcome = %s,
+                        updated_at = NOW()
+                    WHERE lead_id = %s AND status = 'pending'
+                """, (f'lead_closed_{outcome}', lead_id))
+
+                cancelled_count = cursor.rowcount
+                conn.commit()
+
+                if cancelled_count > 0:
+                    logger.info(f"Canceladas {cancelled_count} llamadas pending para lead cerrado {lead_id} ({lead['nombre']} {lead['apellidos']})")
+                else:
+                    logger.debug(f"No hay llamadas pending para cancelar en lead cerrado {lead_id} ({lead['nombre']} {lead['apellidos']})")
+
+                return cancelled_count
+
+            # Intentar completar llamada pending normalmente
+            cursor.execute("""
                 UPDATE call_schedule
                 SET status = 'completed',
                     last_outcome = %s,
                     updated_at = NOW()
                 WHERE lead_id = %s AND status = 'pending'
-            """
-            
-            updated_count = cursor.execute(sql, (outcome, lead_id))
+            """, (outcome, lead_id))
+
+            updated_count = cursor.rowcount
             conn.commit()
-            
+
             if updated_count > 0:
                 logger.info(f"Marcada como 'completed' la llamada programada para lead {lead_id} con outcome '{outcome}'")
             else:
-                logger.warning(f"No se encontró llamada 'pending' para completar para lead {lead_id}. Pudo haber sido cancelada previamente.")
+                # Reducido de WARNING a INFO y agregado más contexto
+                logger.info(f"No hay llamada 'pending' para completar para lead {lead_id} "
+                          f"({lead['nombre']} {lead['apellidos']}, status: {lead['lead_status']}, "
+                          f"attempts: {lead['call_attempts_count']}). "
+                          f"Posiblemente ya fue procesada o cancelada.")
 
             return updated_count
-                
+
     except Exception as e:
         logger.error(f"Error completando llamada programada para lead {lead_id}: {e}")
         if conn:
@@ -504,7 +542,7 @@ def complete_scheduled_call(lead_id: int, outcome: str) -> int:
             except:
                 pass
         return 0
-        
+
     finally:
         if conn:
             try:
