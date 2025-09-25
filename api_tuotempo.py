@@ -18,7 +18,11 @@ def _norm_phone(phone: str) -> str:
     """Normaliza un número de teléfono eliminando caracteres no numéricos."""
     if not phone:
         return ""
-    return re.sub(r"\D", "", phone)
+    phone_digits = re.sub(r'\D', '', str(phone))
+    # Tomar los últimos 9 dígitos para números españoles
+    if len(phone_digits) > 9:
+        phone_digits = phone_digits[-9:]
+    return phone_digits
 
 def _get_db_connection():
     """Obtiene una conexión a la base de datos MySQL."""
