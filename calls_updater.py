@@ -75,8 +75,18 @@ def insert_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
         """
         
         cursor.execute(insert_sql, tuple(call_data.values()))
-        
+
         logger.info(f"📞 Registro de llamada insertado: {call_details.get('id')} -> Lead {lead_id}")
+
+        # Procesar outcome según las reglas de negocio
+        outcome = call_details.get('outcome')
+        if outcome:
+            try:
+                from outcome_processor_hook import process_outcome_after_call_update
+                process_outcome_after_call_update(lead_id, int(outcome))
+            except Exception as hook_error:
+                logger.warning(f"Error en hook de procesamiento: {hook_error}")
+
         return True
         
     except Exception as e:
@@ -114,7 +124,16 @@ def update_call_record(cursor, call_details: dict, lead_id: int, outbound_id: st
             
             cursor.execute(update_sql, tuple(update_data.values()) + (call_details.get('id'),))
             logger.info(f"📞 Registro de llamada actualizado: {call_details.get('id')}")
-            
+
+            # Procesar outcome según las reglas de negocio
+            outcome = call_details.get('outcome')
+            if outcome:
+                try:
+                    from outcome_processor_hook import process_outcome_after_call_update
+                    process_outcome_after_call_update(lead_id, int(outcome))
+                except Exception as hook_error:
+                    logger.warning(f"Error en hook de procesamiento: {hook_error}")
+
         return True
         
     except Exception as e:
@@ -465,7 +484,7 @@ def map_pearl_status_to_result(conversation_status: int, status: int) -> str:
     elif status == 5:
         return 'busy'  # Busy - REPROGRAMAR
     elif status == 6:
-        return 'no_answer'  # Failed - REPROGRAMAR (fallo temporal, no número inválido)  
+        return 'failed'  # Failed - PROCESAMIENTO ESPECIAL: 1x = temp, 2x+ = número erróneo  
     elif status == 7:
         return 'no_answer'  # NoAnswer - REPROGRAMAR
     elif status == 3:

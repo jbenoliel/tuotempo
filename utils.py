@@ -321,13 +321,13 @@ def get_statistics(filtro_origen_archivo=None):
             # Resumen de estados actualizado para métricas de llamada
             query_estados = f"""
                 SELECT
-                    IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND status_level_1 <> '' THEN 1 ELSE 0 END), 0) AS contactados,
+                    IFNULL(SUM(CASE WHEN status_level_1 IS NOT NULL AND TRIM(status_level_1) <> '' AND TRIM(status_level_1) <> 'None' THEN 1 ELSE 0 END), 0) AS contactados,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS volver_llamar,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END), 0) AS no_interesado,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Sin Pack' THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Con Pack' THEN 1 ELSE 0 END), 0) AS cita_con_pack,
                     IFNULL(SUM(CASE WHEN (TRIM(status_level_1) = 'Cita Agendada' OR TRIM(status_level_1) = 'Cita Manual') THEN 1 ELSE 0 END), 0) AS utiles_positivos,
-                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) IN ('Numero erroneo', 'Interesado') OR status_level_1 IS NULL OR TRIM(status_level_1) = '' OR TRIM(status_level_1) = 'None' THEN 1 ELSE 0 END), 0) AS otros_estados
                 FROM leads {where_clause}
             """
             cursor.execute(query_estados, params)
@@ -339,7 +339,7 @@ def get_statistics(filtro_origen_archivo=None):
                 'cita_sin_pack': row_states['cita_sin_pack'],
                 'cita_con_pack': row_states['cita_con_pack'],
                 'utiles_positivos': row_states['utiles_positivos'],
-                'utiles_negativos': row_states['utiles_negativos'],
+                'otros_estados': row_states['otros_estados'],
                 'no_util': 0
             }
 

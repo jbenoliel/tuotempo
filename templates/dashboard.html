@@ -142,7 +142,7 @@ body { margin: 0; padding: 0; }
 
 <!-- Fila 2: Nuevas métricas de call outcomes -->
 <div class="row text-center g-2 mt-1">
-  <div class="col-6 col-md-4">
+  <div class="col-6 col-md-6">
     <div class="card h-100 dashboard-card-green" style="background: #28a745 !important; color: white !important;">
       <div class="card-body p-2">
         <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">Útiles Positivos</h6>
@@ -156,16 +156,7 @@ body { margin: 0; padding: 0; }
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4">
-    <div class="card h-100 dashboard-card-yellow" style="background: #ffc107 !important; color: #333 !important;">
-      <div class="card-body p-2">
-        <h6 class="mb-1 small" style="color: #333 !important; font-weight: bold !important;">Útiles Negativos</h6>
-        <h4 class="mb-0" style="color: #333 !important; font-weight: bold !important;">{{ stats.estados.utiles_negativos }}</h4>
-        <small class="text-muted" style="color: rgba(51,51,51,0.7) !important;">Volver a llamar</small>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-4">
+  <div class="col-6 col-md-6">
     <div class="card h-100 dashboard-card-red" style="background: #dc3545 !important; color: white !important;">
       <div class="card-body p-2">
         <h6 class="mb-1 dashboard-text-white small" style="color: white !important;">No Útil</h6>
@@ -403,10 +394,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Chart Data Extraction ---
 
     // 1. Pie Chart Data - New Call Outcomes
-    const pieLabels = ['Útiles Positivos', 'Útiles Negativos', 'No Útil'];
+    const pieLabels = ['Útiles Positivos', 'No Útil'];
     const pieData = [
         parseInt(get(stats, 'estados.utiles_positivos', 0)),
-        parseInt(get(stats, 'estados.utiles_negativos', 0)),
         parseInt(get(stats, 'estados.no_util', 0))
     ];
 
