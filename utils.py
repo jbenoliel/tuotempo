@@ -326,7 +326,7 @@ def get_statistics(filtro_origen_archivo=None):
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'No Interesado' THEN 1 ELSE 0 END), 0) AS no_interesado,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Sin Pack' THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Con Pack' THEN 1 ELSE 0 END), 0) AS cita_con_pack,
-                    IFNULL(SUM(CASE WHEN (TRIM(status_level_1) = 'Cita Agendada' OR cita IS NOT NULL) THEN 1 ELSE 0 END), 0) AS utiles_positivos,
+                    IFNULL(SUM(CASE WHEN (TRIM(status_level_1) = 'Cita Agendada' OR TRIM(status_level_1) = 'Cita Manual') THEN 1 ELSE 0 END), 0) AS utiles_positivos,
                     IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Volver a llamar' THEN 1 ELSE 0 END), 0) AS utiles_negativos
                 FROM leads {where_clause}
             """

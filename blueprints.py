@@ -790,3 +790,122 @@ def get_statistics():
 
 # Las funciones load_excel_data, exportar_datos_completos, send_password_reset_email y verify_reset_token
 # se importan ahora desde utils.py
+
+@bp.route('/debug_utiles_positivos')
+def debug_utiles_positivos():
+    """Endpoint temporal para investigar problema de útiles positivos"""
+
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Obtener archivos disponibles
+        cursor.execute("SELECT nombre_archivo, total_registros FROM archivos_origen WHERE activo = 1 ORDER BY nombre_archivo")
+        archivos = cursor.fetchall()
+
+        # Buscar archivo de septiembre
+        archivo_septiembre = None
+        for archivo in archivos:
+            nombre_lower = archivo['nombre_archivo'].lower()
+            if any(x in nombre_lower for x in ['septiembre', 'sep', '09-', '09_']):
+                archivo_septiembre = archivo['nombre_archivo']
+                break
+
+        if not archivo_septiembre and archivos:
+            archivo_septiembre = archivos[0]['nombre_archivo']  # usar el primero como fallback
+
+        resultado = {
+            "archivos_disponibles": archivos,
+            "archivo_analizado": archivo_septiembre
+        }
+
+        if archivo_septiembre:
+            # Analizar datos del archivo
+
+            # Total registros
+            cursor.execute("SELECT COUNT(*) as total FROM leads WHERE origen_archivo = %s", (archivo_septiembre,))
+            total = cursor.fetchone()['total']
+
+            # Citas agendadas
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM leads
+                WHERE origen_archivo = %s
+                AND TRIM(status_level_1) = 'Cita Agendada'
+            """, (archivo_septiembre,))
+            citas_agendadas = cursor.fetchone()['count']
+
+            # Citas manuales
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM leads
+                WHERE origen_archivo = %s
+                AND cita IS NOT NULL
+                AND cita != ''
+            """, (archivo_septiembre,))
+            citas_manuales = cursor.fetchone()['count']
+
+            # Útiles positivos nueva fórmula
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM leads
+                WHERE origen_archivo = %s
+                AND (TRIM(status_level_1) = 'Cita Agendada' OR (cita IS NOT NULL AND cita != ''))
+            """, (archivo_septiembre,))
+            utiles_positivos = cursor.fetchone()['count']
+
+            # Simulación exacta consulta dashboard
+            cursor.execute("""
+                SELECT
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Sin Pack' THEN 1 ELSE 0 END), 0) AS cita_sin_pack,
+                    IFNULL(SUM(CASE WHEN TRIM(status_level_1) = 'Cita Agendada' AND TRIM(status_level_2) = 'Con Pack' THEN 1 ELSE 0 END), 0) AS cita_con_pack,
+                    IFNULL(SUM(CASE WHEN (TRIM(status_level_1) = 'Cita Agendada' OR cita IS NOT NULL) THEN 1 ELSE 0 END), 0) AS utiles_positivos
+                FROM leads
+                WHERE origen_archivo = %s
+            """, (archivo_septiembre,))
+            dashboard_data = cursor.fetchone()
+
+            # Estadísticas del campo cita
+            cursor.execute("""
+                SELECT
+                    SUM(CASE WHEN cita IS NULL THEN 1 ELSE 0 END) as cita_null,
+                    SUM(CASE WHEN cita = '' THEN 1 ELSE 0 END) as cita_vacia,
+                    SUM(CASE WHEN cita IS NOT NULL AND cita != '' THEN 1 ELSE 0 END) as cita_valida
+                FROM leads
+                WHERE origen_archivo = %s
+            """, (archivo_septiembre,))
+            cita_stats = cursor.fetchone()
+
+            # Ejemplos de citas manuales
+            cursor.execute("""
+                SELECT nombre, apellidos, telefono, status_level_1, status_level_2, cita
+                FROM leads
+                WHERE origen_archivo = %s
+                AND (cita IS NOT NULL AND cita != '')
+                AND (TRIM(status_level_1) != 'Cita Agendada' OR status_level_1 IS NULL)
+                LIMIT 5
+            """, (archivo_septiembre,))
+            ejemplos_manuales = cursor.fetchall()
+
+            resultado.update({
+                "total_registros": total,
+                "citas_agendadas": citas_agendadas,
+                "citas_manuales": citas_manuales,
+                "utiles_positivos_calculado": utiles_positivos,
+                "dashboard_simulacion": dashboard_data,
+                "estadisticas_campo_cita": cita_stats,
+                "ejemplos_citas_manuales": ejemplos_manuales
+            })
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
