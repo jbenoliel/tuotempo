@@ -391,7 +391,6 @@ def reservar():
     # Verificar caché de reservas recientes (últimos 2 minutos)
     if cache_file.exists():
         try:
-            import json
             with open(cache_file, 'r') as f:
                 cached_data = json.load(f)
 
@@ -507,9 +506,9 @@ def reservar():
 
                 # Obtener slots para esa fecha
                 tuotempo_instance = Tuotempo(
-                    api_key=os.getenv('TUOTEMPO_API_KEY'),
-                    secret_key=os.getenv('TUOTEMPO_SECRET_KEY'),
-                    instance_id=os.getenv('TUOTEMPO_INSTANCE_ID')
+                    os.getenv('TUOTEMPO_API_KEY'),
+                    os.getenv('TUOTEMPO_SECRET_KEY'),
+                    os.getenv('TUOTEMPO_INSTANCE_ID')
                 )
 
                 # Formato de fecha esperado por get_available_slots
