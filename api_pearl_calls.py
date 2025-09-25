@@ -1656,11 +1656,11 @@ def select_leads_by_status():
         
         # Construir query para actualizar
         where_conditions = [f"TRIM({status_field}) = %s"]
-        params = [status_value]
-        
+        where_params = [status_value]
+
         # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
-        
+
         # CRÍTICO: Excluir leads con cita programada - NO deben seleccionarse para llamadas
         where_conditions.append("(status_level_2 IS NULL OR TRIM(status_level_2) != 'Cita programada')")
 
@@ -1670,16 +1670,16 @@ def select_leads_by_status():
             archivo_conditions = []
             for archivo in archivo_origen:
                 archivo_conditions.append("TRIM(origen_archivo) LIKE %s")
-                params.append(f"%{archivo}%")
+                where_params.append(f"%{archivo}%")
 
             where_conditions.append(f"({' OR '.join(archivo_conditions)})")
 
             # DEBUG: Log del filtro de archivo construido
             logger.info(f"[DEBUG] Filtro archivo construido: {' OR '.join(archivo_conditions)}")
             logger.info(f"[DEBUG] Parámetros archivo añadidos: {[f'%{archivo}%' for archivo in archivo_origen]}")
-        
+
         where_clause = ' AND '.join(where_conditions)
-        
+
         # Actualizar leads que coincidan
         update_query = f"""
             UPDATE leads
@@ -1689,8 +1689,10 @@ def select_leads_by_status():
         """
 
         # DEBUG: Log de consulta SQL y parámetros
-        final_params = [1 if selected else 0] + params
-        logger.info(f"[DEBUG] Query SQL: {update_query}")
+        final_params = [1 if selected else 0] + where_params
+        logger.info(f"[DEBUG] Query SQL completa: {update_query}")
+        logger.info(f"[DEBUG] Where clause: {where_clause}")
+        logger.info(f"[DEBUG] Parámetros WHERE: {where_params}")
         logger.info(f"[DEBUG] Parámetros finales: {final_params}")
 
         try:
