@@ -362,6 +362,13 @@ def reservar():
     user_info = data.get('user_info', {})
     availability = data.get('availability', {})
 
+    # Normalizar teléfono INMEDIATAMENTE para usar en clave de idempotencia
+    phone_raw = user_info.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
+    if not phone_raw:
+        return jsonify({"error": "Falta el teléfono en user_info"}), 400
+
+    phone_cache = _norm_phone(phone_raw)
+
     # Crear clave única basada en teléfono + slot + fecha
     start_date = availability.get('start_date', '')
     start_time = availability.get('startTime', '')
@@ -404,15 +411,6 @@ def reservar():
             # Continuar con la reserva normal si hay error en caché
 
     env = data.get('env', 'PRO').upper()
-    user_info = data.get('user_info')
-    availability = data.get('availability')
-    phone_raw = user_info.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
-
-    if not all([user_info, availability, phone_raw]):
-        return jsonify({"error": "Faltan campos clave: user_info, availability o phone"}), 400
-
-    # Normalizar teléfono INMEDIATAMENTE usando la función estándar
-    phone_cache = _norm_phone(phone_raw)
 
     # Valores predeterminados si las variables de entorno no están disponibles
     api_key = os.getenv(f'TUOTEMPO_API_KEY_{env}')
