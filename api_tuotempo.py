@@ -259,6 +259,99 @@ def get_tuotempo_logs():
             'error': str(e)
         }), 500
 
+@tuotempo_api.route('/api/debug/cache', methods=['GET'])
+def debug_cache():
+    """Endpoint para diagnosticar problemas con el caché de slots."""
+    try:
+        phone = request.args.get('phone', '+34629203315')
+
+        # Normalizar teléfono usando la función estándar
+        phone_cache = _norm_phone(phone)
+
+        result = {
+            "phone_original": phone,
+            "phone_normalized": phone_cache,
+            "cache_info": {}
+        }
+
+        # Verificar archivo de caché
+        cache_path = Path("/tmp/cached_slots") / f"slots_{phone_cache}.json"
+        result["cache_file_path"] = str(cache_path)
+        result["cache_file_exists"] = cache_path.exists()
+
+        if cache_path.exists():
+            try:
+                with cache_path.open('r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+
+                # Estadísticas del archivo de caché
+                if 'availabilities' in cached_data:
+                    availabilities = cached_data['availabilities']
+                    result["cache_info"] = {
+                        "total_slots": len(availabilities),
+                        "file_size_bytes": cache_path.stat().st_size,
+                        "last_modified": datetime.fromtimestamp(cache_path.stat().st_mtime).isoformat()
+                    }
+
+                    # Mostrar algunos slots de ejemplo
+                    sample_slots = []
+                    for slot in availabilities[:5]:  # Primeros 5 slots
+                        if isinstance(slot, dict):
+                            sample_slots.append({
+                                "start_date": slot.get('start_date'),
+                                "startTime": slot.get('startTime'),
+                                "endTime": slot.get('endTime'),
+                                "resourceid": slot.get('resourceid'),
+                                "activityid": slot.get('activityid'),
+                                "areaTitle": slot.get('areaTitle')
+                            })
+                    result["cache_info"]["sample_slots"] = sample_slots
+
+                    # Buscar el slot específico que está causando problema
+                    target_date = "10/10/2025"  # Fecha del problema
+                    target_time = "13:30"      # Hora del problema
+
+                    matching_slots = []
+                    for slot in availabilities:
+                        if isinstance(slot, dict):
+                            if (slot.get('start_date') == target_date and
+                                slot.get('startTime') == target_time):
+                                matching_slots.append({
+                                    "start_date": slot.get('start_date'),
+                                    "startTime": slot.get('startTime'),
+                                    "endTime": slot.get('endTime'),
+                                    "resourceid": slot.get('resourceid'),
+                                    "activityid": slot.get('activityid'),
+                                    "areaTitle": slot.get('areaTitle')
+                                })
+
+                    result["cache_info"]["target_slot_found"] = len(matching_slots) > 0
+                    result["cache_info"]["matching_slots"] = matching_slots
+
+                else:
+                    result["cache_info"]["error"] = "No 'availabilities' key in cache file"
+
+            except Exception as e:
+                result["cache_info"]["error"] = f"Error reading cache file: {str(e)}"
+        else:
+            result["cache_info"]["error"] = "Cache file does not exist"
+
+            # Listar archivos en el directorio de caché
+            cache_dir = Path("/tmp/cached_slots")
+            if cache_dir.exists():
+                cache_files = [f.name for f in cache_dir.iterdir() if f.is_file()]
+                result["available_cache_files"] = cache_files
+            else:
+                result["cache_directory_exists"] = False
+
+        return jsonify(result)
+
+    except Exception as e:
+        current_app.logger.error(f"Error en debug_cache: {e}")
+        return jsonify({
+            "error": f"Error debugging cache: {str(e)}"
+        }), 500
+
 @tuotempo_api.route('/api/reservar', methods=['POST'])
 def reservar():
     data = request.get_json(silent=True)
@@ -270,12 +363,11 @@ def reservar():
     availability = data.get('availability', {})
 
     # Crear clave única basada en teléfono + slot + fecha
-    phone = user_info.get('phone', '').replace(' ', '').replace('+', '')
     start_date = availability.get('start_date', '')
     start_time = availability.get('startTime', '')
     resource_id = availability.get('resourceid', '')
 
-    idempotency_key = f"{phone}_{start_date}_{start_time}_{resource_id}"
+    idempotency_key = f"{phone_cache}_{start_date}_{start_time}_{resource_id}"
     current_app.logger.info(f"Clave de idempotencia generada: {idempotency_key}")
 
     # Verificar si ya existe una reserva reciente para esta combinación
@@ -314,10 +406,13 @@ def reservar():
     env = data.get('env', 'PRO').upper()
     user_info = data.get('user_info')
     availability = data.get('availability')
-    phone_cache = user_info.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
+    phone_raw = user_info.get('phone') or (user_info.get('phone') if isinstance(user_info, dict) else None)
 
-    if not all([user_info, availability, phone_cache]):
+    if not all([user_info, availability, phone_raw]):
         return jsonify({"error": "Faltan campos clave: user_info, availability o phone"}), 400
+
+    # Normalizar teléfono INMEDIATAMENTE usando la función estándar
+    phone_cache = _norm_phone(phone_raw)
 
     # Valores predeterminados si las variables de entorno no están disponibles
     api_key = os.getenv(f'TUOTEMPO_API_KEY_{env}')
@@ -355,7 +450,8 @@ def reservar():
 
     critical_keys = {'endTime', 'resourceid', 'activityid'}
     if critical_keys - availability.keys():
-        cache_path = SLOTS_CACHE_DIR / f"slots_{_norm_phone(phone_cache)}.json"
+        # El teléfono ya está normalizado arriba
+        cache_path = SLOTS_CACHE_DIR / f"slots_{phone_cache}.json"
         if cache_path.exists():
             current_app.logger.info(f"Fichero de caché encontrado en: {cache_path}")
             try:
@@ -375,7 +471,8 @@ def reservar():
                     request_time_norm = _normalize_time_str(availability.get('startTime'))
 
                     # Log detallado para depurar la comparación
-                    current_app.logger.info(f"[CACHE_DEBUG] Comparing cache slot: [date: {s.get('start_date')}, time: {cached_time_norm}] with request: [date: {availability.get('start_date')}, time: {request_time_norm}]")
+                    current_app.logger.info(f"[CACHE_DEBUG] Comparing cache slot: [date: {s.get('start_date')} -> {cached_date}, time: {cached_time_norm}] with request: [date: {availability.get('start_date')} -> {request_date}, time: {request_time_norm}]")
+                    current_app.logger.info(f"[CACHE_DEBUG] Date match: {cached_date == request_date}, Time match: {cached_time_norm == request_time_norm}")
 
                     if cached_date and request_date and cached_date == request_date and cached_time_norm and cached_time_norm == request_time_norm:
                         # Trazas adicionales para verificar IDs
@@ -397,7 +494,63 @@ def reservar():
 
     missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
     if missing_fields:
-        return jsonify({"error": f"Faltan campos críticos para la reserva: {missing_fields}. No se pudieron completar desde la caché."}), 400
+        # Si falta resourceid, intentar obtener slots frescos
+        if 'resourceid' in missing_fields:
+            current_app.logger.warning(f"Falta resourceid, intentando obtener slots para completar datos...")
+
+            # Buscar slots disponibles para esa fecha/hora
+            try:
+                # Usar teléfono ya normalizado
+                phone_for_slots = phone_cache
+
+                # Obtener slots para esa fecha
+                from tuotempo import Tuotempo
+                tuotempo_instance = Tuotempo(
+                    api_key=os.getenv('TUOTEMPO_API_KEY'),
+                    secret_key=os.getenv('TUOTEMPO_SECRET_KEY'),
+                    instance_id=os.getenv('TUOTEMPO_INSTANCE_ID')
+                )
+
+                # Formato de fecha esperado por get_available_slots
+                date_parts = availability.get('start_date', '').split('-')
+                if len(date_parts) == 3:
+                    formatted_date = f"{date_parts[2]}-{date_parts[1]}-{date_parts[0]}"  # DD-MM-YYYY
+                else:
+                    formatted_date = availability.get('start_date', '')
+
+                current_app.logger.info(f"Buscando slots para fecha: {formatted_date}")
+                slots_response = tuotempo_instance.get_available_slots(
+                    locations_lid=["44kowswy"], # ID por defecto, ajustar según necesidad
+                    start_date=formatted_date,
+                    days=1
+                )
+
+                if slots_response and 'availabilities' in slots_response:
+                    slots_list = slots_response['availabilities']
+                    request_time_norm = _normalize_time_str(availability.get('startTime'))
+
+                    # Buscar el slot exacto
+                    for slot in slots_list:
+                        slot_time_norm = _normalize_time_str(slot.get('startTime'))
+                        if slot_time_norm == request_time_norm:
+                            current_app.logger.info(f"Slot encontrado en tiempo real: {slot.get('resourceid')}")
+                            availability.update(slot)
+                            missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
+                            break
+
+                    if missing_fields:
+                        current_app.logger.warning(f"No se encontró slot exacto para {availability.get('startTime')} en los {len(slots_list)} slots disponibles")
+
+            except Exception as e:
+                current_app.logger.error(f"Error al obtener slots en tiempo real: {e}")
+
+        # Verificar nuevamente si aún faltan campos después del intento de completar
+        missing_fields = [k for k in critical_keys if k not in availability or not availability[k]]
+        if missing_fields:
+            return jsonify({
+                "error": f"Faltan campos críticos para la reserva: {missing_fields}. No se pudieron completar desde la caché ni en tiempo real.",
+                "suggestion": "Por favor, obtén primero los slots disponibles usando /api/slots y luego usa los datos completos para la reserva."
+            }), 400
 
     # Buscar fecha de nacimiento en BD si no viene en el request
     birthday = user_info.get('birthday')
