@@ -130,11 +130,31 @@ class Tuotempo:
             if confirm_response.get("result") == "OK":
                 return confirm_response
             else:
-                return {
-                    "result": "ERROR",
-                    "msg": "No se pudo confirmar la cita",
-                    "details": confirm_response
-                }
+                # Manejo específico de errores de conflicto de reservas
+                exception = confirm_response.get("exception")
+                if exception in ["MEMBER_RESERVATION_CONFLICT_ERROR", "PROVIDER_RESERVATION_CONFLICT_ERROR"]:
+                    return {
+                        "result": "SLOT_CONFLICT",
+                        "msg": "El slot solicitado ya no está disponible",
+                        "details": confirm_response,
+                        "recommended_action": "Por favor, selecciona otro horario disponible",
+                        "error_type": "SLOT_CONFLICT"
+                    }
+                elif exception == "TUOTEMPO_MAX_RES_BOOKED_ONLINE":
+                    return {
+                        "result": "MAX_RESERVATIONS",
+                        "msg": "Se ha alcanzado el máximo de reservas online",
+                        "details": confirm_response,
+                        "recommended_action": "Contacta con el centro para reservar por teléfono",
+                        "error_type": "MAX_RESERVATIONS"
+                    }
+                else:
+                    return {
+                        "result": "ERROR",
+                        "msg": "No se pudo confirmar la cita",
+                        "details": confirm_response,
+                        "error_type": "UNKNOWN"
+                    }
         except Exception as e:
             logging.exception("Error en create_reservation")
             return {

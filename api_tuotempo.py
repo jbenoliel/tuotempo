@@ -265,6 +265,52 @@ def reservar():
     if not isinstance(data, dict):
         return jsonify({"error": "Invalid JSON"}), 400
 
+    # Generar clave de idempotencia para evitar reservas duplicadas
+    user_info = data.get('user_info', {})
+    availability = data.get('availability', {})
+
+    # Crear clave única basada en teléfono + slot + fecha
+    phone = user_info.get('phone', '').replace(' ', '').replace('+', '')
+    start_date = availability.get('start_date', '')
+    start_time = availability.get('startTime', '')
+    resource_id = availability.get('resourceid', '')
+
+    idempotency_key = f"{phone}_{start_date}_{start_time}_{resource_id}"
+    current_app.logger.info(f"Clave de idempotencia generada: {idempotency_key}")
+
+    # Verificar si ya existe una reserva reciente para esta combinación
+    # (implementación simplificada - en producción usar Redis o BD)
+    import hashlib
+    import time
+    cache_key = hashlib.md5(idempotency_key.encode()).hexdigest()
+    cache_file = Path(f"/tmp/reservation_cache_{cache_key}.json")
+
+    # Verificar caché de reservas recientes (últimos 2 minutos)
+    if cache_file.exists():
+        try:
+            import json
+            with open(cache_file, 'r') as f:
+                cached_data = json.load(f)
+
+            cache_time = cached_data.get('timestamp', 0)
+            if time.time() - cache_time < 120:  # 2 minutos
+                cached_result = cached_data.get('result')
+                current_app.logger.info(f"Reserva duplicada detectada - devolviendo resultado cacheado: {cached_result.get('result')}")
+
+                # Si la reserva anterior fue exitosa, devolver el mismo resultado
+                if cached_result.get('result') == 'OK':
+                    return jsonify(cached_result), 200
+                elif cached_result.get('result') == 'SLOT_CONFLICT':
+                    return jsonify({
+                        "error": cached_result.get('msg', 'Slot no disponible'),
+                        "error_type": "SLOT_CONFLICT",
+                        "recommended_action": cached_result.get('recommended_action'),
+                        "details": cached_result.get('details', {})
+                    }), 409
+        except Exception as e:
+            current_app.logger.warning(f"Error leyendo caché de idempotencia: {e}")
+            # Continuar con la reserva normal si hay error en caché
+
     env = data.get('env', 'PRO').upper()
     user_info = data.get('user_info')
     availability = data.get('availability')
@@ -389,11 +435,47 @@ def reservar():
 
         current_app.logger.info(f"[TUOTEMPO_TRACE] Raw response from create_reservation: {json.dumps(res)}")
 
+        # Guardar resultado en caché para idempotencia
+        try:
+            import time
+            cache_data = {
+                'timestamp': time.time(),
+                'idempotency_key': idempotency_key,
+                'result': res
+            }
+            with open(cache_file, 'w') as f:
+                json.dump(cache_data, f)
+            current_app.logger.info(f"Resultado guardado en caché para clave: {idempotency_key}")
+        except Exception as e:
+            current_app.logger.warning(f"Error guardando caché de idempotencia: {e}")
+
         if res.get('result') == 'OK':
             return jsonify(res), 200
+        elif res.get('result') == 'SLOT_CONFLICT':
+            # Error de conflicto de slot - devolver 409 Conflict en lugar de 502
+            current_app.logger.warning(f"Conflicto de slot en reserva: {res.get('msg')}")
+            return jsonify({
+                "error": res.get('msg', 'Slot no disponible'),
+                "error_type": "SLOT_CONFLICT",
+                "recommended_action": res.get('recommended_action'),
+                "details": res.get('details', {})
+            }), 409
+        elif res.get('result') == 'MAX_RESERVATIONS':
+            # Error de máximo de reservas - devolver 429 Too Many Requests
+            current_app.logger.warning(f"Máximo de reservas alcanzado: {res.get('msg')}")
+            return jsonify({
+                "error": res.get('msg', 'Máximo de reservas alcanzado'),
+                "error_type": "MAX_RESERVATIONS",
+                "recommended_action": res.get('recommended_action'),
+                "details": res.get('details', {})
+            }), 429
         else:
             current_app.logger.error(f"Fallo en la reserva de Tuotempo: {res}")
-            return jsonify({"error": "No se pudo confirmar la cita", "details": res}), 502
+            return jsonify({
+                "error": "No se pudo confirmar la cita",
+                "error_type": res.get('error_type', 'UNKNOWN'),
+                "details": res
+            }), 502
     except Exception as e:
         current_app.logger.exception("Excepción al llamar a Tuotempo para crear la reserva")
         return jsonify({"error": "Ocurrió un error interno en el servidor"}), 500

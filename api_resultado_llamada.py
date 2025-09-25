@@ -812,6 +812,127 @@ def obtener_resultados():
             conn.close()
 
 
+@resultado_api.route('/api/verificar_telefono', methods=['GET'])
+def verificar_telefono():
+    """
+    Verifica si un teléfono existe en la base de datos.
+    Útil para debuggear problemas de búsqueda.
+
+    Query params:
+        telefono: Número de teléfono a buscar (ej: +34629203315)
+    """
+    telefono_raw = request.args.get('telefono')
+    if not telefono_raw:
+        return jsonify({
+            "success": False,
+            "error": "Se requiere el parámetro 'telefono'"
+        }), 400
+
+    # Normalizar teléfono igual que actualizar_resultado
+    import re
+    telefono_raw = str(telefono_raw)
+    telefono_digits = re.sub(r'\D', '', telefono_raw)
+    if len(telefono_digits) > 9:
+        telefono_digits = telefono_digits[-9:]
+    telefono = telefono_digits
+
+    logger.info(f"Verificando teléfono: {telefono_raw} -> {telefono}")
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({
+            "success": False,
+            "error": "Error de conexión a la base de datos"
+        }), 500
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        results = {
+            "telefono_original": telefono_raw,
+            "telefono_normalizado": telefono,
+            "busquedas": {}
+        }
+
+        # Búsqueda 1: Exacta por telefono
+        cursor.execute("SELECT id, nombre, apellidos, telefono, telefono2, status_level_1, status_level_2 FROM leads WHERE telefono = %s LIMIT 5", (telefono,))
+        exact_results = cursor.fetchall()
+        results["busquedas"]["exacta_telefono"] = {
+            "encontrados": len(exact_results),
+            "leads": exact_results
+        }
+
+        # Búsqueda 2: Exacta por telefono2
+        cursor.execute("SELECT id, nombre, apellidos, telefono, telefono2, status_level_1, status_level_2 FROM leads WHERE telefono2 = %s LIMIT 5", (telefono,))
+        exact_results2 = cursor.fetchall()
+        results["busquedas"]["exacta_telefono2"] = {
+            "encontrados": len(exact_results2),
+            "leads": exact_results2
+        }
+
+        # Búsqueda 3: Con REGEXP (como usa actualizar_resultado)
+        cursor.execute("SELECT id, nombre, apellidos, telefono, telefono2, status_level_1, status_level_2 FROM leads WHERE REGEXP_REPLACE(telefono, '[^0-9]', '') = %s LIMIT 5", (telefono,))
+        regexp_results = cursor.fetchall()
+        results["busquedas"]["regexp_telefono"] = {
+            "encontrados": len(regexp_results),
+            "leads": regexp_results
+        }
+
+        # Búsqueda 4: Con REGEXP en telefono2
+        cursor.execute("SELECT id, nombre, apellidos, telefono, telefono2, status_level_1, status_level_2 FROM leads WHERE REGEXP_REPLACE(telefono2, '[^0-9]', '') = %s LIMIT 5", (telefono,))
+        regexp_results2 = cursor.fetchall()
+        results["busquedas"]["regexp_telefono2"] = {
+            "encontrados": len(regexp_results2),
+            "leads": regexp_results2
+        }
+
+        # Búsqueda 5: Parcial (contiene)
+        cursor.execute("SELECT id, nombre, apellidos, telefono, telefono2, status_level_1, status_level_2 FROM leads WHERE telefono LIKE %s OR telefono2 LIKE %s LIMIT 10",
+                      (f'%{telefono}%', f'%{telefono}%'))
+        partial_results = cursor.fetchall()
+        results["busquedas"]["parcial"] = {
+            "encontrados": len(partial_results),
+            "leads": partial_results
+        }
+
+        # Estadísticas generales
+        cursor.execute("SELECT COUNT(*) as total FROM leads")
+        total_leads = cursor.fetchone()['total']
+
+        cursor.execute("SELECT COUNT(*) as total FROM leads WHERE telefono IS NOT NULL AND telefono != ''")
+        leads_con_telefono = cursor.fetchone()['total']
+
+        results["estadisticas"] = {
+            "total_leads": total_leads,
+            "leads_con_telefono": leads_con_telefono
+        }
+
+        # Determinar si se encontró con la estrategia de actualizar_resultado
+        lead_encontrado = len(regexp_results) > 0
+        results["encontrado_por_api"] = lead_encontrado
+
+        if lead_encontrado:
+            results["mensaje"] = f"✅ Lead encontrado - la API debería funcionar"
+            results["lead_principal"] = regexp_results[0]
+        else:
+            results["mensaje"] = f"❌ Lead NO encontrado - este es el problema del 404 interno"
+
+        return jsonify({
+            "success": True,
+            **results
+        })
+
+    except mysql.connector.Error as err:
+        logger.error(f"Error verificando teléfono {telefono}: {err}")
+        return jsonify({
+            "success": False,
+            "error": f"Error de base de datos: {str(err)}"
+        }), 500
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 @resultado_api.route('/api/marcar_reserva_automatica', methods=['POST'])
 def marcar_reserva_automatica():
     """
