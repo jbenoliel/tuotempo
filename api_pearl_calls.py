@@ -1693,8 +1693,15 @@ def select_leads_by_status():
         logger.info(f"[DEBUG] Query SQL: {update_query}")
         logger.info(f"[DEBUG] Parámetros finales: {final_params}")
 
-        cursor.execute(update_query, final_params)
-        affected_count = cursor.rowcount
+        try:
+            cursor.execute(update_query, final_params)
+            affected_count = cursor.rowcount
+            logger.info(f"[DEBUG] Consulta ejecutada exitosamente, filas afectadas: {affected_count}")
+        except Exception as sql_error:
+            logger.error(f"[ERROR] Error ejecutando consulta SQL: {sql_error}")
+            logger.error(f"[ERROR] Query: {update_query}")
+            logger.error(f"[ERROR] Parámetros: {final_params}")
+            raise
         
         conn.commit()
         
