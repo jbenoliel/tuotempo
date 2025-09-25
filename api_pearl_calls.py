@@ -1576,8 +1576,13 @@ def count_leads_by_status():
         # CRÍTICO: Solo leads OPEN - NO contar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
 
-        # TEMPORAL: Incluir leads con estado 'selected' que deberían ser 'no_selected'
-        where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
+        # ESPECIAL: Para "Volver a llamar", incluir TODOS los call_status
+        if status_value == 'Volver a llamar':
+            # No filtrar por call_status - contar todos los estados
+            pass  # No añadir filtro de call_status
+        else:
+            # Para otros estados, solo contar leads no procesados
+            where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
         # Si es "Volver a llamar", contar todas independientemente del status_level_2
@@ -1666,9 +1671,15 @@ def select_leads_by_status():
         # CRÍTICO: Solo leads OPEN - NO seleccionar leads cerrados
         where_conditions.append("(lead_status IS NULL OR TRIM(lead_status) = 'open')")
 
-        # TEMPORAL: Incluir leads con estado 'selected' que deberían ser 'no_selected'
-        where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
-        logger.info(f"[DEBUG] TEMPORAL: Incluyendo leads con call_status 'selected' en selección")
+        # ESPECIAL: Para "Volver a llamar", incluir TODOS los call_status
+        # porque necesitamos resetear leads que ya fueron procesados
+        if status_value == 'Volver a llamar':
+            # No filtrar por call_status - incluir todos los estados
+            logger.info(f"[DEBUG] ESPECIAL: Para 'Volver a llamar', incluyendo TODOS los call_status")
+        else:
+            # Para otros estados, solo incluir leads no procesados
+            where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
+            logger.info(f"[DEBUG] Para '{status_value}', solo call_status no procesados")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
         # Si es "Volver a llamar", permitir todas las selecciones independientemente del status_level_2
@@ -1693,10 +1704,28 @@ def select_leads_by_status():
 
         where_clause = ' AND '.join(where_conditions)
 
-        # Actualizar leads que coincidan
+        # ESPECIAL: Para "Volver a llamar", resetear estados de llamada primero
+        if status_value == 'Volver a llamar':
+            logger.info(f"[DEBUG] ESPECIAL: Reseteando estados de llamada para 'Volver a llamar'")
+
+            # Resetear call_status a 'no_selected' para todos los leads que coinciden
+            reset_query = f"""
+                UPDATE leads
+                SET call_status = 'no_selected',
+                    call_error_message = NULL,
+                    updated_at = NOW()
+                WHERE {where_clause}
+            """
+
+            cursor.execute(reset_query, where_params)
+            reset_count = cursor.rowcount
+            logger.info(f"[DEBUG] Estados de llamada reseteados: {reset_count} leads")
+
+        # Actualizar leads que coincidan para selección
         update_query = f"""
             UPDATE leads
             SET selected_for_calling = %s,
+                call_status = 'no_selected',
                 updated_at = NOW()
             WHERE {where_clause}
         """
