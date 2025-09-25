@@ -1636,7 +1636,14 @@ def select_leads_by_status():
         status_value = data.get('status_value', '')
         archivo_origen = data.get('archivo_origen', [])
         selected = data.get('selected', True)
-        
+
+        # DEBUG: Log de parámetros recibidos
+        logger.info(f"[DEBUG] select_leads_by_status - Parámetros recibidos:")
+        logger.info(f"[DEBUG]   status_field: {status_field}")
+        logger.info(f"[DEBUG]   status_value: {status_value}")
+        logger.info(f"[DEBUG]   archivo_origen: {archivo_origen}")
+        logger.info(f"[DEBUG]   selected: {selected}")
+
         if not status_value:
             return jsonify({'error': 'status_value es requerido'}), 400
         
@@ -1663,13 +1670,18 @@ def select_leads_by_status():
         
         # Actualizar leads que coincidan
         update_query = f"""
-            UPDATE leads 
-            SET selected_for_calling = %s, 
+            UPDATE leads
+            SET selected_for_calling = %s,
                 updated_at = NOW()
             WHERE {where_clause}
         """
-        
-        cursor.execute(update_query, [1 if selected else 0] + params)
+
+        # DEBUG: Log de consulta SQL y parámetros
+        final_params = [1 if selected else 0] + params
+        logger.info(f"[DEBUG] Query SQL: {update_query}")
+        logger.info(f"[DEBUG] Parámetros finales: {final_params}")
+
+        cursor.execute(update_query, final_params)
         affected_count = cursor.rowcount
         
         conn.commit()

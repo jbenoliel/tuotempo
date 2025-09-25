@@ -1239,15 +1239,19 @@ class CallsManager {
 
     async selectByStatus(statusField, statusValue) {
         console.log(`🎯 Seleccionando leads por ${statusField} = "${statusValue}"`);
-        
+        console.log(`🔍 DEBUG: archivoOrigen actual:`, this.state.filters.archivoOrigen);
+
         // Construir filtros incluyendo archivos de origen seleccionados
         const filters = {
             [statusField]: statusValue
         };
-        
+
         // Aplicar filtros de archivo origen si están seleccionados
         if (this.state.filters.archivoOrigen && this.state.filters.archivoOrigen.length > 0) {
             filters.archivo_origen = this.state.filters.archivoOrigen;
+            console.log(`📁 DEBUG: Aplicando filtro de archivo:`, filters.archivo_origen);
+        } else {
+            console.log(`📁 DEBUG: No hay filtro de archivo activo`);
         }
         
         try {
