@@ -400,13 +400,32 @@ def actualizar_resultado():
                 dia, mes, anio = fecha_str.split('/')
                 fecha_formateada = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
             else:
-                # Asumir que ya viene en formato YYYY-MM-DD
-                fecha_formateada = fecha_str
+                # Asumir que ya viene en formato YYYY-MM-DD, pero extraer solo la fecha
+                # En caso de que venga con hora: "2025-10-14 09:50-10:10" -> "2025-10-14"
+                fecha_formateada = fecha_str.split(' ')[0]
             
             # Guardar la fecha en la columna 'cita'
             update_fields['cita'] = fecha_formateada
 
-            # Si también viene la hora de la cita, la guardamos en 'hora_cita'
+            # Extraer hora si viene en nuevaCita como "2025-10-14 09:50-10:10"
+            if ' ' in fecha_str and not data.get('horaCita'):
+                try:
+                    # Extraer la parte de hora: "09:50-10:10" -> "09:50"
+                    hora_parte = fecha_str.split(' ')[1]
+                    if '-' in hora_parte:
+                        hora_inicio = hora_parte.split('-')[0]  # "09:50"
+                    else:
+                        hora_inicio = hora_parte  # "09:50"
+
+                    # Asegurar formato HH:MM:SS
+                    if len(hora_inicio.split(':')) == 2:
+                        hora_inicio += ':00'
+                    update_fields['hora_cita'] = hora_inicio
+                    logger.info(f"Hora extraída de nuevaCita: {hora_inicio}")
+                except Exception as e:
+                    logger.warning(f"No se pudo extraer hora de nuevaCita: {e}")
+
+            # Si también viene la hora de la cita por separado, la guardamos en 'hora_cita'
             if data.get('horaCita'):
                 hora_str = data.get('horaCita')
                 # Asegurar formato HH:MM:SS
