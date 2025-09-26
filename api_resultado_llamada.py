@@ -333,6 +333,18 @@ def actualizar_resultado():
             logger.warning(f"Error procesando preferenciaFecha '{preferencia_fecha}': {e}")
 
     # -------------------------------------------------------------
+    # 3.1.1. Lógica para cambiar status a "Cita Manual" cuando se dan preferencias
+    # -------------------------------------------------------------
+    # Si se han proporcionado preferencias (horario o fecha), cambiar status a "Cita Manual"
+    if preferencia_mt or preferencia_fecha:
+        # Sobrescribir el status solo si se dieron preferencias de cita
+        update_fields['status_level_1'] = 'Cita Manual'
+        # Mantener el status_level_2 existente o poner un valor por defecto
+        if not status_level_2:
+            update_fields['status_level_2'] = 'con preferencias'
+        logger.info(f"Status cambiado a 'Cita Manual' porque se proporcionaron preferencias")
+
+    # -------------------------------------------------------------
     # 3.2. Manejo de parámetros de reservas automáticas
     # -------------------------------------------------------------
     # Procesar parámetros de reserva automática si están presentes
