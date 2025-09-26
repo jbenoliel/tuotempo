@@ -34,9 +34,8 @@ def create_simple_leads_endpoint():
             
             # Formatear respuesta
             for lead in leads:
-                # Asegurar que los campos críticos tengan valores
-                if lead['call_status'] is None:
-                    lead['call_status'] = 'no_selected'
+                # call_status puede ser NULL (sin llamadas previas)
+                # NULL es un valor válido, no necesita conversión
                 if lead['selected_for_calling'] is None:
                     lead['selected_for_calling'] = False
                 if lead['call_priority'] is None:

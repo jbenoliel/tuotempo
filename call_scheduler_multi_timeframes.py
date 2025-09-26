@@ -321,7 +321,7 @@ class CallSchedulerMultiTimeframes:
                     UPDATE leads SET
                         call_attempts_count = %s,
                         last_call_attempt = NOW(),
-                        call_status = 'selected',
+                        call_status = 'calling',
                         updated_at = NOW()
                     WHERE id = %s
                 """, (attempts, lead_id))

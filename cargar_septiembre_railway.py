@@ -101,7 +101,7 @@ def procesar_datos(df):
     df_procesado['origen_archivo'] = NOMBRE_ARCHIVO
     df_procesado['match_source'] = 'Excel_Import'
     df_procesado['match_confidence'] = 100
-    df_procesado['call_status'] = 'no_selected'
+    df_procesado['call_status'] = None
     df_procesado['call_priority'] = 3
     df_procesado['selected_for_calling'] = False
     df_procesado['call_attempts_count'] = 0

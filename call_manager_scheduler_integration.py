@@ -414,7 +414,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
                     # Errores genéricos también se cierran (podrían ser números incorrectos)
                     logger.info(f"Error genérico para lead {lead_id}. Cerrando como teléfono erróneo.")
                     try:
-                        close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
+                        close_lead_immediately(lead_id, 'error', 'Teléfono erróneo')
                     except Exception as e:
                         logger.error(f"Error closing lead {lead_id}: {e}")
                     
@@ -422,7 +422,7 @@ def enhanced_process_call_result(lead_id: int, call_result: Dict, pearl_response
                     # Cualquier otro outcome no reconocido - cerrar por seguridad
                     logger.warning(f"Outcome no reconocido '{outcome}' para lead {lead_id}. Cerrando.")
                     try:
-                        close_lead_immediately(lead_id, 'invalid_phone', 'Teléfono erróneo')
+                        close_lead_immediately(lead_id, 'error', 'Teléfono erróneo')
                     except Exception as e:
                         logger.error(f"Error closing lead {lead_id}: {e}")
             
@@ -466,8 +466,10 @@ def map_status_to_db_enum(status: str) -> str:
         'timeout': 'no_answer',
         'rejected': 'error',
         'calling': 'calling',
-        'selected': 'selected',
-        'in_progress': 'calling'
+        'selected': 'no_selected',  # Mapear selected a no_selected
+        'in_progress': 'calling',
+        'invalid_phone': 'error',  # CLAVE: este era el problema original
+        'hang_up': 'error'
     }
     
     return status_mapping.get(status_lower, 'error')
@@ -924,14 +926,14 @@ def close_lead_immediately(lead_id: int, outcome: str, closure_reason: str):
         with conn.cursor() as cursor:
             # Cerrar el lead
             cursor.execute("""
-                UPDATE leads 
+                UPDATE leads
                 SET lead_status = 'closed',
                     closure_reason = %s,
-                    call_status = %s,
+                    call_status = 'error',
                     updated_at = NOW(),
                     selected_for_calling = FALSE
                 WHERE id = %s
-            """, (closure_reason, str(outcome)[:50], lead_id))
+            """, (closure_reason, lead_id))
             
             # Cancelar cualquier llamada programada pendiente
             cursor.execute("""

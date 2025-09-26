@@ -596,7 +596,7 @@ def reset_leads_status():
         
         # Construir query de actualización
         update_fields = [
-            "call_status = 'no_selected'",
+            "call_status = NULL",
             "call_error_message = NULL",
             "last_call_attempt = NULL",
             "updated_at = CURRENT_TIMESTAMP"
@@ -953,10 +953,10 @@ def _mark_leads_for_calling(lead_ids: List[int], selected: bool, priority: int =
             update_fields.append("call_priority = %s")
             params.append(priority)
         
-        # Si se está seleccionando, resetear estado de error pero mantener no_selected
+        # Si se está seleccionando, resetear estado de error sin estado inicial
         if selected:
             update_fields.extend([
-                "call_status = 'no_selected'",  # Listo para llamar, no "selected"
+                "call_status = NULL",  # Sin estado de llamada inicial
                 "call_error_message = NULL"
             ])
         
@@ -1014,9 +1014,9 @@ def cleanup_selected_leads():
         
         # Limpiar todos los leads marcados
         cursor.execute("""
-            UPDATE leads 
+            UPDATE leads
             SET selected_for_calling = 0,
-                call_status = 'no_selected'
+                call_status = NULL
             WHERE selected_for_calling = 1
         """)
         
@@ -1584,7 +1584,7 @@ def count_leads_by_status():
             pass  # No añadir filtro de call_status
         else:
             # Para otros estados, solo contar leads no procesados
-            where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
+            where_conditions.append("call_status IS NULL")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
         # Si es "Volver a llamar", contar todas independientemente del status_level_2
@@ -1685,7 +1685,7 @@ def select_leads_by_status():
             logger.info(f"[DEBUG] ESPECIAL: Para 'Volver a llamar', incluyendo TODOS los call_status")
         else:
             # Para otros estados, solo incluir leads no procesados
-            where_conditions.append("(call_status = 'no_selected' OR call_status = 'selected')")
+            where_conditions.append("call_status IS NULL")
             logger.info(f"[DEBUG] Para '{status_value}', solo call_status no procesados")
 
         # CRÍTICO: Excluir leads con cita programada SOLO si no es "Volver a llamar"
@@ -1715,10 +1715,10 @@ def select_leads_by_status():
         if status_value == 'Volver a llamar':
             logger.info(f"[DEBUG] ESPECIAL: Reseteando estados de llamada para 'Volver a llamar'")
 
-            # Resetear call_status a 'no_selected' y REABRIR leads cerrados
+            # Resetear call_status a NULL y REABRIR leads cerrados
             reset_query = f"""
                 UPDATE leads
-                SET call_status = 'no_selected',
+                SET call_status = NULL,
                     call_error_message = NULL,
                     lead_status = 'open',
                     updated_at = NOW()
@@ -1733,7 +1733,7 @@ def select_leads_by_status():
         update_query = f"""
             UPDATE leads
             SET selected_for_calling = %s,
-                call_status = 'no_selected',
+                call_status = NULL,
                 updated_at = NOW()
             WHERE {where_clause}
         """
@@ -1957,7 +1957,7 @@ def deselect_all_leads():
 def fix_selected_status():
     """
     ENDPOINT TEMPORAL: Corregir estados 'selected' incorrectos.
-    Convertir todos los call_status = 'selected' a 'no_selected'
+    Convertir todos los call_status = 'selected' a NULL
     """
     try:
         conn = get_connection()
@@ -1974,10 +1974,10 @@ def fix_selected_status():
                 'fixed_count': 0
             })
 
-        # Corregir estados 'selected' a 'no_selected'
+        # Corregir estados 'selected' a NULL
         cursor.execute("""
             UPDATE leads
-            SET call_status = 'no_selected',
+            SET call_status = NULL,
                 updated_at = NOW()
             WHERE call_status = 'selected'
         """)
@@ -1985,7 +1985,7 @@ def fix_selected_status():
         fixed_count = cursor.rowcount
         conn.commit()
 
-        logger.info(f"Corregidos {fixed_count} leads con estado 'selected' -> 'no_selected'")
+        logger.info(f"Corregidos {fixed_count} leads con estado 'selected' -> NULL")
 
         return jsonify({
             'success': True,
